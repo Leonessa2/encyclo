@@ -24,7 +24,7 @@ PHASE="${1:-}"
 : "${SITE:?SITE doit valoir vevewiki}"
 case "$PHASE" in
   avant) LISTE="moteur-neutre memoire liens entrepot donnees blog figures fiches lastmod langues schema gabarits css-mort imports-orphelins cascade-aplatie renommage" ;;
-  apres) LISTE="cles routes fuite phrases entete feuille titres opacite tiroir affichage analytics indexnow i18n sans-mesure" ;;
+  apres) LISTE="cles routes fuite phrases entete feuille titres opacite tiroir affichage analytics indexnow i18n sans-mesure envoi envoi-essai" ;;
   *) echo "Usage : $0 avant|apres"; exit 2 ;;
 esac
 echecs=()
@@ -32,6 +32,8 @@ for b in $LISTE; do
   case "$b" in
     css-mort|imports-orphelins|cascade-aplatie|sans-mesure|moteur-neutre) cmd=(node "moteur/bancs/$b.mjs") ;;
     liens|indexnow) cmd=(npm run --silent "test:$b") ;;
+    envoi) cmd=(node moteur/bancs/envoi.mjs) ;;
+    envoi-essai) cmd=(bash moteur/bancs/envoi-essai.sh) ;;
     *) cmd=(env WAREHOUSE_OFFLINE=1 npm run --silent "test:$b") ;;
   esac
   echo "::group::banc $b"

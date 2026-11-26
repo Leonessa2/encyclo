@@ -12,6 +12,12 @@
 #   moteur/donnees/telecharger.sh ; si le scrapeur ne publie plus, on garde la
 #   dernière bonne copie (cache GitHub) avec sa vraie date, sans échec ;
 # - bancs retenus pour le wiki (outils/bancs.sh), avant et après construction.
+# LOT 4 (26/11/2026) :
+# - règles de service (en-têtes, cache, 404/500) dans moteur/envoi/ ;
+#   _headers copié dans le site ; bancs `envoi` et `envoi-essai` (nginx réel) ;
+# - job « envoyer » (moteur/envoi/action.yml) : ÉTEINT tant que la variable du
+#   dépôt ENVOI_VPS ne vaut pas « oui » (Settings > Secrets and variables >
+#   Actions > Variables). Réglages attendus : voir moteur/envoi/LISEZMOI.md.
 
 name: Construire le wiki
 
@@ -33,9 +39,12 @@ on:
 permissions:
   contents: read
 
+# ⚠️ Pas d'annulation en cours de route (lot 4) : une exécution coupée pendant
+#    l'envoi au VPS finirait en « cancelled », un état qui ne prévient personne.
+#    La suivante attend la fin de celle-ci.
 concurrency:
   group: construire
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   construire:
@@ -87,6 +96,16 @@ jobs:
       - name: Marquer les textes traduisibles
         run: npm run marquer:i18n
 
+      - name: Préparer le service (règles pour les hébergeurs de fichiers)
+        run: cp moteur/envoi/_headers dist/_headers
+
+      - name: Installer nginx et rsync pour les bancs d'envoi
+        timeout-minutes: 5
+        run: |
+          command -v nginx >/dev/null && command -v rsync >/dev/null || {
+            sudo apt-get update -q && sudo apt-get install -y -q nginx rsync; }
+          nginx -v
+
       - name: Bancs sur le site construit
         run: outils/bancs.sh apres
 
@@ -106,3 +125,35 @@ jobs:
           name: site-construit
           path: dist/
           retention-days: 14
+
+  # ═══ ENVOI AU VPS — ÉTEINT tant que ENVOI_VPS ≠ « oui » (lot 4, 26/11/2026) ═══
+  # Envoie le site construit au VPS, bascule d'un coup, vérifie la page servie,
+  # revient en arrière sinon (moteur/envoi/action.yml). Ne touche pas au domaine
+  # du site : le domaine ne pointe vers ces fichiers que le jour de la bascule.
+  envoyer:
+    needs: construire
+    if: >-
+      vars.ENVOI_VPS == 'oui' && github.ref == 'refs/heads/main'
+      && !(github.event_name == 'workflow_dispatch' && inputs.simuler_panne)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reprendre le site construit
+        uses: actions/download-artifact@v4
+        with:
+          name: site-construit
+          path: dist
+
+      - name: Envoyer au VPS
+        uses: ./moteur/envoi
+        with:
+          site-construit: dist
+          hote: ${{ vars.VPS_HOTE }}
+          port: ${{ vars.VPS_PORT || '22' }}
+          utilisateur: ${{ vars.VPS_UTILISATEUR }}
+          empreinte: ${{ vars.VPS_EMPREINTE }}
+          dossier: ${{ vars.VPS_DOSSIER }}
+          adresse: ${{ vars.ADRESSE_VERIFICATION }}
+          cle: ${{ secrets.VPS_CLE_SSH }}

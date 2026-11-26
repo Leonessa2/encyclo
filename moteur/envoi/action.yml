@@ -1,0 +1,109 @@
+# Moteur commun — fichier : moteur/envoi/action.yml   (version 0.2.0)
+#
+# ENVOYER UN SITE CONSTRUIT AU VPS. Action appelée par le workflow de chaque
+# site, après sa construction, avec ses propres réglages (rien ici n'est propre
+# à un site). Ce qu'elle fait, dans l'ordre :
+#   1. vérifie que tous les réglages sont là (sinon : échec clair, rien envoyé) ;
+#   2. pose /version.txt (commit + heure) dans le site, pour la vérification ;
+#   3. envoie le site dans <dossier>/versions/<date>-<commit>/ (rsync par SSH ;
+#      les fichiers inchangés depuis la version en ligne ne sont pas recopiés) ;
+#   4. bascule le lien <dossier>/courant vers cette version, d'un seul coup
+#      (le serveur web sert toujours <dossier>/courant) ;
+#   5. vérifie la page réellement servie : /version.txt à l'adresse donnée doit
+#      porter ce commit. Sinon : remet le lien sur la version d'avant, et échoue ;
+#   6. garde les <garder> dernières versions, efface les plus anciennes.
+# Revenir en arrière à la main = remettre le lien `courant` sur une version
+# précédente de <dossier>/versions/.
+#
+# Commandes lancées sur le VPS par SSH (pour qui règle les droits du compte) :
+#   test, mkdir -p, readlink, ln -sfn, mv -Tf, ls, rm -rf (dans <dossier>/versions
+#   seulement), et rsync (côté serveur).
+
+name: Envoyer le site au VPS
+description: Envoie un site statique construit au VPS, bascule d'un coup, vérifie, garde les versions précédentes.
+
+inputs:
+  site-construit:
+    description: Dossier du site construit, sur la machine de GitHub
+    default: dist
+  hote:
+    description: Nom ou adresse du VPS
+    required: true
+  port:
+    description: Port SSH du VPS
+    default: '22'
+  utilisateur:
+    description: Compte SSH réservé aux envois
+    required: true
+  cle:
+    description: Clé privée SSH du compte d'envoi (un secret, jamais en clair)
+    required: true
+  empreinte:
+    description: Ligne known_hosts du VPS (vérifie qu'on parle au bon serveur)
+    required: true
+  dossier:
+    description: Dossier du site sur le VPS (contient versions/ et le lien courant)
+    required: true
+  adresse:
+    description: Adresse publique où vérifier le site envoyé (https://…, sans / final)
+    required: true
+  garder:
+    description: Nombre de versions gardées sur le VPS
+    default: '5'
+
+runs:
+  using: composite
+  steps:
+    - name: Vérifier les réglages
+      shell: bash
+      env:
+        HOTE: ${{ inputs.hote }}
+        UTIL: ${{ inputs.utilisateur }}
+        CLE: ${{ inputs.cle }}
+        EMPREINTE: ${{ inputs.empreinte }}
+        DOSSIER: ${{ inputs.dossier }}
+        ADRESSE: ${{ inputs.adresse }}
+        SITE_CONSTRUIT: ${{ inputs.site-construit }}
+        GARDER: ${{ inputs.garder }}
+      run: |
+        set -eu
+        manque=""
+        for v in HOTE UTIL CLE EMPREINTE DOSSIER ADRESSE; do
+          [ -n "${!v}" ] || manque="$manque $v"
+        done
+        [ -z "$manque" ] || { echo "::error title=Envoi impossible::réglage(s) absent(s) :$manque. Rien n'a été envoyé."; exit 1; }
+        case "$DOSSIER" in /*) ;; *) echo "::error::le dossier du VPS doit être un chemin absolu"; exit 1 ;; esac
+        case "$DOSSIER" in *" "*|*".."*) echo "::error::dossier du VPS refusé : $DOSSIER"; exit 1 ;; esac
+        case "$ADRESSE" in https://*) ;; *) echo "::error::l'adresse de vérification doit commencer par https://"; exit 1 ;; esac
+        [[ "$GARDER" =~ ^[1-9][0-9]*$ ]] || { echo "::error::garder doit être un nombre ≥ 1"; exit 1; }
+        test -f "$SITE_CONSTRUIT/index.html" || { echo "::error::pas de site construit dans $SITE_CONSTRUIT"; exit 1; }
+        n=$(find "$SITE_CONSTRUIT" -name index.html | wc -l)
+        echo "Site à envoyer : $n pages."
+
+    - name: Préparer la connexion
+      shell: bash
+      env:
+        CLE: ${{ inputs.cle }}
+        EMPREINTE: ${{ inputs.empreinte }}
+      run: |
+        set -eu
+        mkdir -p ~/.ssh && chmod 700 ~/.ssh
+        printf '%s\n' "$CLE" > ~/.ssh/envoi && chmod 600 ~/.ssh/envoi
+        printf '%s\n' "$EMPREINTE" > ~/.ssh/known_hosts_envoi
+
+    - name: Envoyer, basculer, vérifier
+      shell: bash
+      env:
+        HOTE: ${{ inputs.hote }}
+        PORT: ${{ inputs.port }}
+        UTIL: ${{ inputs.utilisateur }}
+        DOSSIER: ${{ inputs.dossier }}
+        ADRESSE: ${{ inputs.adresse }}
+        SITE_CONSTRUIT: ${{ inputs.site-construit }}
+        GARDER: ${{ inputs.garder }}
+      run: bash "$GITHUB_ACTION_PATH/envoyer.sh"
+
+    - name: Effacer la clé
+      if: always()
+      shell: bash
+      run: rm -f ~/.ssh/envoi ~/.ssh/known_hosts_envoi

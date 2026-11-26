@@ -13,7 +13,7 @@
 #   le banc moteur-neutre le vérifie.
 # `dictionnaires` : où le moteur lit les libellés de ce site.
 moteur:
-  version: "0.1.0"
+  version: "0.2.0"
   dictionnaires: engine/i18n
 
 site:

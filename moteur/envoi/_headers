@@ -1,0 +1,45 @@
+# Moteur commun — fichier : moteur/envoi/_headers   (version 0.2.0)
+#
+# Les mêmes règles que moteur/envoi/nginx-site.conf, au format des hébergeurs
+# de fichiers (Cloudflare Pages et équivalents). Copié dans le site construit
+# par la construction ; le VPS ne le sert jamais (404).
+# Traduit moteur/envoi/regles.json ; le banc moteur/bancs/envoi.mjs vérifie
+# qu'il dit la même chose. Pages d'erreur : ces hébergeurs servent d'eux-mêmes
+# /404.html avec le code 404.
+# ⚠️ Pas de Cache-Control pour les pages : sur ces hébergeurs, la valeur par
+#    défaut est déjà « public, max-age=0, must-revalidate », et deux règles qui
+#    posent le même en-tête y sont COLLÉES l'une à l'autre (valeur fausse).
+# ⚠️ Jamais vérifié sur un vrai hébergeur de ce type : à contrôler le jour où un
+#    site y déménage (la configuration nginx, elle, est vérifiée à chaque
+#    construction).
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN
+
+/*.css
+  Cache-Control: public, max-age=2592000, immutable
+/*.js
+  Cache-Control: public, max-age=2592000, immutable
+/*.svg
+  Cache-Control: public, max-age=2592000, immutable
+/*.png
+  Cache-Control: public, max-age=2592000, immutable
+/*.jpg
+  Cache-Control: public, max-age=2592000, immutable
+/*.jpeg
+  Cache-Control: public, max-age=2592000, immutable
+/*.webp
+  Cache-Control: public, max-age=2592000, immutable
+/*.avif
+  Cache-Control: public, max-age=2592000, immutable
+/*.woff2
+  Cache-Control: public, max-age=2592000, immutable
+
+/sitemap.xml
+  Cache-Control: public, max-age=3600
+/robots.txt
+  Cache-Control: public, max-age=3600
+/search-index.json
+  Cache-Control: public, max-age=3600

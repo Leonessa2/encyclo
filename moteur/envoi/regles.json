@@ -1,0 +1,23 @@
+{
+  "_lisez_moi": "Moteur commun — moteur/envoi/regles.json. LA source des règles de service d'un site statique. nginx-site.conf (VPS) et _headers (hébergeurs de fichiers) les traduisent ; le banc moteur/bancs/envoi.mjs vérifie que les deux disent la même chose, et que nginx les applique vraiment. Reprises de l'ancienne configuration nginx du premier site, mesurée en production le 26/11/2026.",
+  "securite": {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Frame-Options": "SAMEORIGIN"
+  },
+  "cache": {
+    "statiques": {
+      "extensions": ["css", "js", "svg", "png", "jpg", "jpeg", "webp", "avif", "woff2"],
+      "valeur": "public, max-age=2592000, immutable"
+    },
+    "index": {
+      "chemins": ["/sitemap.xml", "/robots.txt", "/search-index.json"],
+      "valeur": "public, max-age=3600"
+    },
+    "pages": {
+      "valeur": "public, max-age=0, must-revalidate"
+    }
+  },
+  "erreurs": { "404": "/404.html", "500": "/500.html" },
+  "jamais_servis": ["/_headers"]
+}
