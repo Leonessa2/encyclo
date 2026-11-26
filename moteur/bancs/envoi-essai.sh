@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Moteur commun — fichier : moteur/bancs/envoi-essai.sh   (version 0.4.1)
+# Moteur commun — fichier : moteur/bancs/envoi-essai.sh   (version 0.9.0)
 #
 # Essai complet de l'envoi SANS VPS. La « machine distante » est un dossier
 # temporaire :
@@ -14,6 +14,8 @@
 #      ne sont pas recopiés (liens physiques vers la version d'avant) ;
 #   C. vérification impossible : le lien revient sur la version d'avant, échec ;
 #   D. ménage : seules les GARDER dernières versions restent, dont celle en ligne ;
+#   F. plusieurs adresses : toutes bonnes = réussite ; une seule fausse = retour
+#      à la version d'avant ;
 #   E. ce que la clé ne peut PAS faire : chaque demande hors du contrat est refusée.
 # Usage : moteur/bancs/envoi-essai.sh   (après la construction ; dist/ requis)
 set -uo pipefail
@@ -78,6 +80,18 @@ n=$(ls -1 "$DOSSIER/versions" | wc -l)
 [ "$n" = 3 ]; dit $? "3 versions restent ($n)"
 L="$(readlink "$DOSSIER/courant")"; [ -n "$L" ] && [ -f "$DOSSIER/$L/index.html" ]; dit $? "la version en ligne en fait partie"
 [ "$(sert)" = "$(printf 'f%.0s' {1..40})" ]; dit $? "nginx sert le dernier commit envoyé"
+
+echo; echo "F. plusieurs adresses de vérification"
+G=$(printf '1%.0s' {1..40}); H=$(printf '2%.0s' {1..40})
+envoyer "$G" "http://127.0.0.1:$PORT  http://localhost:$PORT/"; dit $? "deux bonnes adresses : l'envoi réussit"
+[ "$(sert)" = "$G" ]; dit $? "nginx sert le commit envoyé"
+grep -c "sert le commit" "$T/journal.txt" | grep -qx 2; dit $? "le journal confirme les deux adresses"
+VG="$(readlink "$DOSSIER/courant")"; sleep 1
+envoyer "$H" "http://127.0.0.1:$PORT http://127.0.0.1:1"; code=$?
+[ $code -eq 1 ]; dit $? "une bonne + une fausse : l'envoi échoue (code $code)"
+[ "$(readlink "$DOSSIER/courant")" = "$VG" ]; dit $? "le lien est revenu sur la version d'avant"
+grep -q "Envoi annulé::ne sert pas ce commit : http://127.0.0.1:1\." "$T/journal.txt"; dit $? "le journal nomme l'adresse fautive"
+sleep 1
 
 echo; echo "E. ce que la clé d'envoi ne peut pas faire"
 EN_LIGNE="$(readlink "$DOSSIER/courant")"; AVANT_E="$(ls -1 "$DOSSIER/versions" | sort | tr '\n' ' ')"

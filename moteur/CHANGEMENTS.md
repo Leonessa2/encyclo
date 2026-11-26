@@ -1,5 +1,18 @@
 # Changements du moteur
 
+## 0.9.0 — 26/11/2026
+
+- **L'envoi vérifie plusieurs adresses** : le réglage `adresse` de
+  `envoi/action.yml` accepte plusieurs adresses séparées par des espaces (le
+  domaine et son adresse de test, par exemple). Après la bascule du lien
+  `courant`, **chacune** doit servir le commit envoyé (`/version.txt`) ;
+  si une seule ne le sert pas, le lien revient à la version d'avant et le
+  journal nomme l'adresse fautive. Une seule adresse : comportement inchangé.
+- Banc `bancs/envoi-essai.sh` : scénario F (deux bonnes adresses = réussite ;
+  une bonne et une fausse = retour en arrière).
+- **Ce que les sites doivent adapter** : rien (une adresse seule marche
+  comme avant). Serveur & domaines : rien.
+
 ## 0.8.0 — 26/11/2026
 
 - **Les bancs valables pour tout site entrent dans le moteur** (rangement,

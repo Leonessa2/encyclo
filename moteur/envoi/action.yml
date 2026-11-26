@@ -1,4 +1,4 @@
-# Moteur commun — fichier : moteur/envoi/action.yml   (version 0.4.0)
+# Moteur commun — fichier : moteur/envoi/action.yml   (version 0.9.0)
 #
 # ENVOYER UN SITE CONSTRUIT AU VPS. Action appelée par le workflow de chaque
 # site, après sa construction, avec ses propres réglages (rien ici n'est propre
@@ -9,8 +9,8 @@
 #      fichiers inchangés depuis la version en ligne ne sont pas recopiés) ;
 #   4. bascule le lien `courant` vers cette version, d'un coup (le serveur web
 #      sert toujours `courant`) ;
-#   5. vérifie la page réellement servie : /version.txt à l'adresse donnée doit
-#      porter ce commit. Sinon : remet le lien sur la version d'avant, et échoue ;
+#   5. vérifie la page réellement servie : /version.txt à CHAQUE adresse donnée
+#      doit porter ce commit. Sinon : remet le lien sur la version d'avant, et échoue ;
 #   6. garde les <garder> dernières versions, efface les plus anciennes.
 #
 # ⛔ Sur le VPS, la clé d'envoi est limitée par une COMMANDE FORCÉE au script
@@ -40,7 +40,7 @@ inputs:
     description: Ligne known_hosts du VPS (vérifie qu'on parle au bon serveur)
     required: true
   adresse:
-    description: Adresse publique où vérifier le site envoyé (https://…, sans / final)
+    description: Adresse(s) publique(s) où vérifier le site envoyé (https://…, sans / final), séparées par des espaces ; toutes doivent servir le commit
     required: true
   garder:
     description: Nombre de versions gardées sur le VPS
@@ -66,7 +66,10 @@ runs:
           [ -n "${!v}" ] || manque="$manque $v"
         done
         [ -z "$manque" ] || { echo "::error title=Envoi impossible::réglage(s) absent(s) :$manque. Rien n'a été envoyé."; exit 1; }
-        case "$ADRESSE" in https://*) ;; *) echo "::error::l'adresse de vérification doit commencer par https://"; exit 1 ;; esac
+        for a in $ADRESSE; do
+          case "$a" in https://*) ;; *) echo "::error::chaque adresse de vérification doit commencer par https:// (reçu : $a)"; exit 1 ;; esac
+        done
+        echo "Adresses vérifiées après l'envoi : $ADRESSE"
         [[ "$GARDER" =~ ^[1-9][0-9]*$ ]] || { echo "::error::garder doit être un nombre ≥ 1"; exit 1; }
         test -f "$SITE_CONSTRUIT/index.html" || { echo "::error::pas de site construit dans $SITE_CONSTRUIT"; exit 1; }
         n=$(find "$SITE_CONSTRUIT" -name index.html | wc -l)

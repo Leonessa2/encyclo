@@ -1,4 +1,4 @@
-# Envoi d’un site au VPS (moteur 0.8.0)
+# Envoi d’un site au VPS (moteur 0.9.0)
 
 Le site est **construit par GitHub Actions**. Le VPS ne construit rien : il
 reçoit des fichiers et un serveur web les sert.
@@ -65,5 +65,5 @@ que la clé ne peut rien faire d'autre (12 refus).
 | `VPS_PORT` | variable | port SSH (22 si absent) |
 | `VPS_UTILISATEUR` | variable | compte d'envoi |
 | `VPS_EMPREINTE` | variable | ligne `known_hosts` du VPS |
-| `ADRESSE_VERIFICATION` | variable | adresse publique où vérifier l'envoi (`https://…`) |
+| `adresse` | réglage de l'action | adresse(s) publique(s) où vérifier l'envoi (`https://…`), séparées par des espaces : **toutes** doivent servir le commit, sinon retour à la version d'avant. Le site peut l'écrire dans son workflow ou la lire dans une variable GitHub. |
 | `ENVOI_VPS` | variable | `oui` pour allumer l'envoi ; toute autre valeur l'éteint |

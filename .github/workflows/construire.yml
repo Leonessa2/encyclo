@@ -153,5 +153,9 @@ jobs:
           port: ${{ vars.VPS_PORT || '22' }}
           utilisateur: ${{ vars.VPS_UTILISATEUR }}
           empreinte: ${{ vars.VPS_EMPREINTE }}
-          adresse: ${{ vars.ADRESSE_VERIFICATION }}
+          # Depuis la bascule du 26/11/2026 : le domaine ET l'adresse de test
+          # servent le même dossier ; les deux doivent porter le commit, sinon
+          # l'envoi revient à la version d'avant. (La variable GitHub
+          # ADRESSE_VERIFICATION n'est plus lue.)
+          adresse: https://vevewiki.com https://essai.vevewiki.com
           cle: ${{ secrets.VPS_CLE_SSH }}

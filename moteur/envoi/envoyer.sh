@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Moteur commun — fichier : moteur/envoi/envoyer.sh   (version 0.4.0)
+# Moteur commun — fichier : moteur/envoi/envoyer.sh   (version 0.9.0)
 #
 # Envoie un site construit au VPS, bascule le lien `courant`, vérifie la page
 # servie, revient en arrière si elle ne porte pas ce commit, garde les
@@ -11,6 +11,9 @@
 #    Le dossier du site est fixé côté serveur, pas ici.
 #
 # Réglages (variables) : HOTE PORT UTIL ADRESSE SITE_CONSTRUIT GARDER GITHUB_SHA ;
+# ADRESSE peut contenir PLUSIEURS adresses séparées par des espaces (le domaine
+# et son adresse de test, par exemple) : TOUTES doivent servir ce commit, sinon
+# retour à la version d'avant.
 # clé et empreinte déjà posées dans ~/.ssh par l'action.
 #
 # ENVOI_ESSAI_LOCAL=1 : mode d'ESSAI du banc. Pas de VPS : une fausse connexion
@@ -52,22 +55,27 @@ rsync -a --delete ${LIEN[@]+"${LIEN[@]}"} -e "$SSH" "$SITE_CONSTRUIT/" "$CIBLE:v
 distant "basculer $ID" >/dev/null
 echo "Lien basculé : courant -> versions/$ID"
 
-ok=""
-for essai in $(seq 1 "${ENVOI_ESSAIS:-6}"); do
-  servi="$(curl -fsS --max-time 20 -H 'Cache-Control: no-cache' "$ADRESSE/version.txt?v=$ID" 2>/dev/null | head -1 || true)"
-  if [ "$servi" = "$GITHUB_SHA" ]; then ok=1; break; fi
-  echo "Essai $essai : l'adresse sert « ${servi:-rien} », pas encore ce commit."
-  sleep "${ENVOI_ATTENTE:-10}"
+ADRESSES="$(printf '%s' "$ADRESSE" | tr -s '[:space:]' ' ' | sed -e 's/^ //' -e 's/ $//')"
+[ -n "$ADRESSES" ] || { echo "::error::aucune adresse de vérification"; exit 1; }
+rate=""
+for adr in $ADRESSES; do
+  adr="${adr%/}"; ok=""
+  for essai in $(seq 1 "${ENVOI_ESSAIS:-6}"); do
+    servi="$(curl -fsS --max-time 20 -H 'Cache-Control: no-cache' "$adr/version.txt?v=$ID" 2>/dev/null | head -1 || true)"
+    if [ "$servi" = "$GITHUB_SHA" ]; then ok=1; break; fi
+    echo "Essai $essai : $adr sert « ${servi:-rien} », pas encore ce commit."
+    sleep "${ENVOI_ATTENTE:-10}"
+  done
+  if [ -n "$ok" ]; then echo "✅ $adr sert le commit $GITHUB_SHA (version $ID)."; else rate="$rate $adr"; fi
 done
-if [ -z "$ok" ]; then
+if [ -n "$rate" ]; then
   if [ -n "$AVANT" ]; then
     distant "revenir $AVANT" >/dev/null
-    echo "::error title=Envoi annulé::$ADRESSE ne sert pas ce commit. Lien remis sur $AVANT."
+    echo "::error title=Envoi annulé::ne sert pas ce commit :$rate. Lien remis sur $AVANT."
   else
-    echo "::error title=Envoi non vérifié::$ADRESSE ne sert pas ce commit (première version : rien à remettre)."
+    echo "::error title=Envoi non vérifié::ne sert pas ce commit :$rate (première version : rien à remettre)."
   fi
   exit 1
 fi
-echo "✅ $ADRESSE sert le commit $GITHUB_SHA (version $ID)."
 
 echo "Versions gardées :"; distant "menage $GARDER"

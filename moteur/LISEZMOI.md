@@ -10,7 +10,7 @@ fait échouer la construction si un nom, un domaine, un Sheet ou une couleur
 de n'importe quel site apparaît ici, ou si le moteur importe un fichier
 hors de ce dossier.
 
-## Ce qu'il contient (0.8.0)
+## Ce qu'il contient (0.9.0)
 
 | Dossier | Rôle |
 |---|---|
@@ -30,7 +30,7 @@ hors de ce dossier.
 - `sites/<site>/manifest.yml`, avec le bloc :
   ```yaml
   moteur:
-    version: "0.8.0"          # = moteur/VERSION
+    version: "0.9.0"          # = moteur/VERSION
     dictionnaires: <dossier>  # où sont les libellés du site (<langue>.json)
   ```
 - dans son dossier de libellés, pour chaque langue d'interface : **les
