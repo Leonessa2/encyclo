@@ -5,3 +5,4 @@ dist/
 .reserve/
 .chrono.json
 .rendering
+__pycache__/

@@ -1,0 +1,90 @@
+# Dépôt : Leonessa2/encyclo — fichier : .github/workflows/lire-sheet.yml
+#
+# LOT 2 (26/11/2026) : le wiki lit LUI-MÊME son Google Sheet éditorial.
+# 1. banc hors réseau du lecteur (outils/test_lire_sheet.py) ;
+# 2. lecture du Sheet -> sites/vevewiki/editorial/*.json ;
+# 3. cartes de partage des articles + dates de dernière modification ;
+# 4. dépôt des fichiers s'ils ont changé ; la construction suit
+#    (construire.yml se lance après cette exécution).
+#
+# Si le secret Google manque ou si la lecture échoue : RIEN n'est écrit, le
+# site garde sa dernière bonne copie.
+# Horaire : 04:17 UTC, loin de la récolte de veve-sites (09:37 UTC), pour ne
+# pas lire le même Sheet en même temps (quota Google).
+# Pas de mise en ligne ni d'IndexNow ici : ils viendront avec la bascule.
+
+name: Lire le Sheet
+
+on:
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: lire-sheet
+  cancel-in-progress: false
+
+jobs:
+  lire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SITE: vevewiki
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Dépendances
+        run: pip install -r outils/requirements-sheet.txt
+
+      - name: Banc du lecteur (hors réseau)
+        run: python outils/test_lire_sheet.py
+
+      - name: Le secret Google est-il là ?
+        id: garde
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -n "${GOOGLE_SERVICE_ACCOUNT_JSON}" ]; then
+            echo "actif=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "actif=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Sheet non lu::Le secret GOOGLE_SERVICE_ACCOUNT_JSON n'est pas encore dans ce dépôt. Le site garde sa copie actuelle."
+          fi
+
+      - name: Lire le Sheet
+        if: steps.garde.outputs.actif == 'true'
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python outils/lire_sheet.py --site "$SITE"
+
+      - name: Cartes de partage des articles
+        if: steps.garde.outputs.actif == 'true'
+        run: python engine/tools/make_article_cards.py
+
+      - name: Dates de dernière modification
+        if: steps.garde.outputs.actif == 'true'
+        run: python engine/tools/lastmod.py --site "$SITE"
+
+      - name: Déposer si quelque chose a changé
+        if: steps.garde.outputs.actif == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name  "encyclo-bot"
+          git config user.email "actions@users.noreply.github.com"
+          for chemin in "sites/$SITE/editorial" "public/og/$SITE" "engine/data/lastmod.$SITE.json"; do
+            [ -e "$chemin" ] && git add "$chemin"
+          done
+          if git diff --cached --quiet; then
+            echo "Rien de nouveau dans le Sheet."
+          else
+            git commit -m "contenu : lecture du Sheet du $(date -u +%F)"
+            git pull --rebase --autostash
+            git push
+          fi
