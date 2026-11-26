@@ -993,7 +993,7 @@ arreter();
 // ⭐⭐ `monterDOM()` porte désormais DEUX correctifs, pas un : le second
 // (`:checked` qui suit l'ATTRIBUT et non la propriété) n'existait nulle part et
 // aurait manqué ici aussi le jour où ce banc cochera une case.
-const { monterDOM } = await import('./_dom_banc.mjs');
+const { monterDOM } = await import('../../moteur/bancs/_dom_banc.mjs');
 const dom = await monterDOM(html);
 if (!dom) {
   indecis('l\'exécution du pilote', 'linkedom absent — `npm i -D linkedom`. Le poids est mesuré, le COMPORTEMENT ne l\'est pas.');

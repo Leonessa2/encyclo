@@ -1,4 +1,5 @@
-// ⚠️ Leonessa2/veve-sites — engine/tools/test_opacite.mjs   (FICHIER NEUF)
+// Moteur commun — fichier : moteur/bancs/opacite.mjs   (moteur 0.8.0, rangement 2d :
+// venu de engine/tools/test_opacite.mjs, valable pour tout site)
 //
 // ═══════════════════════════════════════════════════════════════════════════
 //  LOT 111 — UN ÉTAT DE DÉPART SANS ÉTAT D'ARRIVÉE

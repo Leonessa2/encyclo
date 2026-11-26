@@ -1,4 +1,5 @@
-// ⚠️ Leonessa2/veve-sites — engine/tools/_dom_banc.mjs   (FICHIER NEUF — lot 133)
+// Moteur commun — fichier : moteur/bancs/_dom_banc.mjs   (moteur 0.8.0, rangement 2d :
+// venu de engine/tools/_dom_banc.mjs, valable pour tout site)
 // ═══════════════════════════════════════════════════════════════════════════
 //  LE DOM DES BANCS — les correctifs d'instrument, écrits UNE fois
 // ═══════════════════════════════════════════════════════════════════════════

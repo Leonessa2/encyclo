@@ -1,4 +1,5 @@
-// ⚠️ Leonessa2/veve-sites — engine/tools/test_i18n_client.mjs  (FICHIER NEUF — lot 129)
+// Moteur commun — fichier : moteur/bancs/i18n.mjs   (moteur 0.8.0, rangement 2d :
+// venu de engine/tools/test_i18n_client.mjs, valable pour tout site)
 // ═══════════════════════════════════════════════════════════════════════════
 //  L'ÉCHANGE DES LIBELLÉS — et ce banc l'EXÉCUTE, il ne le compte pas
 // ═══════════════════════════════════════════════════════════════════════════
@@ -96,7 +97,7 @@ verifie('⛔ zéro caractère de contrôle dans les pages servies',
 // LA PLUS BANALE QUI SOIT : il cherche le CARACTÈRE ␑, et `JSON.stringify`
 // écrit `\u0011`. Le motif du §1 ci-dessus ne pouvait donc PAS mordre dans un
 // `<script type="application/ld+json">` — pas une fois, jamais.
-// ⇒ MESURE DU 05/09/2026 sur un `dist/` réel de `vevewiki` :
+// ⇒ MESURE DU 05/09/2026 sur un `dist/` réel du premier site :
 //   **362 valeurs polluées, sur 277 des 283 pages**, toutes des `ListItem.name`,
 //   dont `\u0011home.crumb\u0012Home\u0013` servi 111 fois à Google.
 // ⭐⭐ *Un banc branché sur une valeur ne voit pas la couche qui la réécrit.*
@@ -250,7 +251,7 @@ verifie('⛔ ni <title>, ni <meta description>, ni <script> ne portent de marqua
 // ⇒ Le prédicat est importé de `moteur/lib/cle_i18n.mjs`. Il n'y en a plus
 //   qu'un, et c'est le même octet des deux côtés.
 const { estUneCle } = await import('../../moteur/lib/cle_i18n.mjs');
-const { locales: locRef, dict: dictDe } = await import('../../moteur/lib/i18n.mjs');
+const { locales: locRef, dict: dictDe, dossierDictionnaires: dossierSite } = await import('../../moteur/lib/i18n.mjs');
 // ⚠️ LE DICTIONNAIRE DE RÉFÉRENCE, ET SON ABSENCE EST **INDÉCIDABLE**, PAS
 // VERTE. Sans lui `estUneCle` retombe sur la forme seule : le banc jugerait
 // alors selon une règle plus stricte que celle qui a marqué les pages, et
@@ -262,7 +263,7 @@ try {
   // marquées). Juger « cette clé existe-t-elle ? » sur un dictionnaire amputé
   // par le marquage, c'est demander à la sortie de valider son entrée.
   // moteur 0.6.0 : `dict()` = libellés du moteur + ceux du site, comme le marqueur.
-  JSON.parse(readFileSync(new URL(`../i18n/${locRef().def}.json`, import.meta.url), 'utf8'));
+  JSON.parse(readFileSync(join(dossierSite(), `${locRef().def}.json`), 'utf8'));   // dictionnaire du site lisible
   dictRef = dictDe(locRef().def);
 } catch { /* signalé juste en dessous */ }
 if (!dictRef) {

@@ -63,7 +63,7 @@
 // ## ⛔ POURQUOI CE FICHIER EXISTE PLUTÔT QUE DEUX COPIES DU PRÉDICAT
 //
 // 🔴 **LE MARQUEUR ÉCRIT `data-i18n=`, LE BANC LE RELIT.** `marquer_i18n.mjs`
-// décide ce qui est marqué ; `test_i18n_client.mjs` §2 refuse toute clé marquée
+// décide ce qui est marqué ; `bancs/i18n.mjs` §2 refuse toute clé marquée
 // qui n'a pas la forme d'une clé — **avec sa PROPRE copie de la regexp**.
 // Élargir l'un sans l'autre fait rougir le banc sur ce que le marqueur vient
 // d'accepter : le déploiement s'arrête, et le message accuse un gabarit qui

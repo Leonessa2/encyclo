@@ -154,7 +154,7 @@ if (proposees.length === 0) {
     fin();
   }
   // Le conteneur est là : on exécute le pilote et on OUVRE le panneau.
-  const { monterDOM: monterPourPuces } = await import('./_dom_banc.mjs');
+  const { monterDOM: monterPourPuces } = await import('../../moteur/bancs/_dom_banc.mjs');
   const srcPilote = join(R, 'src', 'socle', 'modules', 'series.js');
   const domP = existsSync(srcPilote) ? await monterPourPuces(html) : null;
   if (!domP) {
@@ -371,7 +371,7 @@ console.log('\n3. le filtre cherche-t-il dans TOUT le DOM, ou dans la tranche af
 //   `<select>.value`, que linkedom n'implémente pas) sont écrits UNE fois.
 //   Les recopier ici aurait été la 4ᵉ occurrence de « deux endroits qui font la
 //   même chose divergent » — dont deux dans ce lot.
-const { monterDOM, choisir, cocher } = await import('./_dom_banc.mjs');
+const { monterDOM, choisir, cocher } = await import('../../moteur/bancs/_dom_banc.mjs');
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🔴🔴🔴 LOT 139 — LE PILOTE N'EST PLUS DANS LA PAGE, ET C'EST UNE RÉPARATION
@@ -846,7 +846,7 @@ console.log('\n6. la série des comics entre-t-elle NUE, sans emporter les colle
 // rougir ne mesure rien.*
 {
   console.log('\n§M · le tri par rendement MCP, exécuté');
-  const { monterDOM: monterM, choisir: choisirM } = await import('./_dom_banc.mjs');
+  const { monterDOM: monterM, choisir: choisirM } = await import('../../moteur/bancs/_dom_banc.mjs');
   const fSets = join(DIST, 'sets', 'index.html');
   const srcP = join(R, 'src', 'socle', 'modules', 'series.js');
   const srcC = join(R, 'src', 'socle', 'modules', 'index_rayon.js');
@@ -1028,7 +1028,7 @@ console.log('\n9. la page d\'un set montre-t-elle AUSSI les pièces qui n\'ont p
     indecis('les pages de set', `${dirCol} absent — ce banc va APRÈS le build`);
   } else {
     const { readdirSync } = await import('node:fs');
-    const { monterDOM } = await import('./_dom_banc.mjs');
+    const { monterDOM } = await import('../../moteur/bancs/_dom_banc.mjs');
     const slugs = readdirSync(dirCol).filter((d) => existsSync(join(dirCol, d, 'index.html')));
     let partielles = 0, jugees = 0;
     for (const slug of slugs) {

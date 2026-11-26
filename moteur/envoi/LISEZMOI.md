@@ -1,4 +1,4 @@
-# Envoi d’un site au VPS (moteur 0.7.0)
+# Envoi d’un site au VPS (moteur 0.8.0)
 
 Le site est **construit par GitHub Actions**. Le VPS ne construit rien : il
 reçoit des fichiers et un serveur web les sert.

@@ -21,6 +21,8 @@
 # Lot 4 : `sans-mesure` ajouté — aucune page ne charge de script de mesure.
 # Moteur 0.6.0 (rangement 2c) : `libelles` ajouté — libellés du moteur
 #   (moteur/i18n/) et part fournie par le site (moteur/i18n/a-fournir.txt).
+# Moteur 0.8.0 (rangement 2d) : cles, i18n, opacite, tiroir, gabarits vivent
+#   dans moteur/bancs/ (lancés par leurs scripts test:* du package.json).
 set -u
 PHASE="${1:-}"
 : "${SITE:?SITE doit valoir vevewiki}"

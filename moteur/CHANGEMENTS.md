@@ -1,5 +1,37 @@
 # Changements du moteur
 
+## 0.8.0 — 26/11/2026
+
+- **Les bancs valables pour tout site entrent dans le moteur** (rangement,
+  partie 2d) : `bancs/cles.mjs` (aucune page n'affiche le nom d'une clé de
+  libellé), `bancs/i18n.mjs` (le changement de langue dans le navigateur
+  marche vraiment), `bancs/opacite.mjs` (aucun élément invisible faute de
+  règle qui le fait apparaître), `bancs/tiroir.mjs` (aucun élément fixé
+  piégé par un ancêtre), `bancs/gabarits.mjs` (fautes de forme dans les
+  gabarits Astro), et leur outil `bancs/_dom_banc.mjs`. Ils ne lisent que le
+  moteur, les thèmes, le dictionnaire déclaré par le site et le site
+  construit. Les noms de sites cités en exemple sont remplacés par
+  « exemple ».
+- Deux trous bouchés au passage, nés des parties 2a et 2b : `cles` lit
+  désormais aussi `gabarits/` et `socle/` du moteur (la plupart de ses appels
+  de libellés y sont), et `gabarits` contrôle aussi `gabarits/` du moteur
+  (114 fichiers au lieu de 105).
+- Restent côté site (ils contrôlent du code propre à un site : données du
+  scrapeur, fiches, figures, pages et fonctions d'un site de prix, contenu
+  éditorial) : memoire, liens, entrepot, donnees, blog, figures, fiches,
+  lastmod, langues, schema, renommage, routes, fuite, phrases, entete,
+  feuille, titres, affichage, analytics, indexnow, et les bancs propres aux
+  sites de prix. Ils entreront dans le moteur avec le code qu'ils
+  contrôlent, quand un deuxième site en aura besoin.
+- Vérifié le 26/11 : site construit identique à celui de 0.7.0 ; 17 bancs
+  avant, 16 après, verts ; contre-épreuves depuis le nouvel emplacement :
+  une panne par banc déplacé, toutes vues (dont une faute dans un gabarit du
+  moteur, que l'ancienne version de `gabarits` ne voyait pas).
+- **Ce que les sites doivent adapter** : appeler ces bancs depuis
+  `moteur/bancs/` (scripts `test:cles`, `test:i18n`, `test:opacite`,
+  `test:tiroir`, `test:gabarits` du `package.json`). Serveur & domaines :
+  rien.
+
 ## 0.7.0 — 26/11/2026
 
 - **Les icônes au nom fixe sont gardées 1 jour au lieu de 30** :

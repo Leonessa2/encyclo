@@ -1,4 +1,5 @@
-// ⚠️ Leonessa2/veve-sites — engine/tools/test_tiroir.mjs   (FICHIER NEUF — lot 139)
+// Moteur commun — fichier : moteur/bancs/tiroir.mjs   (moteur 0.8.0, rangement 2d :
+// venu de engine/tools/test_tiroir.mjs, valable pour tout site)
 //
 // ═══════════════════════════════════════════════════════════════════════════
 //  LOT 139 — UN `position:fixed` QUI N'EST PAS FIXE À L'ÉCRAN

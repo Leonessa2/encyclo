@@ -1,6 +1,8 @@
+// Moteur commun — fichier : moteur/bancs/cles.mjs   (moteur 0.8.0, rangement 2d :
+// venu de engine/tools/test_cles_i18n.mjs, valable pour tout site)
 // Preuve qu'aucune page publiee n'affiche le NOM d'une cle de traduction.
 //
-//     SITE=veveprice npm run test:cles   (APRES `npm run build`)
+//     SITE=<site> npm run test:cles   (APRES `npm run build`)
 //
 // ═══════════════════════════════════════════════════════════════════════════
 // LA PANNE QU'IL FERME — 03/08/2026, lot 34, et elle etait A MOI.
@@ -10,7 +12,7 @@
 // sont parties. Les fichiers, non.
 //
 // Resultat, en ligne, dans cinq langues :
-//     <title>rarities.title | VeVe Price</title>
+//     <title>rarities.title | Site Exemple</title>
 //     <h1>rarities.title</h1>
 //     <meta name="description" content="desc.rarities">
 //
@@ -39,7 +41,7 @@
 // CE QU'IL FAIT, ET CE QU'IL REFUSE DE FAIRE
 // ═══════════════════════════════════════════════════════════════════════════
 // ⛔ IL NE DEVINE PAS a quoi « ressemble » une cle. Une regle de forme du genre
-//    « mot.mot sans espace » accuserait `veveprice.com`, `sitemap.xml`, `3.14`,
+//    « mot.mot sans espace » accuserait `exemple.com`, `sitemap.xml`, `3.14`,
 //    `spider-man.jpg`… Un controle qui crie a tort cesse d'etre lu — c'est la
 //    lecon du 31/07 (172 griefs de css-mort sur encyclopedie).
 //
@@ -88,10 +90,15 @@ function fichiers(racine, exts) {
 // 1. LE VOCABULAIRE : les cles que les sources demandent EN CLAIR.
 // ---------------------------------------------------------------------------
 const MOTIF_T = /\bt\(\s*[A-Za-z_$][\w$.]*\s*,\s*(['"`])([^'"`]+)\1/g;
+// ⭐ moteur 0.8.0 (rangement 2d) : ce banc vit dans le moteur. Il lit le code
+//    du moteur ENTIER (gabarits compris : depuis la partie 2b, la plupart des
+//    `t()` du moteur y sont, et l'ancienne liste ne les voyait pas) et le code
+//    du site : `src/` (Astro) et, s'il existe, `engine/lib/`.
+const dossierSiExiste = (d, exts) => (existsSync(d) ? fichiers(d, exts) : []);
 const sources = [
-  ...fichiers(join(RACINE, 'src'), ['.astro', '.js', '.mjs', '.ts']),
-  ...fichiers(join(RACINE, 'engine', 'lib'), ['.mjs', '.js']),
-  ...fichiers(join(RACINE, 'moteur', 'lib'), ['.mjs', '.js']),
+  ...dossierSiExiste(join(RACINE, 'src'), ['.astro', '.js', '.mjs', '.ts']),
+  ...dossierSiExiste(join(RACINE, 'engine', 'lib'), ['.mjs', '.js']),
+  ...['lib', 'gabarits', 'socle'].flatMap((d) => dossierSiExiste(join(RACINE, 'moteur', d), ['.astro', '.mjs', '.js'])),
 ];
 const vocabulaire = new Set();
 let dynamiques = 0;
@@ -116,12 +123,14 @@ for (const f of sources) {
 // litteral que si son PREFIXE (avant le premier point) est un espace de noms
 // REELLEMENT declare dans engine/i18n. `item.7d` -> prefixe « item », connu.
 // `spider-man.jpg` -> prefixe « spider-man », inconnu : rejete. `3.14` ->
-// rejete. `veveprice.com` -> prefixe « veveprice », inconnu : rejete.
+// rejete. `exemple.com` -> prefixe « exemple », inconnu : rejete.
 // ⭐ Le vocabulaire se DEDUIT du dictionnaire, il ne se devine pas.
 // ⭐ moteur 0.6.0 (rangement 2c) : les libellés vivent en DEUX endroits, ceux
 //    du moteur (`moteur/i18n/`) et ceux du site (`engine/i18n/`). Le
 //    vocabulaire est la réunion des deux.
-const I18N_DIRS = [join(RACINE, 'moteur', 'i18n'), join(RACINE, 'engine', 'i18n')];
+const { dossierDictionnaires } = await import('../lib/i18n.mjs');
+const DICO_SITE = dossierDictionnaires();
+const I18N_DIRS = [join(RACINE, 'moteur', 'i18n'), DICO_SITE];
 const espaces = new Set();
 const clesConnues = new Set();
 for (const I18N_DIR of I18N_DIRS.filter((d) => existsSync(d))) {
@@ -135,7 +144,7 @@ for (const I18N_DIR of I18N_DIRS.filter((d) => existsSync(d))) {
 // ⛔ TROUVE EN VERIFIANT LE VOCABULAIRE PLUTOT QU'EN LE CROYANT (03/08).
 // Le seul filtre « prefixe connu » laissait entrer `blog.json` et
 // `movers.astro` : leurs prefixes `blog` et `movers` SONT de vrais espaces de
-// noms i18n. Ce sont des NOMS DE FICHIERS. Sur vevewiki — une encyclopedie —
+// noms i18n. Ce sont des NOMS DE FICHIERS. Sur le site encyclopédie —
 // un article peut parfaitement citer « blog.json » dans son texte, et le banc
 // aurait accuse une page parfaitement saine.
 // ⭐⭐ UN DETECTEUR SE RELIT SUR CE QU'IL A MIS DANS SA LISTE, pas seulement
@@ -220,7 +229,7 @@ dit(coupables.size === 0, 'aucune cle de traduction rendue en clair',
     : `${coupables.size} cle(s) sur ${emplacements} emplacement(s)`);
 
 for (const [cle, ou] of coupables) {
-  console.log(`     🔴 « ${cle} » est demandee par un gabarit mais ABSENTE de moteur/i18n/ et de engine/i18n/`);
+  console.log(`     🔴 « ${cle} » est demandee par un gabarit mais ABSENTE de moteur/i18n/ et du dictionnaire du site`);
   console.log(`        le visiteur lit « ${cle} » a la place du texte.`);
   for (const e of [...ou].slice(0, 4)) console.log(`        · ${e}`);
   if (ou.size > 4) console.log(`        · … et ${ou.size - 4} autre(s)`);
@@ -231,7 +240,7 @@ for (const [cle, ou] of coupables) {
 // ---------------------------------------------------------------------------
 // Le lot J a mis deux `t()` dans `src/pages/rss.xml.js`. Vingt minutes apres le
 // deploiement, la PRODUCTION servait :
-//     <title>VeVe Price — ⟨sent⟩blog.title⟨sent⟩Articles⟨sent⟩</title>
+//     <title>Site Exemple — ⟨sent⟩blog.title⟨sent⟩Articles⟨sent⟩</title>
 // Sous `I18N_MARQUAGE=1`, `t()` rend son libelle ENTOURE DE SENTINELLES et
 // prefixe de sa cle ; `marquer:i18n` les retire ensuite — **des `.html`
 // uniquement**. Un `.xml` n'est jamais balaye, et les sentinelles partaient
@@ -280,9 +289,9 @@ dit(vu > 0, `une page temoin portant « ${temoin} » est bien detectee`,
 // ⭐ Et l'inverse. Sans cette ligne, un detecteur qui repond « coupable » a
 //    TOUT serait vert ci-dessus — et rendrait le banc inutilisable en criant
 //    sur chaque domaine, chaque nom de fichier et chaque decimale.
-const faux = compte('<html><head><title>Spider-Man | VeVe Price</title>'
-  + '<meta name="description" content="Plancher sur veveprice.com — cf. sitemap.xml, 3.14 OMI."></head>'
-  + '<body><h1>Spider-Man</h1><p>veveprice.com/market/ a 12.50 OMI. Fichier spider-man.jpg.</p></body></html>');
+const faux = compte('<html><head><title>Spider-Man | Site Exemple</title>'
+  + '<meta name="description" content="Plancher sur exemple.com — cf. sitemap.xml, 3.14 OMI."></head>'
+  + '<body><h1>Spider-Man</h1><p>exemple.com/market/ a 12.50 OMI. Fichier spider-man.jpg.</p></body></html>');
 dit(faux === 0, 'une page normale (domaine, fichier, decimales) n\'est PAS accusee',
   faux === 0 ? 'aucun faux positif' : `${faux} accusation(s) a tort — ce banc crierait pour rien`);
 
@@ -324,13 +333,13 @@ dit(pollution.length === 0, 'le vocabulaire ne contient aucun nom de fichier',
   for (const [lg, m] of Object.entries(MARQUES)) {
     // moteur 0.6.0 : les libellés du moteur parlent avec la même voix.
     const dico = { ...JSON.parse(lire(`${RACINE}moteur/i18n/${lg}.json`, 'utf8')),
-      ...JSON.parse(lire(`${RACINE}engine/i18n/${lg}.json`, 'utf8')) };
+      ...JSON.parse(lire(join(DICO_SITE, `${lg}.json`), 'utf8')) };
     for (const [k, v] of Object.entries(dico)) {
       if (m.test(String(v))) fautes.push(`${lg}.json ${k} : « ${String(v).slice(0, 48)} »`);
     }
   }
   // Le manifeste : seules les lignes-valeurs de langue, jamais les commentaires.
-  const manifeste = lire(`${RACINE}sites/${process.env.SITE || 'veveprice'}/manifest.yml`, 'utf8');
+  const manifeste = lire(`${RACINE}sites/${process.env.SITE || (() => { throw new Error('SITE obligatoire'); })()}/manifest.yml`, 'utf8');
   manifeste.split('\n').forEach((ligne, i) => {
     const val = ligne.match(/^\s*(fr|de|es):\s*"(.*)"/);
     if (!val) return;

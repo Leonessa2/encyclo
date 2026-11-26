@@ -656,7 +656,7 @@ for (const corpus of CORPUS) {
     //   avant tout build — un succès qui ressemble à un succès.
     console.log(`  ⏸️  INDÉCIDABLE — ${manque.join(' · ')} absent(s) : rien n'a été mesuré.`);
   } else {
-    const { monterDOM } = await import('./_dom_banc.mjs');
+    const { monterDOM } = await import('../../moteur/bancs/_dom_banc.mjs');
     const dom = await monterDOM(readFileSync(page, 'utf8'));
     if (!dom) {
       console.log('  ⏸️  INDÉCIDABLE — linkedom absent : le pilote n\'a pas pu être joué.');

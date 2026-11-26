@@ -1,4 +1,5 @@
-// ⚠️ Leonessa2/veve-sites — engine/tools/test_gabarits.mjs
+// Moteur commun — fichier : moteur/bancs/gabarits.mjs   (moteur 0.8.0, rangement 2d :
+// venu de engine/tools/test_gabarits.mjs, valable pour tout site)
 //
 // ═══════════════════════════════════════════════════════════════════════════
 //  POURQUOI CE BANC EXISTE — 30/07/2026, un build de production cassé
@@ -174,7 +175,9 @@ const CONTROLES = [
 
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('\n1. Les gabarits du dépôt');
-const fichiers = gabarits(RACINE);
+// ⭐ moteur 0.8.0 (rangement 2d) : les gabarits du MOTEUR passent aussi au
+//    contrôle (depuis les parties 2a et 2b, ils construisent toutes les pages).
+const fichiers = [...gabarits(RACINE), ...gabarits(join('moteur', 'gabarits'))];
 dire(fichiers.length > 0, `${fichiers.length} fichier(s) .astro trouvé(s)`);
 
 let griefsTotaux = 0;
