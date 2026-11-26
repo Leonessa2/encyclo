@@ -31,7 +31,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 const R = new URL('../..', import.meta.url).pathname;
-const BASE = join(R, 'src/layouts/Base.astro');
+const BASE = join(R, 'moteur/gabarits/Page.astro');   // le gabarit de page du moteur (lot 4)
 // 🔴 LOT 104 — UN SECOND EMETTEUR ENTRE DANS LA REGLE.
 // Ce banc ne lisait que `Base.astro`, et c'etait juste tant que l'en-tete etait
 // le seul endroit ou un element dependait du cookie. L'accueil en a un depuis
@@ -283,8 +283,8 @@ console.log('\n── 5. la chaîne du sélecteur de langue d\'interface ──'
   console.log(`     identity.langue_interface_dans = « ${reglage} »`
     + `  ·  languages.interface = [${languesInterface().join(', ')}]`);
 
-  const socleBrut = readFileSync(join(R, 'engine/lib/socle_js.mjs'), 'utf8');
-  const pilote = join(R, 'src/socle/55-langue.js');
+  const socleBrut = readFileSync(join(R, 'moteur/lib/socle_js.mjs'), 'utf8');
+  const pilote = join(R, 'moteur/socle/55-langue.js');
   const pilotePresent = existsSync(pilote);
   // 🔴🔴 LE PILOTE SE LIT **DÉCOMMENTÉ**, ET CE BANC VIENT DE REPAYER SA
   // PROPRE LEÇON. À sa première exécution, le contrôle « le pilote ne traduit
@@ -405,12 +405,15 @@ console.log('\n── 5. la chaîne du sélecteur de langue d\'interface ──'
   // devait parler est celui où il se taisait. *Un banc se juge sur ce qu'il
   // LAISSE PASSER.*
   // ⇒ on borne la recherche au tableau `ORDRE`, et on dit ce qu'on lit.
-  const blocOrdre = (socleSrc.match(/const\s+ORDRE\s*=\s*\[([\s\S]*?)\]/) || [, ''])[1];
-  dit(blocOrdre.length > 0, 'le tableau `ORDRE` est lisible dans `socle_js.mjs`',
-    blocOrdre.length ? null : '🔴 introuvable — ce contrôle ne mesurerait rien');
-  dit(/'55-langue\.js'/.test(blocOrdre), '`55-langue.js` est déclaré dans `ORDRE` (pas seulement dans `CONDITIONS`)',
-    /'55-langue\.js'/.test(blocOrdre) ? null
-      : '🔴 posé sur le disque, conditionné peut-être, mais SERVI nulle part — circuit ouvert');
+  // Lot 4 : plus de tableau `ORDRE`. Tout fichier de moteur/socle/ est servi,
+  // dans l'ordre des noms, SAUF s'il est débranché par le site
+  // (engine/lib/socle_site.mjs, `DEBRANCHES`) ou si sa condition est fausse.
+  const siteSocle = readFileSync(join(R, 'engine/lib/socle_site.mjs'), 'utf8');
+  const blocDeb = (siteSocle.match(/const\s+DEBRANCHES\s*=\s*\[([\s\S]*?)\]/) || [, null])[1];
+  dit(blocDeb !== null, 'la liste `DEBRANCHES` est lisible dans `socle_site.mjs`',
+    blocDeb !== null ? null : '🔴 introuvable — ce contrôle ne mesurerait rien');
+  dit(blocDeb !== null && !/'55-langue\.js'/.test(blocDeb), '`55-langue.js` n\'est pas débranché par le site',
+    '🔴 posé sur le disque, conditionné peut-être, mais SERVI nulle part — circuit ouvert');
 
   // ── ⑤ : LE PILOTE DÉSIGNE LE MÊME NŒUD ET LE MÊME COOKIE.
   dit(!pilotePresent || /getElementById\('langue-ui'\)/.test(piloteSrc),
@@ -584,7 +587,7 @@ console.log('\n── 5. la chaîne du sélecteur de langue d\'interface ──'
     '§6 le sélecteur d\'interface porte l\'adresse traduite (`data-href`)',
     'sinon « Français » ne rendrait que des menus français autour d\'un texte anglais');
 
-  const LANGUE_JS = join(R, 'src/socle/55-langue.js');
+  const LANGUE_JS = join(R, 'moteur/socle/55-langue.js');
   const jsL = existsSync(LANGUE_JS) ? readFileSync(LANGUE_JS, 'utf8') : '';
   dit(/function poser\(lang, dest\)/.test(jsL) && /if \(dest\) \{ window\.location\.assign\(dest\); return; \}/.test(jsL),
     '§6 …et `55-langue.js` navigue quand une adresse est fournie',
@@ -602,7 +605,7 @@ console.log('\n── 5. la chaîne du sélecteur de langue d\'interface ──'
     '§6 deux sources distinctes : l\'interface et les adresses',
     'les confondre est ce qui a produit un composant mort sur 94 % du site');
 
-  const SUGG_JS = join(R, 'src/socle/56-suggestion.js');
+  const SUGG_JS = join(R, 'moteur/socle/56-suggestion.js');
   dit(existsSync(SUGG_JS), '§6 le module `56-suggestion.js` existe');
   const jsS = existsSync(SUGG_JS) ? readFileSync(SUGG_JS, 'utf8') : '';
 
@@ -621,9 +624,10 @@ console.log('\n── 5. la chaîne du sélecteur de langue d\'interface ──'
   // ⛔ `socle_js.mjs` LÈVE déjà si le dossier et la liste divergent — ce
   //    contrôle-ci ne double pas cette garde, il vérifie la PLACE : après
   //    `50-i18n.js`, qui échange les deux libellés que le module va lire.
-  const ordreSrc = readFileSync(join(R, 'engine/lib/socle_js.mjs'), 'utf8');
-  const iI18n = ordreSrc.indexOf("'50-i18n.js'");
-  const iSugg = ordreSrc.indexOf("'56-suggestion.js'");
+  // Lot 4 : l'ordre est celui des NOMS de fichiers (moteur/lib/socle_js.mjs).
+  const noms = readdirSync(join(R, 'moteur', 'socle')).filter((f) => f.endsWith('.js')).sort();
+  const iI18n = noms.indexOf('50-i18n.js') + 1;
+  const iSugg = noms.indexOf('56-suggestion.js') + 1;
   dit(iSugg > 0 && iI18n > 0 && iSugg > iI18n,
     '§6 `56-suggestion.js` est déclaré APRÈS `50-i18n.js`',
     iSugg < 0 ? '⛔ absent de ORDRE — il ne serait jamais servi'

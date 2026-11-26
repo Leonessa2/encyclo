@@ -44,7 +44,7 @@ export const COOKIE_THEME = 'vp_theme';
 export const THEME_DUREE = 31536000;
 
 // ⛔ LISTE BLANCHE, JAMAIS LISTE NOIRE. Deux valeurs, et rien d'autre : ce
-//   cookie finit dans un `setAttribute('data-theme', …)`, donc dans le DOM.
+//   cookie finit dans l'attribut `data-theme` de la page, donc dans le DOM.
 //   Une valeur libre y écrirait ce qu'elle veut.
 // ⚠️ `'jour'` EST UNE VALEUR, PAS UNE ABSENCE. Elle dit « j'ai choisi clair »,
 //   ce qui n'est pas « je n'ai rien choisi » — et la différence compte le jour

@@ -103,7 +103,7 @@ export function langueUiDansEntete() {
 /** Les langues d'articles que le manifeste DÉCLARE.
  *  ═════════════════════════════════════════════════════════════════════════
  *  ⛔⛔ ELLE NE S'APPELLE PAS `languesBlog()`, ET C'EST DÉLIBÉRÉ : ce nom-là
- *  EXISTE DÉJÀ dans `engine/lib/blog.mjs`, et il répond à une autre question.
+ *  EXISTE DÉJÀ dans `moteur/lib/blog.mjs`, et il répond à une autre question.
  *  Je l'ai découvert en écrivant celle-ci — j'allais poser une SECONDE
  *  définition de « qu'est-ce qu'une langue de blog », dans un autre fichier.
  *  ⭐⭐⭐ *Deux définitions de la même notion divergent un jour, et ce jour-là

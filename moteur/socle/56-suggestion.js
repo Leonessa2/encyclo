@@ -1,4 +1,4 @@
-// ⚠️ Leonessa2/veve-sites — src/socle/56-suggestion.js   (FICHIER NEUF — lot 212)
+// ⚠️ Moteur commun — src/socle/56-suggestion.js   (FICHIER NEUF — lot 212)
 // ═══════════════════════════════════════════════════════════════════════════
 //  LA SUGGESTION DE LANGUE — UNE INFOBULLE SOUS LE BOUTON, PLUS UN BANDEAU
 // ═══════════════════════════════════════════════════════════════════════════
@@ -12,7 +12,7 @@
 // forme, et aucun banc ne pouvait les voir.
 //
 // ① IL COMPARAIT LA LANGUE DU FICHIER, PAS CELLE QUE LA PERSONNE VOIT.
-//    L'ancien code faisait `navigator.language` contre `lang`. Or veveprice est
+//    L'ancien code faisait `navigator.language` contre `lang`. Or le site de prix est
 //    pré-généré : `lang` vaut « en » sur 3 097 pages sur 3 097. Un lecteur qui
 //    avait choisi le français trois semaines plus tôt se voyait donc proposer
 //    « ce site est aussi disponible en Français » — sur un site déjà en
@@ -21,7 +21,7 @@
 //    est aveugle.* Celui-ci était vrai à chaque exécution.
 //
 // ② SA LISTE ÉTAIT VIDE SUR 168 PAGES SUR 178 (mesuré sur `dist/`).
-//    Elle se dérivait des ADRESSES de la page — et veveprice n'a d'adresses
+//    Elle se dérivait des ADRESSES de la page — et le site de prix n'a d'adresses
 //    traduites que sur le blog. Le mécanisme était servi partout et ne pouvait
 //    s'exécuter nulle part ailleurs. On lit maintenant DEUX sources :
 //      · `data-ui`  — les langues d'INTERFACE, jamais vides : de quoi proposer
@@ -40,7 +40,7 @@
 // ⛔⛔ LE BANDEAU N'EST PAS SUPPRIMÉ, IL DEVIENT LE REPLI. Le socle sert les
 // 15 sites du réseau, et `themes/encyclopedie/theme.css` habille `#langsuggest`
 // en propre (l. 242 et l. 583, la seconde pour l'impression). Un site sans
-// `#langue-ui` — vevewiki en est un, il n'a pas `langues_dans: compte` — n'a
+// `#langue-ui` — le site à cinq langues en est un, il n'a pas `langues_dans: compte` — n'a
 // aucun bouton sous lequel s'ancrer. *Un composant du socle ne se remplace pas,
 // il se double.*
 //

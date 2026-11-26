@@ -28,7 +28,7 @@ import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 //   build (ligne 399), il ouvre déjà `dist/`, et son §1 juge déjà la mention
 //   d'édition — c'est le même sujet, au bon moment.
 import { BUDGETS } from '../lib/vignette.mjs';
-import { clen, texteVu } from '../lib/seo.mjs';
+import { clen, texteVu } from '../../moteur/lib/seo.mjs';
 import { nu } from '../../moteur/lib/i18n.mjs';
 import { coteFermee } from '../lib/cote.mjs';
 import { SEUILS, largeursABalayer, seuilsDe, estSeuilDeclare } from '../lib/seuils.mjs';
@@ -405,9 +405,11 @@ verifie('ouvert il capte les clics et s\'assombrit',
 // « quelqu'un pose-t-il cet attribut ? », pas « ce fichier-là le pose-t-il ? ».
 // Nommer le fichier ferait rougir le jour où le morceau est renommé — un rouge
 // qui ne signale aucune panne, donc un rouge qu'on finit par désarmer.
-const base = lire('src/layouts/Base.astro') + '\n'
-  + readdirSync(join(ROOT, 'src', 'socle')).filter((f) => f.endsWith('.js')).sort()
-      .map((f) => lire(join('src', 'socle', f))).join('\n');
+// Lot 4 : le gabarit et les scripts communs vivent dans le moteur ; le site
+// garde ses propres morceaux dans src/socle/.
+const base = lire('moteur/gabarits/Page.astro') + '\n'
+  + [['moteur', 'socle'], ['src', 'socle']].flatMap((d) => readdirSync(join(ROOT, ...d))
+      .filter((f) => f.endsWith('.js')).sort().map((f) => lire(join(...d, f)))).join('\n');
 // ⭐ Auto-contrôle : chercher une chaîne dans un texte vide rend « absent »,
 // pas « erreur ». Sans cette ligne, un socle introuvable ferait rougir les
 // trois contrôles pour une raison qui n'est pas la leur.
@@ -785,7 +787,7 @@ if (!pageMenu) {
   //   jour où la règle d'état a rejoint l'en-tête — en accusant le bouton alors
   //   que c'était le RANGEMENT qui avait changé. *Un témoin qui compte à un
   //   seul endroit mesure aussi l'endroit, pas seulement la chose.*
-  const enTete = (lire('src/layouts/Base.astro')
+  const enTete = (lire('moteur/gabarits/Page.astro')
     .match(/<style is:inline>[\s\S]*?<\/style>/g) || []).join('\n');
   const reglesEnTete = [...enTete.matchAll(/([^{}]*\ba\.nav__cta\b[^{}]*)\{([^}]*)\}/g)];
   verifie('les règles du bouton sont lisibles aux deux étages',
@@ -815,7 +817,7 @@ if (!pageMenu) {
     //   ⭐ Ce banc a été écrit en cherchant d'abord dans la feuille, et c'est
     //   `test:feuille` qui l'a corrigé. *Chercher un usage, jamais un nom :
     //   l'usage est « ce qui peint avant la première peinture ».*
-    const enLigne = (lire('src/layouts/Base.astro')
+    const enLigne = (lire('moteur/gabarits/Page.astro')
       .match(/<style is:inline>[\s\S]*?<\/style>/g) || []).join('\n');
     const pleinesEnLigne = [...enLigne.matchAll(/([^{}]*\ba\.nav__cta\b[^{}]*)\{([^}]*)\}/g)]
       .filter((m) => etat(m[1]) && plein(m[2]));
@@ -851,7 +853,7 @@ if (!pageMenu) {
   //    ⭐ La règle qui le retire vit dans le gabarit, pas dans le thème : un §
   //    qui n'aurait ouvert que la feuille aurait conclu juste sur la moitié du
   //    mécanisme. *Chercher un usage, jamais un nom.*
-  const gabarit = lire('src/layouts/Base.astro');
+  const gabarit = lire('moteur/gabarits/Page.astro');
   verifie('④ à l\'état connecté, l\'appel anonyme est retiré — un seul plein dans la barre',
     /html\[data-membre\]\s*\[data-anonyme\]\s*\{\s*display:\s*none/.test(gabarit),
     'la règle qui retire l\'appel anonyme est bien celle du gabarit');

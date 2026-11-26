@@ -46,7 +46,7 @@ const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const { manifest } = await import('../../moteur/lib/manifest.mjs');
 const { locales, localize } = await import('../../moteur/lib/i18n.mjs');
 const { priceEnabled } = await import('../lib/features.mjs');
-const { languesBlog, blogEnabled } = await import('../lib/blog.mjs');
+const { languesBlog, blogEnabled } = await import('../../moteur/lib/blog.mjs');
 const { languesDuSite } = await import('../../moteur/lib/editorial_pages.mjs');
 
 let echecs = 0;

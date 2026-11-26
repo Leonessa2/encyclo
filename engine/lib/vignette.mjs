@@ -31,7 +31,7 @@
 // `ds.rayon` est une liste BLANCHE (`floor`, `listings`, `ath`, `atl` en sont
 // retirés exprès) et l'y remettre publierait 19 412 prix par un chemin que
 // `projeter()` ne voit pas. `test:rayon` §① tient cette liste.
-import { clen, couperMots } from './seo.mjs';
+import { clen, couperMots } from '../../moteur/lib/seo.mjs';
 import { nu } from '../../moteur/lib/i18n.mjs';
 
 // ═══════════════════════════════════════════════════════════════════════════

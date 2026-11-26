@@ -5,7 +5,7 @@ import { DOCS, languesLegales } from '../../moteur/lib/legal.mjs';
 import { priceEnabled } from '../../engine/lib/features.mjs';
 import { activeSections, sectionMeta, languesDeSection, languesDuSite } from '../../moteur/lib/editorial_pages.mjs';
 import { ficheSections, fichesDe, cheminFiche } from '../../engine/lib/editorial_entries.mjs';
-import { postsFor, tagsFor, translationPaths, SEUIL_INDEX_TAG, languesBlog } from '../../engine/lib/blog.mjs';
+import { postsFor, tagsFor, translationPaths, SEUIL_INDEX_TAG, languesBlog } from '../../moteur/lib/blog.mjs';
 // ⭐⭐ LE `lastmod` NE PEUT PAS ÊTRE « AUJOURD'HUI » POUR TOUT LE MONDE.
 // Avant le 27/07 les 82 URL portaient la date du build : les mentions légales,
 // inchangées depuis des mois, se déclaraient modifiées chaque matin. Un moteur

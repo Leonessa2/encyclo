@@ -2,13 +2,13 @@
 //  blog.mjs — les ARTICLES, source HYBRIDE (Sheet + Markdown du dépôt)
 //
 //  ⚠️ CE FICHIER VA DANS LE DÉPÔT  Leonessa2/veve-sites , dans  engine/lib/
-//     (chemin exact : engine/lib/blog.mjs)
+//     (chemin exact : moteur/lib/blog.mjs)
 //
 //  DEUX SOURCES, UN SEUL FLUX (décision Preda, 27/07/2026) :
 //
 //   1. SHEET  — onglet `Blog` du Sheet éditorial, récolté par `editorial_pull.py`
 //      vers `sites/<SITE>/editorial/blog.json`. DEUX FORMES acceptées, parce que
-//      les Sheets du réseau n'ont pas tous la même (constaté sur vevewiki) :
+//      les Sheets du réseau n'ont pas tous la même (constaté sur le site à cinq langues) :
 //        a) UNE LIGNE PAR LANGUE  : colonne `lang` + `titre`/`body`/`excerpt`,
 //           les langues reliées par `translation_key` ;
 //        b) COLONNES PAR LANGUE   : une seule ligne, `titre_fr`/`body_fr`/
@@ -30,16 +30,17 @@
 //  ARBITRAGE : à (langue, slug) identique, le fichier `.md` du dépôt GAGNE — le
 //  dépôt fait foi sur le Sheet (un avertissement est journalisé au build).
 //
-//  Le reste du réseau ne bouge pas : un site sans onglet Blog (veveprice) n'a
+//  Le reste du réseau ne bouge pas : un site sans onglet Blog (le site de prix) n'a
 //  pas de `editorial/blog.json` → source 1 vide, comportement identique à avant.
 // =============================================================================
-import { locales, languesDeclareesBlog } from '../../moteur/lib/i18n.mjs';
-import { manifest } from '../../moteur/lib/manifest.mjs';
-import { collection, parseDay, estRepli } from './contenu.mjs';
-import { renderMarkdown, stripMarkdown } from '../../moteur/lib/markdown.mjs';
-import { localize } from '../../moteur/lib/i18n.mjs';
-import { figureParId } from './figures.mjs';
-import { jourDuBuild } from '../../moteur/lib/jour_du_build.mjs';
+import { locales, languesDeclareesBlog } from './i18n.mjs';
+import { manifest } from './manifest.mjs';
+import { collection, parseDay, estRepli } from './editorial.mjs';
+import { renderMarkdown, stripMarkdown } from './markdown.mjs';
+import { localize } from './i18n.mjs';
+// Ce que le SITE prête au moteur (contrat : moteur/LISEZMOI.md, « #site/extensions »).
+import * as site from '#site/extensions';
+import { jourDuBuild } from './jour_du_build.mjs';
 
 let _cache = null;
 
@@ -121,7 +122,8 @@ async function sheetPostsFor(lang) {
       //     tracee au build, l'auteur ne recopiant AUCUN chiffre.
       html: renderMarkdown(body, {
         localiser: (u) => localize(lang, u),
-        figure: (id, legende) => figureParId(id, lang, legende),
+        // Figure de données : seulement si le site sait en tracer (`figureParId`).
+        figure: site.figureParId ? (id, legende) => site.figureParId(id, lang, legende) : undefined,
       }),
       cover: norm(r.cover || r.image),
       // ⭐ DUREE DE LECTURE — colonne OPTIONNELLE du Sheet (arbitrage Preda
@@ -204,7 +206,7 @@ async function loadAll() {
   // ═════════════════════════════════════════════════════════════════════════
   // C'était le dernier maillon manquant du branchement au Sheet, et il ne se
   // voyait NULLE PART :
-  //   · le manifeste de veveprice déclare `languages.active: [en]` — les
+  //   · le manifeste du site de prix déclare `languages.active: [en]` — les
   //     langues qui ont une ADRESSE sur le site — et `languages.blog: [en, fr]` ;
   //   · le lot 120 a corrigé les ROUTES (elles lisent toutes `languesBlog()`)
   //     et a laissé CE chargeur sur `active` : une correction arrêtée au bord
@@ -242,7 +244,7 @@ async function loadAll() {
   }
 
   // Publication programmée aussi pour les .md : un article daté du futur attend
-  // son jour (règle générale du réseau, cf. bible/sheet-vevewiki-spec.md).
+  // son jour (règle générale du réseau, cf. bible/sheet-<site>-spec.md).
   const visibles = retenus.filter((p) => {
     const t = new Date(p.data.date).getTime();
     return !Number.isFinite(t) || t <= day;
@@ -281,7 +283,7 @@ export async function translationPaths(key) {
 //   · blog.mjs        TAG_MIN_POSTS = 2   -> CREE la page ;
 //   · BlogTag.astro   SEUIL_INDEX   = 4   -> la met en NOINDEX ;
 //   · sitemap.xml.js  (aucun seuil)       -> l'ANNONCE quand meme.
-// Mesure sur vevewiki : 10 pages (2 etiquettes x 5 langues) a la fois en
+// Mesure sur le site à cinq langues : 10 pages (2 etiquettes x 5 langues) a la fois en
 // noindex ET dans le sitemap. On demandait a Google d'aller voir une page
 // qu'on lui interdisait d'indexer — une contradiction qu'aucun build ne signale.
 // ⭐ Le commentaire de BlogTag.astro promettait deja « et le sitemap la suit ».
@@ -377,7 +379,7 @@ export const allLangs = async () => [...new Set((await loadAll()).map((p) => p.l
  * ⭐ Le blog ne passe PAS par la mesure de couverture d'moteur/lib/langues.mjs,
  * et c'est délibéré : ses articles viennent de DEUX sources (onglet Sheet et
  * fichiers .md du dépôt). Mesurer le seul snapshot `blog.json` ferait tomber à
- * zéro un site qui n'a que des .md — veveprice, dont les articles français
+ * zéro un site qui n'a que des .md — le site de prix, dont les articles français
  * auraient disparu sans un mot. Le fait qui compte ici n'est pas « la colonne
  * est-elle traduite » mais « existe-t-il un article dans cette langue »,
  * et `postsFor` le sait des deux sources à la fois.
@@ -478,8 +480,8 @@ export function dureeLecture(post) {
 // Seules `prose`, `crumbs`, `lead` et `wrap` sont dans les trois.
 //
 // ⛔ PORTER LE BALISAGE DANS LE GABARIT PARTAGE AURAIT RENDU INERTE LE BLOG DE
-// vevewiki — 40 pages reelles, 5 articles x 5 langues — POUR EMBELLIR CELUI DE
-// veveprice, QUI EN A UN. C'est le miroir exact du 31/07 : on avait alors
+// le site à cinq langues — 40 pages reelles, 5 articles x 5 langues — POUR EMBELLIR CELUI DE
+// le site de prix, QUI EN A UN. C'est le miroir exact du 31/07 : on avait alors
 // reclame a `encyclopedie` le vocabulaire de la vitrine via `css-mort`, et
 // recolte 172 griefs. Ici, c'est le GABARIT qui l'aurait reclame — et personne
 // n'aurait crie.

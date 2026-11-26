@@ -16,7 +16,7 @@
 //      alors « valide, seulement fausse » : le mode de panne le plus cher d'ici.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { definedTermSetLd, chronologieLd, pageAProposLd, itemListLd } from '../lib/seo.mjs';
+import { definedTermSetLd, chronologieLd, pageAProposLd, itemListLd } from '../../moteur/lib/seo.mjs';
 
 const F = (p) => fileURLToPath(new URL(p, import.meta.url));
 let ok = 0, ko = 0;

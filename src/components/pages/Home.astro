@@ -29,7 +29,7 @@ import Gate from '../Gate.astro';   // 🔴 LOT 112 — le témoin du classement
 import AVenir from '../AVenir.astro';   // ⏳ LOT 113 — les drops annoncés (Preda : « partout, y compris l'accueil »)
 // ⭐ AJOUT SEUL (lot 45). `serie` rend les articles d'une etiquette dans leur
 // ordre de lecture ; `dureeLecture` donne les minutes, dites ou calculees.
-import { serie, dureeLecture, SEUIL_PAGE_TAG } from '../../../engine/lib/blog.mjs';
+import { serie, dureeLecture, SEUIL_PAGE_TAG } from '../../../moteur/lib/blog.mjs';
 import { choisirDuJour } from '../../../moteur/lib/jour_du_build.mjs';
 
 const { lang } = Astro.props;

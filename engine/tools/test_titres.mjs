@@ -53,7 +53,7 @@ import { localeNames, nu, t } from '../../moteur/lib/i18n.mjs';
 // nouveaux nombres ici. *Un seuil recopié est un seuil qui divergera ; un
 // avertissement qui n'arrête rien est un seuil qui n'existe pas.*
 import { DESC_MIN, DESC_MAX } from '../../moteur/lib/editorial_pages.mjs';
-import { pageTitle, TITLE_BUDGET, couperMilieu, couperMots, texteVu } from '../lib/seo.mjs';
+import { pageTitle, TITLE_BUDGET, couperMilieu, couperMots, texteVu } from '../../moteur/lib/seo.mjs';
 
 const R = new URL('../..', import.meta.url).pathname;
 // Deux modes, deux racines : `dist/` (static) ou `dist/client/` (server).
@@ -95,7 +95,7 @@ const compteH1 = (html) => (html.match(/<h1(?=[\s>])/gi) || []).length;
 // ⭐⭐ *On mesure ce que le LECTEUR reçoit, jamais la sérialisation.* Les
 // marqueurs i18n (invisibles, en trop) et les entités (visibles, en trop) sont
 // la même faute : compter le tampon au lieu du texte.
-// 🔴🔴 LOT 139b — CE DÉCODEUR A DÉMÉNAGÉ DANS `engine/lib/seo.mjs`, ET LA
+// 🔴🔴 LOT 139b — CE DÉCODEUR A DÉMÉNAGÉ DANS `moteur/lib/seo.mjs`, ET LA
 // COPIE QUI VIVAIT ICI A COÛTÉ UN DÉPLOIEMENT DE PRODUCTION.
 // Il était écrit ici, juste, complet, avec sa leçon en toutes lettres. Puis
 // `test:affichage` §5 a été écrit le lendemain avec `nu()` SEUL : vert sur les

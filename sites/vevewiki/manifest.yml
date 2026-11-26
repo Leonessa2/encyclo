@@ -13,7 +13,7 @@
 #   le banc moteur-neutre le vérifie.
 # `dictionnaires` : où le moteur lit les libellés de ce site.
 moteur:
-  version: "0.2.0"
+  version: "0.3.0"
   dictionnaires: engine/i18n
 
 site:
@@ -100,7 +100,7 @@ features:
 editorial:
   sheet_id: "1TJLGK4i6a7-UPQYNdTqLPCAjyqQ5NdSxoA8gju8-DjI"   # Sheet éditorial vevewiki (27/07)
   pages: [glossary, acronyms, annuaire, history, brands, blog]
-  # BLOG ACTIVÉ le 27/07/2026. Source HYBRIDE (engine/lib/blog.mjs) :
+  # BLOG ACTIVÉ le 27/07/2026. Source HYBRIDE (moteur/lib/blog.mjs) :
   #   • onglet `Blog` du Sheet  -> sites/vevewiki/editorial/blog.json (corps en
   #     Markdown dans la colonne `body`, une LIGNE PAR LANGUE, `Publish` = date
   #     de sortie : un article daté du futur sort tout seul le jour dit) ;

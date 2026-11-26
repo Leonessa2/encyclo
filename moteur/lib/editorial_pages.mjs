@@ -10,7 +10,7 @@
 //  et sert les listes de `getStaticPaths` (défaut + localisé). UN SEUL code pour
 //  les 15 sites ; rien de propre à un site.
 //
-//  blog & submit ne sont PAS ici : le blog a son rendu propre (engine/lib/blog.mjs)
+//  blog & submit ne sont PAS ici : le blog a son rendu propre (moteur/lib/blog.mjs)
 //  et « submit » est un formulaire, pas une page-liste de contenu.
 // =============================================================================
 import { manifest } from './manifest.mjs';

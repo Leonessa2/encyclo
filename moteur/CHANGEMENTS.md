@@ -1,5 +1,24 @@
 # Changements du moteur
 
+## 0.3.0 — 26/11/2026
+
+- **Gabarit de page** (`gabarits/Page.astro`), **blog** (`lib/blog.mjs`),
+  **référencement** (`lib/seo.mjs`), **JavaScript commun** (`lib/socle_js.mjs`
+  et `socle/`) entrent dans le moteur.
+- Ce qui était propre aux sites de prix n'y entre pas (comptes, avatar,
+  inscription, alertes, cote, bandeau « vu », lien vers la méthode des prix,
+  donnée structurée d'un objet avec son prix).
+- **Points d'entrée du site** : `#site/extensions` (facultatif) et
+  `#site/socle` (obligatoire) — voir `LISEZMOI.md`.
+- Le JavaScript commun s'assemble dans l'ordre des noms de fichiers ; le site
+  ajoute ses morceaux et déclare ceux qu'il garde sans les servir.
+- `moteur-neutre` : ne saute plus un fichier pour un caractère nul (il en
+  sautait un en 0.1.0 et 0.2.0 : `lib/markdown.mjs`, qui était neutre) ;
+  refuse tout point d'entrée non déclaré.
+- **Ce que les sites doivent adapter** : déclarer `#site/extensions` et
+  `#site/socle` dans leur `package.json` ; envelopper `gabarits/Page.astro`
+  dans leur gabarit ; importer le blog et le référencement depuis le moteur.
+
 ## 0.2.0 — 26/11/2026
 
 - **Servir et envoyer** (`envoi/`) : les règles de service d'un site statique

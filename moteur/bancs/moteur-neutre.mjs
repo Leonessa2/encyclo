@@ -14,7 +14,8 @@
 //
 // Il vérifie aussi :
 //   · que le moteur ne dépend que de lui-même (aucun import relatif qui sort de
-//     moteur/, sauf la lecture des thèmes par import.meta.glob) ;
+//     moteur/, sauf la lecture des thèmes par import.meta.glob), et ne touche
+//     au site que par ses points d'entrée déclarés (#site/extensions, #site/socle) ;
 //   · que chaque site qui déclare `moteur.version` déclare celle de moteur/VERSION.
 //
 // Exception assumée : le blanc et le noir purs (#fff, #ffffff, #000, #000000)
@@ -104,11 +105,14 @@ dit(nCouleurs >= 5, `${nCouleurs} couleurs de sites à refuser`);
 
 // ── 1. aucune valeur propre à un site ──────────────────────────────────────
 console.log('\n1. aucun nom, domaine, Sheet ou couleur de site dans moteur/');
+// ⛔ Un fichier n'est sauté QUE par son extension : un caractère nul dans un
+//    fichier de code le faisait passer pour binaire, donc ignorer (0.1.0).
+const BINAIRES = /\.(png|jpe?g|webp|avif|gif|ico|woff2?|ttf|otf|gz|zip|pdf)$/i;
 const fautes = [];
 for (const f of fichiers) {
   let t;
   try { t = readFileSync(f, 'utf8'); } catch { continue; }
-  if (t.includes('\u0000')) continue;            // fichier binaire
+  if (BINAIRES.test(f)) continue;   // images, polices : pas du texte
   const lignes = t.split('\n');
   for (let i = 0; i < lignes.length; i++) {
     for (const it of interdits) {
@@ -134,6 +138,18 @@ for (const f of fichiers.filter((x) => /\.(mjs|js|astro|ts)$/.test(x))) {
 }
 dit(sorties.length === 0, sorties.length ? `${sorties.length} import(s) hors de moteur/` : 'aucun import ne sort de moteur/');
 for (const x of sorties) console.log(`     ${x}`);
+// Les seuls chemins par lesquels le moteur touche du code du site : les
+// points d'entrée déclarés (moteur/LISEZMOI.md), résolus par le package.json
+// du site. Tout autre « #… » serait une dépendance cachée.
+const ENTREES = new Set(['#site/extensions', '#site/socle']);
+const autresEntrees = [];
+for (const f of fichiers.filter((x) => /\.(mjs|js|astro|ts)$/.test(x))) {
+  for (const m of readFileSync(f, 'utf8').matchAll(/(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(['"])(#[^'"]+)\1/g)) {
+    if (!ENTREES.has(m[2])) autresEntrees.push(`${relative(RACINE, f)} → ${m[2]}`);
+  }
+}
+dit(autresEntrees.length === 0, `seuls les points d'entrée déclarés du site sont utilisés (${[...ENTREES].join(', ')})`);
+for (const x of autresEntrees) console.log(`     ${x}`);
 
 // ── 3. la version déclarée par chaque site ─────────────────────────────────
 console.log('\n3. la version du moteur');

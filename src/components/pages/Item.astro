@@ -10,13 +10,14 @@ import Cote from '../Cote.astro';
 // ⭐ `moduleJs`, PAS le socle global : ce code ne sert que sur une fiche. Le
 // verser a `src/socle/*.js` le ferait telecharger par les rayons et l'accueil,
 // qui n'ont aucun `[data-ventes]` — meme arbitrage que `Cadran.astro`.
-import { moduleJs } from '../../../engine/lib/socle_js.mjs';
-import { productLd, breadcrumbLd, couperMilieu } from '../../../engine/lib/seo.mjs';
+import { moduleJs } from '../../../engine/lib/socle_site.mjs';
+import { breadcrumbLd, couperMilieu } from '../../../moteur/lib/seo.mjs';
+import { productLd } from '../../../engine/lib/seo_objet.mjs';
 import { manifest, siteUrl } from '../../../moteur/lib/manifest.mjs';
 import { DESC_MIN, DESC_MAX } from '../../../moteur/lib/editorial_pages.mjs';
 import { t, localize, numberLocale, dateLocale, nu } from '../../../moteur/lib/i18n.mjs';
 import { imageFiche, ONERROR_REPLI } from '../../../engine/lib/image_cdn.mjs';
-import { postsForItem } from '../../../engine/lib/blog.mjs';
+import { postsForItem } from '../../../moteur/lib/blog.mjs';
 import { rar, forme, delta, gemsM, RAR, omiM, mcpPoints, mentionEdition, dateSeule, urlStackR } from '../../../engine/lib/vitrine.mjs';
 import { franchit, porte, acces } from '../../../engine/lib/access.mjs';
 import { coteFermee as coteEstFermee } from '../../../engine/lib/cote.mjs';

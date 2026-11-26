@@ -2,6 +2,10 @@
   "name": "veve-sites",
   "version": "1.0.0",
   "type": "module",
+  "imports": {
+    "#site/extensions": "./engine/lib/extensions.mjs",
+    "#site/socle": "./engine/lib/socle_site.mjs"
+  },
   "private": true,
   "scripts": {
     "dev": "astro dev",

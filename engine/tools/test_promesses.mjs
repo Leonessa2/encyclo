@@ -45,7 +45,7 @@ import { join } from 'node:path';
 // 🔴 LOT 204 — `texteVu()` AVANT TOUT COMPTAGE DE LIBELLÉ. Un bouton servi
 // porte des sentinelles i18n et des balises ; comparer du HTML brut ferait
 // passer deux libellés identiques pour distincts (ou l'inverse).
-import { texteVu } from '../lib/seo.mjs';
+import { texteVu } from '../../moteur/lib/seo.mjs';
 
 process.env.SITE = process.env.SITE || 'veveprice';
 const R = new URL('../..', import.meta.url).pathname;

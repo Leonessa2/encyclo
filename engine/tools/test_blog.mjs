@@ -31,7 +31,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const BLOG = JSON.stringify(join(RACINE, 'engine', 'lib', 'blog.mjs'));
+const BLOG = JSON.stringify(join(RACINE, 'moteur', 'lib', 'blog.mjs'));
 const MD = JSON.stringify(join(RACINE, 'moteur', 'lib', 'markdown.mjs'));
 const base = mkdtempSync(join(tmpdir(), 'blog-'));
 let echecs = 0;
@@ -401,10 +401,10 @@ console.log('\n10. Sources : « toute information porte un lien vers sa source �
 //   vers des pages non construites, payee le 28/07. La condition doit donc
 //   etre `blogDansCetteLangue`, celle-la meme qui pilote la navigation.
 {
-  const BASE = readFileSync(new URL('../../src/layouts/Base.astro', import.meta.url), 'utf8');
+  const BASE = readFileSync(new URL('../../moteur/gabarits/Page.astro', import.meta.url), 'utf8');
   const bloc = BASE.match(/\{blogDansCetteLangue && \([^}]*rss\+xml[\s\S]{0,400}?\)\}/);
   verifier('le <head> declare le flux RSS', /application\/rss\+xml/.test(BASE),
-    'aucun <link rel="alternate" type="application/rss+xml"> dans Base.astro');
+    'aucun <link rel="alternate" type="application/rss+xml"> dans moteur/gabarits/Page.astro');
   verifier('il ne le declare QUE dans les langues qui ont un flux', Boolean(bloc),
     'la declaration doit etre conditionnee par `blogDansCetteLangue`, sinon elle '
     + 'annonce un flux inexistant dans les langues sans article');
@@ -473,7 +473,7 @@ console.log('\n12. LE MEME INVARIANT, SUR LE SITE REEL (lot 162)');
 //    cotes de la comparaison viennent de deux couches differentes.
 // ⭐ SANS OBJET quand le site n'a pas d'onglet Blog, et il le DIT.
 {
-  const { postsFor } = await import('../lib/blog.mjs');
+  const { postsFor } = await import('../../moteur/lib/blog.mjs');
   const { collection, estRepli } = await import('../lib/contenu.mjs');
   const { languesDeclareesBlog } = await import('../../moteur/lib/i18n.mjs');
   const site = process.env.SITE || 'veveprice';
@@ -505,7 +505,7 @@ rmSync(base, { recursive: true, force: true });
 // `sobre`, sinon son blog — 40 pages reelles — sortirait en texte nu.
 console.log('\n8. La peau du blog et la duree de lecture');
 {
-  const { blogSkin, dureeLecture, postsFor } = await import('../lib/blog.mjs');
+  const { blogSkin, dureeLecture, postsFor } = await import('../../moteur/lib/blog.mjs');
   const { manifest } = await import('../../moteur/lib/manifest.mjs');
   const { locales } = await import('../../moteur/lib/i18n.mjs');
   const site = process.env.SITE || 'veveprice';

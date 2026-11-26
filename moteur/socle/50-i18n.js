@@ -7,11 +7,11 @@
 
   // ⛔⛔ ON N'ÉCHANGE QUE SUR UNE PAGE SERVIE DANS LA LANGUE PIVOT.
   // ⚠️ CE N'EST PAS UNE PRÉCAUTION THÉORIQUE : le réseau fait DEUX sites, et
-  // vevewiki, lui, génère vraiment `/fr/`, `/es/`, `/de/`, `/it/`. Sans cette
+  // le site à cinq langues, lui, génère vraiment `/fr/`, `/es/`, `/de/`, `/it/`. Sans cette
   // ligne, quelqu'un qui lit `/fr/glossary/` avec un cookie `es` verrait sa
   // page française réécrite en espagnol par-dessus — un site qui se traduit
   // deux fois, dans le mauvais sens.
-  // ⭐ Elle protège aussi les pages membre de veveprice : elles sont rendues à
+  // ⭐ Elle protège aussi les pages membre du site de prix : elles sont rendues à
   // la demande, DÉJÀ dans la bonne langue et sans aucun marquage. Le garde est
   // redondant là-bas, et c'est très bien : *un garde-fou qui ne sert que dans
   // le cas qu'on n'avait pas prévu est exactement celui qui manque le jour J.*

@@ -48,7 +48,7 @@ import { locales } from '../../moteur/lib/i18n.mjs';
 import { activeSections } from '../../moteur/lib/editorial_pages.mjs';
 import { collection } from '../../engine/lib/contenu.mjs';
 import { fichesDe, cheminFiche, ancreJalon, ancreTerme, ancresAnnuaire } from '../../engine/lib/editorial_entries.mjs';
-import { blogEnabled, postsFor, languesBlog } from '../../engine/lib/blog.mjs';
+import { blogEnabled, postsFor, languesBlog } from '../../moteur/lib/blog.mjs';
 
 /** Le libellé d'une entrée, selon sa section. Une entrée sans libellé n'est pas
  *  indexée : une ligne de recherche vide est un résultat sur lequel on clique

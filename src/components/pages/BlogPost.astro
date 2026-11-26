@@ -17,15 +17,15 @@
 // compilateur Astro rend « Expected `,` or `)` but found `Identifier` » — un
 // message qui ne nomme ni le commentaire ni la cause. Mesure, pas suppose.
 import BlogPostVitrine from './BlogPostVitrine.astro';
-import { blogSkin } from '../../../engine/lib/blog.mjs';
+import { blogSkin } from '../../../moteur/lib/blog.mjs';
 const _peau = blogSkin();
 
 import { render } from 'astro:content';
 import Base from '../../layouts/Base.astro';
-import { translationPaths, tagsFor } from '../../../engine/lib/blog.mjs';
+import { translationPaths, tagsFor } from '../../../moteur/lib/blog.mjs';
 import { dataset } from '../../../engine/lib/dataset.mjs';
 import { manifest, siteUrl } from '../../../moteur/lib/manifest.mjs';
-import { jsonld, breadcrumbLd } from '../../../engine/lib/seo.mjs';
+import { jsonld, breadcrumbLd } from '../../../moteur/lib/seo.mjs';
 import { t, localize, dateLocale } from '../../../moteur/lib/i18n.mjs';
 import { carteArticle } from '../../../moteur/lib/og.mjs';
 

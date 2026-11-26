@@ -3,7 +3,7 @@
 //  LE JOUR DU BUILD — écrit UNE fois, parce qu'il l'était déjà DEUX
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// `buildDay()` existait à l'identique dans `engine/lib/blog.mjs` (l. 49) et
+// `buildDay()` existait à l'identique dans `moteur/lib/blog.mjs` (l. 49) et
 // `moteur/lib/editorial.mjs` (l. 37) : même corps, même commentaire, aucune des
 // deux exportée. Le lot 161 en aurait écrit une TROISIÈME pour l'image du jour
 // de l'accueil. ⭐⭐ « Deux endroits qui font la même chose divergent en

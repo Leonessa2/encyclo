@@ -1,10 +1,9 @@
 // Donnees structurees JSON-LD.
-import { coteFermee } from './cote.mjs';
-import { nu } from '../../moteur/lib/i18n.mjs';
+import { nu } from './i18n.mjs';
 // ═══════════════════════════════════════════════════════════════════════════
 // 🔴🔴🔴 LOT 228 — LES SENTINELLES D'I18N NE DOIVENT PAS SORTIR D'ICI
 // ═══════════════════════════════════════════════════════════════════════════
-// MESURE DU 05/09/2026, sur le `dist/` d'un build reel de `vevewiki` :
+// MESURE DU 05/09/2026, sur le `dist/` d'un build reel du site à cinq langues :
 //   **362 valeurs polluees dans le JSON-LD, sur 277 pages sur 283.**
 //   Toutes des `ListItem.name`, et le maillon d'accueil en tete :
 //     `\u0011home.crumb\u0012Home\u0013` .... 111×
@@ -37,7 +36,7 @@ export const jsonld = (o) => `<script type="application/ld+json">${JSON.stringif
 //  TITRE DE PAGE — budget de 60 caracteres, applique A LA RACINE
 // -----------------------------------------------------------------------------
 //  Google tronque un <title> au-dela d'environ 60 caracteres. Le gabarit ajoute
-//  un suffixe de marque (`seo.title_template`, ex. « %s | VeVe Wiki ») : un titre
+//  un suffixe de marque (`seo.title_template`, ex. « %s | le site à cinq langues ») : un titre
 //  d'article deja long PASSE la limite sans que personne ne le voie.
 //
 //  Regle, du moins destructif au plus destructif :
@@ -248,7 +247,7 @@ export function couperMots(s, max) {
 /**
  * Titre final d'une page.
  * @param {string} titre     titre editorial (peut etre vide -> `secours`)
- * @param {string} gabarit   `seo.title_template` du manifeste, ex. « %s | VeVe Wiki »
+ * @param {string} gabarit   `seo.title_template` du manifeste, ex. « %s | le site à cinq langues »
  * @param {string} secours   titre d'accueil quand `titre` est vide
  * @param {(msg:string)=>void} journal  ou signaler un raboutage (defaut console.warn)
  */
@@ -314,31 +313,6 @@ export function pageTitle(titre, gabarit = '%s', secours = '', journal = null) {
   dire(`titre > ${TITLE_BUDGET} caracteres, coupe : "${nu(brut)}" (${clen(nu(brut))}) -> "${coupe}"`);
   return coupe;
 }
-
-// 🔴🔴 LOT 101 — `offers.price` ETAIT LA FUITE LA PLUS COUTEUSE DE TOUTES.
-// Une donnee structuree n'est pas lue par un visiteur : elle est lue par les
-// MOTEURS, recopiee dans les resultats de recherche, et conservee dans leur
-// cache bien apres qu'on l'a retiree de la page. Ce champ servait le plancher
-// courant a Google, en clair, sur 8 500 pages — c'est-a-dire le produit qu'on
-// veut vendre, publie a l'endroit precis d'ou on ne peut plus le rappeler.
-//
-// ⭐⭐⭐ LE RETRAIT EST INCONDITIONNEL QUAND LA PORTE EST FERMEE, ET IL NE SE
-// NEGOCIE PAS AVEC UN `<Gate>` : le JSON-LD n'a pas de rendu conditionnel, pas
-// de CSS, pas de JavaScript. Il est dans le HTML ou il n'y est pas.
-// ⭐ En pratique la ligne serait deja inerte — `item.floor` n'existe plus apres
-// `projeter()`, donc le ternaire retomberait sur `{}`. ON GARDE QUAND MEME LE
-// TEST DE LA PORTE : « ca se trouve inerte » et « c'est interdit » ne sont pas
-// la meme chose, et c'est la premiere qui se defait au lot suivant sans bruit.
-// ⛔ NE JAMAIS declarer un `offers` sans prix « pour garder la donnee riche » :
-// une donnee structuree est une PROMESSE faite au moteur, et une offre sans
-// montant est une promesse vide — Search Console la signale comme une erreur.
-export const productLd = (item, url, brand) => ({
-  '@context': 'https://schema.org', '@type': 'Product',
-  name: item.qualifie || item.name, sku: item.uuid, url,
-  brand: { '@type': 'Brand', name: item.brand || brand },
-  category: item.series || undefined,
-  ...(!coteFermee() && item.floor ? { offers: { '@type': 'Offer', price: item.floor, priceCurrency: 'USD', availability: (item.listings || 0) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', url } } : {}),
-});
 
 export const breadcrumbLd = (parts) => ({
   '@context': 'https://schema.org', '@type': 'BreadcrumbList',
@@ -437,10 +411,10 @@ export const websiteLd = (site, url, avecRecherche = false) => ({
 // =============================================================================
 //  TITRE D'ACCUEIL — ⭐ la page la plus importante du site decrivait un AUTRE site
 // -----------------------------------------------------------------------------
-//  Constate le 27/07/2026 : vevewiki.com titrait
-//      « VeVe Wiki — VeVe price history & floor tracker »
+//  Constate le 27/07/2026 : le site à cinq langues titrait
+//      « le site à cinq langues — le site de prix history & floor tracker »
 //  sur ses DEUX accueils. Le gabarit, faute de titre, retombait sur la cle i18n
-//  RESEAU `title.home` — ecrite pour veveprice. Un wiki qui ne publie aucun prix
+//  RESEAU `title.home` — ecrite pour le site de prix. Un wiki qui ne publie aucun prix
 //  se vendait donc comme un tracker de prix, sur sa page d'entree.
 //
 //  ⭐ Un defaut par REPLI est le plus dur a voir : rien n'echoue, rien n'est

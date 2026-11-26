@@ -38,7 +38,7 @@
 //   sans JS ne filtre rien ; un lien, si. Et le seuil `SEUIL_INDEX_TAG` du
 //   moteur continue de décider lesquels ont une page.
 import Base from '../../layouts/Base.astro';
-import { postsFor, tagsFor, blogMeta, languesBlog, dureeLecture } from '../../../engine/lib/blog.mjs';
+import { postsFor, tagsFor, blogMeta, languesBlog, dureeLecture } from '../../../moteur/lib/blog.mjs';
 import { t, localize, dateLocale } from '../../../moteur/lib/i18n.mjs';
 
 const { lang, updatedAt } = Astro.props;

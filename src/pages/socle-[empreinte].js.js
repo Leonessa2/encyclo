@@ -22,7 +22,7 @@
 // ferme les deux portes d'un coup.
 export const prerender = true;
 
-import { toutLeJs } from '../../engine/lib/socle_js.mjs';
+import { toutLeJs } from '../../engine/lib/socle_site.mjs';
 
 // ⭐ L'EMPREINTE VIENT DU CONTENU, PAS L'INVERSE. Chaque chemin rendu ici est
 // celui qu'un gabarit va écrire dans son `<script src>`, calculé par la MÊME

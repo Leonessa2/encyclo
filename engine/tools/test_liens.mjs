@@ -63,7 +63,7 @@ console.log('\n🔗 test:liens — les liens vers une adresse gatée sont gardé
 
 const lire = (p) => readFileSync(join(RACINE, p), 'utf8');
 const features = lire('engine/lib/astro_features.mjs');
-const base = lire('src/layouts/Base.astro');
+const base = lire('moteur/gabarits/Page.astro');   // le gabarit de page du moteur (lot 4)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // § 1 — LA PAGE DE MÉTHODE EST BIEN DANS UNE ZONE QUI PEUT L'ÉTEINDRE
@@ -85,10 +85,13 @@ verifie('§1 `/how-prices-work/` figure dans ses préfixes',
 // ═══════════════════════════════════════════════════════════════════════════
 // 🔬 C'EST LA SECTION QUI A MORDU À L'INJECTION DU 01/09. Retirer
 // `priceEnabled() &&` fait tomber le §2 ci-dessous, et lui seul.
+// Lot 4 (26/11/2026) : le lien vers la méthode des prix est DÉBRANCHÉ du
+// gabarit du moteur (un prix n'est pas une notion du moteur). Le contrôle
+// s'inverse : le gabarit ne doit plus l'émettre du tout.
 const lien = base.indexOf("'/how-prices-work/'");
-verifie('§2 le pied de page émet bien le lien',
-  lien > 0,
-  lien > 0 ? null : '🔴 le lien a disparu de Base.astro — la page devient orpheline');
+verifie('§2 le gabarit du moteur n\'émet plus le lien vers la méthode des prix',
+  lien < 0,
+  lien < 0 ? null : '🔴 le lien est revenu dans moteur/gabarits/Page.astro — notion propre aux sites de prix');
 
 if (lien > 0) {
   // ⭐ ON REGARDE LES 400 CARACTÈRES QUI PRÉCÈDENT, ET C'EST MESURÉ, PAS CHOISI

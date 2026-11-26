@@ -38,7 +38,7 @@ Le build les trouve toutes faites.
 Deux sources d'articles, comme partout dans ce moteur :
   · l'onglet Blog du Sheet -> sites/<site>/editorial/blog.json
   · les .md du dépôt       -> sites/<site>/blog/<langue>/<slug>.md
-À (langue, slug) identique, le .md gagne — même arbitrage que engine/lib/blog.mjs.
+À (langue, slug) identique, le .md gagne — même arbitrage que moteur/lib/blog.mjs.
 """
 from __future__ import annotations
 
@@ -120,7 +120,7 @@ def articles(manifeste) -> dict[tuple[str, str], dict]:
                 continue
             for lg in langues:
                 titre = str(r.get(f'titre_{lg}') or r.get('titre') or '').strip()
-                # ⚠️ MÊME RÈGLE QUE engine/lib/blog.mjs : c'est le CORPS qui fait
+                # ⚠️ MÊME RÈGLE QUE moteur/lib/blog.mjs : c'est le CORPS qui fait
                 # l'article, pas le titre. Sans cette condition, une colonne
                 # `titre_es` remplie avant sa traduction ferait fabriquer — et
                 # committer chaque jour — une carte de partage pour une page qui

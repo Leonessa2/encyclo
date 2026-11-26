@@ -859,7 +859,7 @@ console.log('\n═══ LOT 203, POINT `ag` — la série est bornée, et son n
 // la seule correction est de BORNER la règle en ligne au même palier.
 {
   console.log('\n── ⑦ le palier des règles en ligne de `.f-lancer` ──');
-  const gab = 'src/layouts/Base.astro';
+  const gab = 'moteur/gabarits/Page.astro';   // le gabarit de page du moteur (lot 4)
   if (!existsSync(gab)) {
     console.log('  --  SANS OBJET — ce site n\'a pas ce gabarit.');
   } else {
@@ -1334,6 +1334,13 @@ console.log('\n═══ LOT 203, POINT `ag` — la série est bornée, et son n
       else if (/\.(astro|mjs|js|ts)$/.test(e.name)) sources.push(f);
     }
   }(SRC));
+  (function marcher(d) {   // lot 4 : le gabarit et les scripts communs sont dans moteur/
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const f = join(d, e.name);
+      if (e.isDirectory()) marcher(f);
+      else if (/\.(astro|mjs|js|ts)$/.test(e.name)) sources.push(f);
+    }
+  }(join(R, 'moteur')));
   const posees = new Set();
   let posePeuLisible = 0;
   for (const f of sources) {

@@ -30,7 +30,7 @@ const I18N = await import('../../moteur/lib/i18n.mjs');
 const P = await import('../../moteur/lib/editorial_pages.mjs');
 const L = await import('../../moteur/lib/langues.mjs');
 const ED = await import('../lib/contenu.mjs');
-const BLOG = await import('../lib/blog.mjs');
+const BLOG = await import('../../moteur/lib/blog.mjs');
 
 let ok = 0, ko = 0;
 const dit = (b, quoi, detail = '') => {

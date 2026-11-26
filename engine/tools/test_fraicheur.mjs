@@ -38,7 +38,7 @@
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { texteVu } from '../lib/seo.mjs';
+import { texteVu } from '../../moteur/lib/seo.mjs';
 import { CHAMPS_COTE, CHAMPS_FRAICHEUR } from '../lib/cote.mjs';
 import { indexerReleves, jourDeReleve } from '../lib/dataset.mjs';
 

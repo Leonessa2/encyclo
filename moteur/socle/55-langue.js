@@ -1,11 +1,11 @@
-// ⚠️ Leonessa2/veve-sites — src/socle/55-langue.js   (FICHIER NEUF — lot 139)
+// ⚠️ Moteur commun — src/socle/55-langue.js   (FICHIER NEUF — lot 139)
 // ═══════════════════════════════════════════════════════════════════════════
 //  LE SÉLECTEUR DE LANGUE D'INTERFACE, SUR LES PAGES PUBLIQUES
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // 🔴🔴 POURQUOI CE CODE EST DANS LE NAVIGATEUR ET NON DANS LE SERVEUR, ET CE
 // N'EST PAS UN CHOIX DE STYLE — C'EST LA SEULE FORME POSSIBLE.
-// Les pages publiques de veveprice sont PRÉ-GÉNÉRÉES (3 097 fichiers) et
+// Les pages publiques du site de prix sont PRÉ-GÉNÉRÉES (3 097 fichiers) et
 // servies derrière les Cache Rules Cloudflare posées au lot 138 — mesuré le
 // 11/08 : `cf-cache-status: HIT` sur l'accueil, TTL 2 h. Un lien `?lang=fr`
 // comme celui de `/connexion/` y serait doublement mort :

@@ -1,4 +1,4 @@
-import { postsFor } from '../../engine/lib/blog.mjs';
+import { postsFor } from '../../moteur/lib/blog.mjs';
 import { manifest, siteUrl } from '../../moteur/lib/manifest.mjs';
 import { locales, localize, t, nu } from '../../moteur/lib/i18n.mjs';
 

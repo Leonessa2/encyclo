@@ -16,7 +16,7 @@
 import Base from '../layouts/Base.astro';
 import { locales, t, localize } from '../../moteur/lib/i18n.mjs';
 import { activeSections, sectionMeta } from '../../moteur/lib/editorial_pages.mjs';
-import { blogEnabled } from '../../engine/lib/blog.mjs';
+import { blogEnabled } from '../../moteur/lib/blog.mjs';
 import { floora } from '../../engine/lib/floora.mjs';
 const lang = locales().def;
 const liens = activeSections().map((s) => sectionMeta(s, lang));

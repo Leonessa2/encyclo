@@ -135,7 +135,7 @@ if (blocsLd === 0) {
 //   parce que le marquage n'a pas tourné. Les deux contrôles ensemble
 //   distinguent « la garde marche » de « il n'y avait rien à garder ».
 {
-  const SEO = readFileSync(join(ROOT, 'engine', 'lib', 'seo.mjs'), 'utf8');
+  const SEO = readFileSync(join(ROOT, 'moteur', 'lib', 'seo.mjs'), 'utf8');
   const ligne = (SEO.match(/export const jsonld = [^\n]*/) || [''])[0];
   verifie('🔑 `jsonld()` décape les chaînes AU MOMENT de sérialiser — un seul endroit pour toutes les fabriques',
     /JSON\.stringify\(o,\s*\(_,\s*v\)\s*=>/.test(ligne) && /nu\(v\)/.test(ligne),
