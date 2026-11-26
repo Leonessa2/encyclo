@@ -19,18 +19,20 @@
 #     pas (à revoir au lot 4).
 # Lot 4 : `analytics` reste — il contrôle la page /analytics/, pas Umami.
 # Lot 4 : `sans-mesure` ajouté — aucune page ne charge de script de mesure.
+# Moteur 0.6.0 (rangement 2c) : `libelles` ajouté — libellés du moteur
+#   (moteur/i18n/) et part fournie par le site (moteur/i18n/a-fournir.txt).
 set -u
 PHASE="${1:-}"
 : "${SITE:?SITE doit valoir vevewiki}"
 case "$PHASE" in
-  avant) LISTE="moteur-neutre memoire liens entrepot donnees blog figures fiches lastmod langues schema gabarits css-mort imports-orphelins cascade-aplatie renommage" ;;
+  avant) LISTE="moteur-neutre libelles memoire liens entrepot donnees blog figures fiches lastmod langues schema gabarits css-mort imports-orphelins cascade-aplatie renommage" ;;
   apres) LISTE="cles routes fuite phrases entete feuille titres opacite tiroir affichage analytics indexnow i18n sans-mesure envoi envoi-essai" ;;
   *) echo "Usage : $0 avant|apres"; exit 2 ;;
 esac
 echecs=()
 for b in $LISTE; do
   case "$b" in
-    css-mort|imports-orphelins|cascade-aplatie|sans-mesure|moteur-neutre) cmd=(node "moteur/bancs/$b.mjs") ;;
+    css-mort|imports-orphelins|cascade-aplatie|sans-mesure|moteur-neutre|libelles) cmd=(node "moteur/bancs/$b.mjs") ;;
     liens|indexnow) cmd=(npm run --silent "test:$b") ;;
     envoi) cmd=(node moteur/bancs/envoi.mjs) ;;
     envoi-essai) cmd=(bash moteur/bancs/envoi-essai.sh) ;;

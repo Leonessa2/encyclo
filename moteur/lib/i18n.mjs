@@ -1,6 +1,6 @@
 // Multilingue : dictionnaires, langue par defaut par site, construction des chemins.
 // Regle SEO : chaque langue a sa propre adresse. AUCUNE redirection automatique.
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { manifest } from './manifest.mjs';
 
@@ -172,13 +172,29 @@ export function dossierDictionnaires() {
   return join(ROOT, d);
 }
 
+/** Le dossier des libellés du MOTEUR (rangement 2c, moteur 0.6.0) : ceux que
+ *  ses gabarits demandent et dont le texte ne parle d'aucun site. */
+export function dossierDictionnairesMoteur() {
+  return join(ROOT, 'moteur', 'i18n');
+}
+
+/** Les libellés d'une langue = ceux du moteur, puis ceux du site par-dessus.
+ *  ⭐ Le site a le dernier mot : il peut reformuler un libellé du moteur
+ *  (le banc `libelles` liste ces reformulations). Les libellés que le moteur
+ *  demande sans pouvoir les écrire sont dans `moteur/i18n/a-fournir.txt`. */
 export function dict(lang) {
   if (cache.has(lang)) return cache.get(lang);
   const dossier = dossierDictionnaires();   // ⛔ hors du try : un réglage absent doit se voir
+  let m = {};
   let d = {};
+  // ⛔ Un fichier du moteur ABÎMÉ doit se voir (il casserait tous les sites) ;
+  // une langue que le moteur n'a pas encore se voit dans le banc `libelles`.
+  const fm = join(dossierDictionnairesMoteur(), `${lang}.json`);
+  if (existsSync(fm)) m = JSON.parse(readFileSync(fm, 'utf8'));
   try { d = JSON.parse(readFileSync(join(dossier, `${lang}.json`), 'utf8')); } catch {}
-  cache.set(lang, d);
-  return d;
+  const tout = { ...m, ...d };
+  cache.set(lang, tout);
+  return tout;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -250,7 +250,7 @@ verifie('⛔ ni <title>, ni <meta description>, ni <script> ne portent de marqua
 // ⇒ Le prédicat est importé de `moteur/lib/cle_i18n.mjs`. Il n'y en a plus
 //   qu'un, et c'est le même octet des deux côtés.
 const { estUneCle } = await import('../../moteur/lib/cle_i18n.mjs');
-const { locales: locRef } = await import('../../moteur/lib/i18n.mjs');
+const { locales: locRef, dict: dictDe } = await import('../../moteur/lib/i18n.mjs');
 // ⚠️ LE DICTIONNAIRE DE RÉFÉRENCE, ET SON ABSENCE EST **INDÉCIDABLE**, PAS
 // VERTE. Sans lui `estUneCle` retombe sur la forme seule : le banc jugerait
 // alors selon une règle plus stricte que celle qui a marqué les pages, et
@@ -261,7 +261,9 @@ try {
   // a que les dictionnaires PARTIELS servis au navigateur (les clés réellement
   // marquées). Juger « cette clé existe-t-elle ? » sur un dictionnaire amputé
   // par le marquage, c'est demander à la sortie de valider son entrée.
-  dictRef = JSON.parse(readFileSync(new URL(`../i18n/${locRef().def}.json`, import.meta.url), 'utf8'));
+  // moteur 0.6.0 : `dict()` = libellés du moteur + ceux du site, comme le marqueur.
+  JSON.parse(readFileSync(new URL(`../i18n/${locRef().def}.json`, import.meta.url), 'utf8'));
+  dictRef = dictDe(locRef().def);
 } catch { /* signalé juste en dessous */ }
 if (!dictRef) {
   console.error('⏸️  INDÉCIDABLE — dictionnaire de référence illisible : ce § juge les clés '

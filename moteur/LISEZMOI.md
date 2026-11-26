@@ -1,6 +1,6 @@
 # Moteur commun des sites statiques
 
-Version : voir `VERSION` (0.5.0). Historique : `CHANGEMENTS.md`.
+Version : voir `VERSION` (0.6.0). Historique : `CHANGEMENTS.md`.
 Règles : `RESEAU.md`, section « Le moteur commun des sites ».
 
 Le moteur ne connaît **aucun site**. Tout ce qui est propre à un site
@@ -10,7 +10,7 @@ fait échouer la construction si un nom, un domaine, un Sheet ou une couleur
 de n'importe quel site apparaît ici, ou si le moteur importe un fichier
 hors de ce dossier.
 
-## Ce qu'il contient (0.5.0)
+## Ce qu'il contient (0.6.0)
 
 | Dossier | Rôle |
 |---|---|
@@ -18,6 +18,7 @@ hors de ce dossier.
 | `donnees/` | télécharger les fichiers du scrapeur ; garder la dernière bonne copie, avec sa vraie date |
 | `gabarits/` | `Page.astro` : le gabarit de toutes les pages (en-tête, menu, langues, jour/nuit, pied de page, référencement), avec deux emplacements pour le site ; `pages/` : les pages communes — articles, liste d'articles, étiquettes, pages légales, 404 et 500 |
 | `lib/` | réglages du site, langues et libellés, contenu éditorial, blog, référencement et données structurées, plan du site, flux RSS, robots.txt, textes légaux, aperçus de partage, protection anti-robots, feuille de thème, assemblage du JavaScript commun |
+| `i18n/` | les libellés d'interface que le moteur demande et sait écrire (`<langue>.json`, 5 langues), et `a-fournir.txt` : ceux qu'il demande mais que chaque site écrit |
 | `socle/` | le JavaScript commun des pages : contact, menu, libellés, choix et suggestion de langue |
 | `legal/` | textes légaux en 5 langues, avec les réglages du site à la place des noms |
 | `outils/` | marquage des textes traduisibles après la construction |
@@ -29,9 +30,17 @@ hors de ce dossier.
 - `sites/<site>/manifest.yml`, avec le bloc :
   ```yaml
   moteur:
-    version: "0.5.0"          # = moteur/VERSION
+    version: "0.6.0"          # = moteur/VERSION
     dictionnaires: <dossier>  # où sont les libellés du site (<langue>.json)
   ```
+- dans son dossier de libellés, pour chaque langue d'interface : **les
+  libellés de `i18n/a-fournir.txt`** (leur texte parle du site : accroche,
+  avertissements, date des données, pages d'erreur…). Les autres libellés
+  demandés par le moteur sont dans `i18n/` : le site n'a pas à les écrire,
+  mais il peut les reformuler (sa version l'emporte). Le banc
+  `bancs/libelles.mjs` vérifie qu'il ne manque rien.
+- dans son menu (`nav:` du manifeste), l'entrée des articles porte la clé
+  `nav.blog` : le moteur la masque dans les langues sans article.
 - `sites/<site>/donnees.txt` : la liste des fichiers du scrapeur qu'il lit
   (si le site lit des données).
 - `sites/reseau.txt` : les noms et domaines de tout le réseau (pour
@@ -71,5 +80,4 @@ moteur : `404.astro`, `500.astro`, `blog/…`, `legal/[doc].astro`,
 
 ## Pas encore dans le moteur
 
-Les dictionnaires de libellés (partie 2c) et les bancs de `engine/tools/`
-(partie 2d). Le vérificateur d'images naîtra directement ici.
+Les bancs de `engine/tools/` (partie 2d). Le vérificateur d'images naîtra directement ici.

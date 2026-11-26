@@ -1,0 +1,31 @@
+# Moteur commun — fichier : moteur/i18n/a-fournir.txt   (moteur 0.6.0)
+#
+# Les libellés que le moteur DEMANDE mais dont le texte appartient au site :
+# chaque site les écrit dans SON dictionnaire (dossier `moteur.dictionnaires`
+# de son manifeste), dans chacune de ses langues d'interface.
+# Leur texte parle du sujet ou de la marque du site (catalogue, prix, mascotte,
+# avertissements) : le moteur ne peut pas l'écrire à sa place.
+# Les autres libellés du moteur sont dans moteur/i18n/<langue>.json.
+# Le banc moteur/bancs/libelles.mjs vérifie que rien ne manque.
+# Une ligne = une clé, « # » commence un commentaire.
+
+# Flux RSS et liste d'articles
+blog.feed.desc
+blog.relatedItems
+desc.blogIndex
+desc.blogTag
+# Pages 404 et 500 (illustration « état » du site)
+floora.404.d
+floora.404.t
+floora.500.d
+floora.500.t
+# Pied de page : date des données, avertissements
+footer.releve
+footer.releveInconnu
+legal.notAffiliated
+legal.notFinancialAdvice
+# Page légale « mentions » (décrit l'indépendance du site)
+legal.desc.mentions
+# En-tête et accueil
+search.placeholder
+title.home

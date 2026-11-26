@@ -118,10 +118,13 @@ for (const f of sources) {
 // `spider-man.jpg` -> prefixe « spider-man », inconnu : rejete. `3.14` ->
 // rejete. `veveprice.com` -> prefixe « veveprice », inconnu : rejete.
 // ⭐ Le vocabulaire se DEDUIT du dictionnaire, il ne se devine pas.
-const I18N_DIR = join(RACINE, 'engine', 'i18n');
+// ⭐ moteur 0.6.0 (rangement 2c) : les libellés vivent en DEUX endroits, ceux
+//    du moteur (`moteur/i18n/`) et ceux du site (`engine/i18n/`). Le
+//    vocabulaire est la réunion des deux.
+const I18N_DIRS = [join(RACINE, 'moteur', 'i18n'), join(RACINE, 'engine', 'i18n')];
 const espaces = new Set();
 const clesConnues = new Set();
-if (existsSync(I18N_DIR)) {
+for (const I18N_DIR of I18N_DIRS.filter((d) => existsSync(d))) {
   for (const f of readdirSync(I18N_DIR).filter((x) => x.endsWith('.json'))) {
     for (const k of Object.keys(JSON.parse(readFileSync(join(I18N_DIR, f), 'utf8')))) {
       clesConnues.add(k);
@@ -217,7 +220,7 @@ dit(coupables.size === 0, 'aucune cle de traduction rendue en clair',
     : `${coupables.size} cle(s) sur ${emplacements} emplacement(s)`);
 
 for (const [cle, ou] of coupables) {
-  console.log(`     🔴 « ${cle} » est demandee par un gabarit mais ABSENTE de engine/i18n/`);
+  console.log(`     🔴 « ${cle} » est demandee par un gabarit mais ABSENTE de moteur/i18n/ et de engine/i18n/`);
   console.log(`        le visiteur lit « ${cle} » a la place du texte.`);
   for (const e of [...ou].slice(0, 4)) console.log(`        · ${e}`);
   if (ou.size > 4) console.log(`        · … et ${ou.size - 4} autre(s)`);
@@ -319,7 +322,9 @@ dit(pollution.length === 0, 'le vocabulaire ne contient aucun nom de fichier',
   };
   const fautes = [];
   for (const [lg, m] of Object.entries(MARQUES)) {
-    const dico = JSON.parse(lire(`${RACINE}engine/i18n/${lg}.json`, 'utf8'));
+    // moteur 0.6.0 : les libellés du moteur parlent avec la même voix.
+    const dico = { ...JSON.parse(lire(`${RACINE}moteur/i18n/${lg}.json`, 'utf8')),
+      ...JSON.parse(lire(`${RACINE}engine/i18n/${lg}.json`, 'utf8')) };
     for (const [k, v] of Object.entries(dico)) {
       if (m.test(String(v))) fautes.push(`${lg}.json ${k} : « ${String(v).slice(0, 48)} »`);
     }

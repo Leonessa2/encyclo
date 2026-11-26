@@ -1,5 +1,39 @@
 # Changements du moteur
 
+## 0.6.0 — 26/11/2026
+
+- **Les libellés du moteur entrent dans le moteur** (rangement, partie 2c) :
+  `i18n/<langue>.json` (en, fr, es, de, it) reçoit les **33 libellés** que
+  les gabarits du moteur demandent et dont le texte ne parle d'aucun site
+  (navigation, pied de page, articles, langues, jour/nuit, 404, descriptions
+  des pages légales contact / confidentialité / conditions). Ils quittent le
+  dictionnaire du wiki, à l'identique.
+- **`i18n/a-fournir.txt`** : les **15 libellés** que le moteur demande mais
+  que chaque site écrit, parce que leur texte parle de lui (accroche de
+  l'accueil, recherche, description du flux et des articles, pages 404 et
+  500, date des données, avertissements, description des mentions légales).
+- **`lib/i18n.mjs`** : `dict(langue)` lit le moteur, puis le site par-dessus
+  (le site a le dernier mot). Un fichier du moteur abîmé arrête la
+  construction. `outils/marquer_i18n.mjs` juge et sert les libellés avec ce
+  même `dict()`.
+- **Nouveau banc `bancs/libelles.mjs`** (lancé avant la construction) :
+  chaque libellé demandé par le code du moteur est dans `i18n/` ou dans
+  `a-fournir.txt` (jamais les deux), aucun libellé mort, mêmes clés dans
+  toutes les langues du moteur, et le site fournit sa part dans chacune de
+  ses langues d'interface ; il affiche les libellés que le site reformule
+  (0 pour le wiki).
+- Mesuré le 26/11 : la construction du wiki demande **74 libellés** (sur
+  763) ; le code du moteur en demande **48** (33 écrits par le moteur, 15 à
+  fournir). Site construit **identique** à celui du moteur 0.5.0 (451
+  fichiers, hors heure de construction et mesures de `api/sante`) ; 17 bancs
+  avant, 16 après, tous verts. Contre-épreuves : 9 pannes provoquées, toutes
+  vues par le bon banc (dont `moteur-neutre` pour un domaine glissé dans
+  `i18n/`, et `cles` + `i18n` quand `dict()` ne lit plus le moteur).
+- **Ce que les sites doivent adapter** : écrire dans leur dictionnaire les
+  libellés de `i18n/a-fournir.txt` ; ils peuvent retirer de leur
+  dictionnaire les 33 libellés du moteur (ou les garder pour les
+  reformuler). Le wiki : fait dans ce même dépôt.
+
 ## 0.5.0 — 26/11/2026
 
 - **Les pages communes entrent dans le moteur** (rangement, partie 2b) :

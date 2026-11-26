@@ -118,8 +118,10 @@ import { estUneCle } from '../lib/cle_i18n.mjs';
 // *Un repli silencieux est un repli qu'on découvre trois lots plus tard.*
 let DICT_REF = null;
 try {
-  const { locales: loc0, dossierDictionnaires: dd0 } = await import(join(ROOT, 'moteur', 'lib', 'i18n.mjs'));
-  DICT_REF = JSON.parse(readFileSync(join(dd0(), `${loc0().def}.json`), 'utf8'));
+  // ⭐ moteur 0.6.0 : `dict()` réunit les libellés du moteur et ceux du site.
+  const { locales: loc0, dossierDictionnaires: dd0, dict: dict0 } = await import(join(ROOT, 'moteur', 'lib', 'i18n.mjs'));
+  readFileSync(join(dd0(), `${loc0().def}.json`), 'utf8');   // ⛔ un dictionnaire du site illisible doit se voir
+  DICT_REF = dict0(loc0().def);
 } catch (e) {
   console.warn(`[i18n] ⚠️ dictionnaire de référence ILLISIBLE (${e.message}) — `
     + 'le juge retombe sur la FORME seule : les clés à segment majuscule '
@@ -439,7 +441,7 @@ for (const f of html) {
 // 442 clés quand 60 sont échangeables ferait payer sept fois le poids utile —
 // et ferait croire, à qui lit le fichier, que tout est échangé.
 const ICI = dirname(fileURLToPath(import.meta.url));
-const { languesInterface, locales, dossierDictionnaires } = await import(join(ICI, '..', 'lib', 'i18n.mjs'));
+const { languesInterface, locales, dict, dossierDictionnaires } = await import(join(ICI, '..', 'lib', 'i18n.mjs'));
 const { def } = locales();
 const dossier = join(RACINE, 'i18n');
 mkdirSync(dossier, { recursive: true });
@@ -529,7 +531,9 @@ const poids = [];
 let nHors = 0;
 for (const lang of languesInterface()) {
   if (lang === def) continue;
-  const complet = JSON.parse(readFileSync(join(dossierDictionnaires(), `${lang}.json`), 'utf8'));
+  // ⛔ Comme avant 0.6.0 : un dictionnaire du site illisible arrête le marquage.
+  JSON.parse(readFileSync(join(dossierDictionnaires(), `${lang}.json`), 'utf8'));
+  const complet = dict(lang);   // moteur + site (moteur 0.6.0)
   const partiel = {};
   for (const k of new Set([...clesVues, ...clesAttribut])) {
     if (complet[k] !== undefined) { partiel[k] = complet[k]; continue; }
