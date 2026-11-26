@@ -17,19 +17,20 @@
 #     sur le wiki (ils le disent eux-mêmes) ;
 #   nginx, dockerfile : configurations que le nouvel hébergement n'utilise
 #     pas (à revoir au lot 4).
-# À revoir au ménage : analytics (Umami supprimé au lot 4).
+# Lot 4 : `analytics` reste — il contrôle la page /analytics/, pas Umami.
+# Lot 4 : `sans-mesure` ajouté — aucune page ne charge de script de mesure.
 set -u
 PHASE="${1:-}"
 : "${SITE:?SITE doit valoir vevewiki}"
 case "$PHASE" in
   avant) LISTE="memoire liens entrepot donnees blog figures fiches lastmod langues schema gabarits css-mort imports-orphelins cascade-aplatie renommage" ;;
-  apres) LISTE="cles routes fuite phrases entete feuille titres opacite tiroir affichage analytics indexnow i18n" ;;
+  apres) LISTE="cles routes fuite phrases entete feuille titres opacite tiroir affichage analytics indexnow i18n sans-mesure" ;;
   *) echo "Usage : $0 avant|apres"; exit 2 ;;
 esac
 echecs=()
 for b in $LISTE; do
   case "$b" in
-    css-mort|imports-orphelins|cascade-aplatie) cmd=(node "outils/$b.mjs") ;;
+    css-mort|imports-orphelins|cascade-aplatie|sans-mesure) cmd=(node "outils/$b.mjs") ;;
     liens|indexnow) cmd=(npm run --silent "test:$b") ;;
     *) cmd=(env WAREHOUSE_OFFLINE=1 npm run --silent "test:$b") ;;
   esac
