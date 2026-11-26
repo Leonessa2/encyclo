@@ -1,0 +1,697 @@
+// ⚠️ Leonessa2/veve-sites — engine/tools/test_titres.mjs   (NEUF — lot 134)
+// ═══════════════════════════════════════════════════════════════════════════
+// UNE PAGE, UN TITRE — le banc qui aurait attrapé SEO‑1 ET SEO‑2
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ⭐⭐⭐ POURQUOI CE BANC EXISTE, ET POURQUOI MAINTENANT. L'audit du 10/08 a
+// trouvé DEUX défauts de tête dans la production, tous deux vieux de plusieurs
+// lots, tous deux invisibles pour les 39 bancs du dépôt :
+//   · SEO‑1 — l'accueil servait DEUX `<h1>`. Le lot 104 avait posé le tableau
+//     de bord DANS l'accueil ; le lot 126 lui a donné sa page `/dashboard/` et
+//     a repointé le menu — sans retirer le bloc. Google lisait donc « My
+//     dashboard » comme titre principal du site, et lisait sous lui « the
+//     configurable widgets are not built yet », faux depuis le lot 131.
+//   · SEO‑2 — `/collections/` et `/sets/` rendaient le même `<title>`
+//     (« Sets | VeVe Price »). Le même défaut avait été corrigé le 29/07 pour
+//     les fiches ; il est revenu au lot 113, quand `/collections/` a changé de
+//     rôle sans changer de titre.
+//
+// ⭐⭐ CE QUE CES DEUX DÉFAUTS ONT EN COMMUN : **rien ne casse.** Le build est
+// vert, la page s'affiche, aucun banc ne tombe, et un humain ne voit rien —
+// dans un cas le second `<h1>` est `hidden`, dans l'autre le titre ne s'écrit
+// que dans l'onglet. C'est le profil de panne le plus cher du dépôt : celui
+// qui ne se manifeste que chez le robot, c'est‑à‑dire chez le seul visiteur
+// dont on ne lit jamais l'écran. ⇒ *Ce qui n'a pas de lecteur humain n'a que
+// des bancs pour lecteurs.*
+//
+// ⛔ IL LIT `dist/`, PAS LA SOURCE, ET C'EST NON NÉGOCIABLE. Un `<h1>` peut
+// venir d'un gabarit de page, d'un composant, d'un article Markdown ou d'un
+// bloc conditionné — la seule question qui compte est « combien y en a‑t‑il
+// dans ce qu'on SERT ? ». Un banc qui aurait relu `Home.astro` aurait vu deux
+// `<h1>` et un commentaire qui explique pourquoi c'est voulu ; il aurait eu
+// tort, et il aurait eu l'air d'avoir raison.
+//
+// ⭐⭐ LES TITRES ÉGAUX ENTRE LOCALES SONT LÉGITIMES, ET C'EST MESURÉ.
+// Depuis le lot 129, `<title>`, `<meta>` et le JSON‑LD restent **anglais** :
+// c'est la contrepartie explicite qui protège le cache partagé. `/blog/` et
+// `/fr/blog/` portent donc le même titre **par construction**, et `hreflang`
+// dit lequel est lequel. ⛔ Un banc qui les compterait en double rougirait sur
+// une décision, pas sur un défaut — et il se ferait désarmer au premier lot
+// pressé. On compare donc les pages **à chemin localisé égal exclu** : deux
+// adresses qui ne sont pas la traduction l'une de l'autre n'ont pas le droit
+// au même titre.
+
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { localeNames, nu, t } from '../lib/i18n.mjs';
+// ⭐⭐ LA FENÊTRE DES DESCRIPTIONS EXISTE DÉJÀ, ET ELLE N'AVAIT PAS DE JUGE.
+// `DESC_MIN = 70` / `DESC_MAX = 160` sont écrits dans `editorial_pages.mjs`
+// depuis l'audit SEO du 27/07 — mais ils n'y produisaient qu'un `console.warn`,
+// et seulement pour les pages ÉDITORIALES. Les rayons, l'orientation et les
+// fiches n'étaient mesurés par personne : trois descriptions sont restées sous
+// 70 caractères jusqu'à l'audit du 10/08. ⛔ On ne fabrique donc PAS deux
+// nouveaux nombres ici. *Un seuil recopié est un seuil qui divergera ; un
+// avertissement qui n'arrête rien est un seuil qui n'existe pas.*
+import { DESC_MIN, DESC_MAX } from '../lib/editorial_pages.mjs';
+import { pageTitle, TITLE_BUDGET, couperMilieu, couperMots, texteVu } from '../lib/seo.mjs';
+
+const R = new URL('../..', import.meta.url).pathname;
+// Deux modes, deux racines : `dist/` (static) ou `dist/client/` (server).
+const DIST = existsSync(join(R, 'dist/client')) ? join(R, 'dist/client') : join(R, 'dist');
+
+// ⭐ LES PRÉFIXES DE LOCALE SE LISENT, ILS NE S'ÉCRIVENT PAS ICI. `localeNames`
+// est la liste close des codes que ce dépôt sait produire. Une locale ajoutée
+// au manifeste demain est prise en compte sans toucher à ce fichier ; une
+// locale écrite en dur ici serait une quatrième liste de langues, après les
+// trois du lot 120. *On ne fabrique pas une source de vérité de plus.*
+const LOCALES = Object.keys(localeNames);
+
+let ko = 0;
+const dit = (bon, quoi, detail) => {
+  if (!bon) ko++;
+  console.log(`  ${bon ? 'ok ' : 'KO '} ${quoi}${detail ? ` — ${detail}` : ''}`);
+};
+
+console.log('\n═══ LOT 134 — une page, un <h1>, un <title> ═══');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LES DEUX DÉTECTEURS, ÉCRITS UNE FOIS
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚠️ `<h1` SUIVI D'UN ESPACE OU DE `>`, JAMAIS `<h1` SEUL : sans l'ancrage,
+// un hypothétique `<h1x>` compterait. C'est le « sélecteur préfixe qui attrape
+// un suffixe » du dépôt, transposé en expression régulière.
+const compteH1 = (html) => (html.match(/<h1(?=[\s>])/gi) || []).length;
+// ⚠️ ON PREND LE PREMIER `<title>` DU DOCUMENT, PAS TOUS : un `<title>` peut
+// légitimement apparaître dans un `<svg>` (c'est son libellé accessible).
+// Chercher le dernier, ou les compter, ferait rougir une icône bien faite.
+// 🔴🔴 LES ENTITES HTML SE DECODENT AVANT DE COMPTER — TROISIEME DEFAUT
+// D'INSTRUMENT DE CE BANC, ET LE MEME QUE `nu()` SOUS UN AUTRE COSTUME.
+// Mesuré sur vevewiki : cinq descriptions de marque annoncées à 161–162
+// caractères alors qu'elles en font exactement 160. La différence : `&amp;`
+// occupe CINQ octets dans l'attribut et UN caractère à l'écran. Le producteur
+// avait raison, l'instrument avait tort — et il aurait fait « corriger » cinq
+// textes parfaitement conformes. ⛔ La réparation n'était pas de relever la
+// borne à 162 pour qu'il se taise.
+// ⭐⭐ *On mesure ce que le LECTEUR reçoit, jamais la sérialisation.* Les
+// marqueurs i18n (invisibles, en trop) et les entités (visibles, en trop) sont
+// la même faute : compter le tampon au lieu du texte.
+// 🔴🔴 LOT 139b — CE DÉCODEUR A DÉMÉNAGÉ DANS `engine/lib/seo.mjs`, ET LA
+// COPIE QUI VIVAIT ICI A COÛTÉ UN DÉPLOIEMENT DE PRODUCTION.
+// Il était écrit ici, juste, complet, avec sa leçon en toutes lettres. Puis
+// `test:affichage` §5 a été écrit le lendemain avec `nu()` SEUL : vert sur les
+// 147 pages du bac à sable, vert dans les quatre conditions, et **714 faux
+// rouges** sur les 3 098 pages de production — assez pour arrêter le build.
+// ⭐⭐⭐ *La leçon avait été apprise sur UN CAS et jamais généralisée.* Le
+// commentaire qui la racontait donnait l'illusion qu'elle était acquise.
+// ⇒ un seul module, deux importateurs. Il n'y a plus de copie à oublier.
+const texte = (s) => texteVu(s);
+
+const titreDe = (html) => {
+  const m = html.match(/<head[\s>][\s\S]*?<\/head>/i);
+  const zone = m ? m[0] : html;
+  const t = zone.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  return t ? texte(t[1]) : null;
+};
+// ⭐ LE CHEMIN SANS SA LOCALE. `/fr/blog/` et `/blog/` rendent tous deux
+// `/blog/` : ce sont deux vues d'une même page, elles ont le droit au même
+// titre. `/collections/` et `/sets/` rendent `/collections/` et `/sets/` :
+// deux pages distinctes, donc deux titres exigés.
+const sansLocale = (chemin) => {
+  const seg = chemin.replace(/^\/+/, '').split('/');
+  return LOCALES.includes(seg[0]) ? '/' + seg.slice(1).join('/') : chemin;
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── 0. L'INSTRUMENT AVANT LA MESURE ────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴🔴 LA LEÇON DU LOT 133, APPLIQUÉE AVANT D'EN AVOIR BESOIN. Trois défauts
+// d'instrument ce jour‑là, dont deux de la même famille : un correctif qui ne
+// s'appliquait jamais, et une contre‑épreuve qui se déclarait verte alors que
+// rien n'avait été coché. ⇒ **On monte un témoin hostile et on lit ce qu'il
+// rend.** Un détecteur qu'on n'a pas vu attraper une faute fabriquée n'a
+// jamais prouvé qu'il sait en attraper une vraie.
+// ⛔ Le témoin est fabriqué ICI, en mémoire : il ne touche jamais `dist/`.
+const TEMOIN_DEUX_H1 = '<html><head><title>Faux | Témoin</title></head><body>'
+  + '<h1 class="a">un</h1><div hidden><h1>deux</h1></div></body></html>';
+const TEMOIN_ZERO_H1 = '<html><head><title>Faux | Témoin</title></head><body><p>rien</p></body></html>';
+const TEMOIN_SVG = '<html><head><title>Vrai</title></head><body>'
+  + '<svg><title>une icône</title></svg><h1>seul</h1></body></html>';
+
+dit(compteH1(TEMOIN_DEUX_H1) === 2,
+  'le détecteur voit bien DEUX <h1> sur un témoin qui en porte deux',
+  compteH1(TEMOIN_DEUX_H1) === 2 ? null
+    : `il en compte ${compteH1(TEMOIN_DEUX_H1)} — il ne pourrait pas attraper SEO‑1`);
+dit(compteH1(TEMOIN_ZERO_H1) === 0,
+  'et ZÉRO sur un témoin qui n\'en porte aucun');
+dit(titreDe(TEMOIN_SVG) === 'Vrai',
+  'le lecteur de titre ignore le <title> d\'un <svg> et prend celui du <head>',
+  titreDe(TEMOIN_SVG) === 'Vrai' ? null : `il a lu « ${titreDe(TEMOIN_SVG)} »`);
+dit(sansLocale('/fr/blog/index.html') === '/blog/index.html'
+    && sansLocale('/sets/index.html') === '/sets/index.html',
+  'le chemin sans locale reconnaît /fr/… et laisse /sets/ intact',
+  `${LOCALES.length} préfixe(s) connu(s) : ${LOCALES.join(', ')}`);
+// 🔴🔴 `nu()` AVANT TOUTE LONGUEUR — LA RÈGLE DU LOT 129, ET CE BANC L'A
+// D'ABORD OUBLIÉE. Sous `I18N_MARQUAGE=1`, `t()` entoure chaque libellé de
+// trois octets invisibles ET DU NOM DE LA CLÉ. Mesurée brute, une description
+// de 149 caractères en annonce 163 ; comparés bruts, deux titres différents
+// peuvent se ressembler et deux titres identiques différer. ⭐⭐⭐ Le banc a
+// donc rougi sur QUATRE descriptions parfaitement conformes — et il aurait pu
+// aussi laisser passer un vrai doublon. *Un instrument qui compte des octets
+// que personne ne verra mesure autre chose que ce qu'il croit.*
+// ⭐ On monte un témoin marqué à la main et on lit ce que `nu()` en fait :
+// « est-ce importé ? » n'est pas « est-ce que ça retire quelque chose ? ».
+const TEMOIN_MARQUE = '\u0011rayon.comics.d\u0012Les comics\u0013';
+dit(nu(TEMOIN_MARQUE) === 'Les comics',
+  'nu() retire bien les marqueurs i18n avant toute mesure de longueur',
+  nu(TEMOIN_MARQUE) === 'Les comics' ? null
+    : `nu() rend « ${nu(TEMOIN_MARQUE)} » — les longueurs et les comparaisons seraient fausses`);
+const TEMOIN_ENTITES = '\u0011x.k\u0012Batman B&amp;W &#8212; 1 &lt;2\u0013';
+dit(texte(TEMOIN_ENTITES) === 'Batman B&W \u2014 1 <2',
+  'le texte mesuré est celui du lecteur : marqueurs retirés, entités décodées',
+  texte(TEMOIN_ENTITES) === 'Batman B&W \u2014 1 <2'
+    ? null : `il rend « ${texte(TEMOIN_ENTITES)} » — les longueurs seraient fausses`);
+dit(texte('&amp;lt;') === '&lt;',
+  'un `&amp;lt;` reste `&lt;` — le décodage ne se fait pas en deux tours',
+  texte('&amp;lt;') === '&lt;' ? null : `il rend « ${texte('&amp;lt;')} »`);
+dit(LOCALES.length >= 2,
+  `la liste des locales est lue depuis i18n.mjs (${LOCALES.length} codes)`,
+  LOCALES.length >= 2 ? null : 'liste vide ou tronquée — le groupement par locale ne garderait plus rien');
+
+if (!existsSync(DIST)) {
+  console.error(`\n❌ ${DIST} introuvable — ce banc ne peut rien prouver. Lancer le build d'abord.`);
+  process.exit(2);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── 1. LES PAGES, ET CE QU'ON ÉCARTE ───────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+const pages = [];
+(function marche(d) {
+  for (const e of readdirSync(d, { withFileTypes: true })) {
+    const p = join(d, e.name);
+    if (e.isDirectory()) marche(p);
+    else if (e.name.endsWith('.html')) pages.push(p);
+  }
+})(DIST);
+
+// ⭐⭐ LE MÊME CRITÈRE QUE `test:feuille`, ET LE MÊME AVERTISSEMENT. En mode
+// STATIC, Astro écrit un talon de ~320 o par redirection : `<meta
+// http-equiv="refresh">` et rien d'autre. Un talon n'a ni `<h1>` ni titre
+// propre, et c'est correct. ⛔ On ne les écarte PAS par leur nom mais par ce
+// qu'ils SONT, et leur nombre est DIT : une exclusion qui grossit en silence
+// finit par tout couvrir.
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴🔴 LOT 150 — UNE SEULE PASSE, ET RIEN N'EST RETENU
+// ═══════════════════════════════════════════════════════════════════════════
+// CE BANC GARDAIT TOUT `dist/` EN MEMOIRE. `contenu.push([chemin, h])` retenait
+// le HTML de chaque page jusqu'a la fin du programme, pour que les §2, §3 et §4
+// puissent le relire chacun a son tour.
+// MESURE DU 14/08, sur un `dist/` de 5 200 pages (148 Mo de HTML servi) :
+//     test:titres ......... 394 Mo de pic          <-- celui-ci
+//     les 19 autres bancs .. 62 a 115 Mo
+// C'etait le SEUL terme de memoire qui grandit avec le catalogue, et il grandit
+// lineairement : ~2,7 Mo de tas pour 1 Mo de HTML (les chaines sont en UTF-16).
+//
+// ⭐⭐⭐ C'EST LA FAUTE QUE LE LOT 104 AVAIT DEJA CORRIGEE, AILLEURS.
+// `test_fuite_prix.mjs` L.185 et `test_fraicheur.mjs` L.162 portent la meme
+// note, mot pour mot : « un seul readFileSync par fichier, et son contenu est
+// relache avant le suivant. La version precedente ouvrait chaque page jusqu'a
+// trois fois et retenait la liste complete : 3 Go de tas sur 8 484 pages, puis
+// SIGABRT. » La lecon avait ete apprise sur DEUX fichiers et pas generalisee au
+// troisieme — et ce troisieme a ete ecrit APRES.
+//
+// ⛔ ET ON DIT CE QUE CE CORRECTIF NE FAIT PAS : il n'explique pas les
+// `exit 255` des deploiements. 394 Mo ne tuent rien sur une machine de 7,8 Go.
+// Il retire un terme qui grandit, c'est tout, et c'est deja une raison.
+//
+// ⚠️ LES VERDICTS NE CHANGENT PAS D'UN OCTET. Contre-epreuve du 14/08 : sortie
+// standard comparee caractere par caractere avec la version precedente, sur le
+// meme `dist/` — identique. Les §2-4 recoivent desormais leurs materiaux de
+// CETTE boucle au lieu de les recalculer depuis un tableau retenu.
+let talons = 0;
+// 🎯 LOT N — LES ALIAS D'ADRESSE. Un set servi à son ancienne adresse EN PLUS
+// de la sienne (`sets.mjs` § 3 bis) porte le même `<title>` que sa vraie page :
+// ce n'est pas un doublon, c'est un doublon DÉCLARÉ — son `<link
+// rel="canonical">` pointe une AUTRE adresse. ⭐ On l'écarte du §3 par ce
+// qu'il DIT (le canonical), jamais par son nom, et on compte : un alias dont
+// la cible n'existe pas dans `dist/` est une promesse vide, et se refuse.
+const alias = [];
+const aliasCasses = [];
+const cheminCanonique = (h) => {
+  const m = h.match(/<link\s+rel="canonical"\s+href="([^"]+)"/i);
+  if (!m) return null;
+  try { return new URL(m[1]).pathname; } catch { return m[1]; }
+};
+let nbContenu = 0;
+// §2 — les <h1>
+const trop = [];
+const aucun = [];
+// §3 — les <title>
+const parTitre = new Map();
+const sansTitre = [];
+// §4 — les <meta description>
+const hors = [];
+const vues = new Set();
+let sansDesc = 0;
+let mini = null;
+let maxi = null;
+
+for (const p of pages) {
+  const h = readFileSync(p, 'utf8');
+  if (h.length < 2048 && /http-equiv="refresh"/.test(h)) { talons++; continue; }
+  const chemin = p.slice(DIST.length);
+  nbContenu++;
+
+  const nH1 = compteH1(h);
+  if (nH1 > 1) trop.push(`${chemin} : ${nH1}`);
+  else if (nH1 === 0) aucun.push(chemin);
+
+  const titre = titreDe(h);
+  // l'adresse que cette page SERT, sous la forme du canonical (`/x/`)
+  const propre = chemin.replace(/\\/g, '/').replace(/index\.html$/, '');
+  const canon = cheminCanonique(h);
+  // ⭐ On compare SANS locale des deux côtés : une traduction canonise sa
+  //   propre adresse localisée, ce n'est pas un alias.
+  const estAlias = !!canon && sansLocale(canon).replace(/\/$/, '') !== sansLocale(propre).replace(/\/$/, '');
+  if (estAlias) {
+    alias.push(chemin);
+    if (!existsSync(join(DIST, canon.replace(/^\//, ''), 'index.html'))) aliasCasses.push(`${chemin} → ${canon}`);
+  }
+  if (!titre) sansTitre.push(chemin);
+  else if (!estAlias) {
+    if (!parTitre.has(titre)) parTitre.set(titre, []);
+    parTitre.get(titre).push(chemin);
+  }
+
+  const mDesc = h.match(/<meta\s+name="description"\s+content="([\s\S]*?)"\s*\/?>/i);
+  if (!mDesc) sansDesc++;
+  else {
+    const d = texte(mDesc[1]);
+    if (!vues.has(d)) {
+      vues.add(d);
+      const n = d.length;
+      if (!mini || n < mini.n) mini = { n, p: chemin };
+      if (!maxi || n > maxi.n) maxi = { n, p: chemin };
+      if (n < DESC_MIN || n > DESC_MAX) hors.push(`${chemin} : ${n} car.`);
+    }
+  }
+  // ⭐ `h` sort de portee ici : la page suivante n'attend pas que la precedente
+  //    soit relachee. C'est toute la difference avec la version d'avant.
+}
+
+// ⭐⭐ LA DÉCLARATION AVANT LA MESURE. « Zéro page fautive » et « zéro page
+// lue » se ressemblent exactement dans un compteur à zéro, et sont l'inverse
+// l'un de l'autre. Un vert qui n'a rien inspecté est le plus cher de tous.
+if (nbContenu < 100) {
+  console.error(`\n❌ ${nbContenu} page(s) de contenu sous ${DIST} `
+    + `(${pages.length} fichiers, ${talons} talon(s)) — trop peu pour prouver quoi que ce soit.`);
+  process.exit(2);
+}
+dit(true, `${nbContenu} page(s) de contenu jugée(s)`
+  + (talons ? ` (${talons} talon(s) de redirection écarté(s))` : ''));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── 2. EXACTEMENT UN <h1> PAR PAGE ─────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// ⭐ DEUX FAUTES SYMÉTRIQUES, ET ON LES DIT SÉPARÉMENT. Plusieurs `<h1>` :
+// Google choisit, et il choisit le premier — donc le mauvais dans le cas de
+// SEO‑1. Aucun `<h1>` : la page n'a pas de titre principal du tout, ce qui
+// coûte au robot ET au lecteur d'écran, qui navigue par en‑têtes.
+// (les §2 sont remplis par la passe unique ci-dessus)
+dit(trop.length === 0, `aucune page ne porte plus d'un <h1>`,
+  trop.length === 0 ? null
+    : `${trop.length} page(s) : ${trop.slice(0, 6).join(' · ')}${trop.length > 6 ? ' …' : ''}`);
+dit(aucun.length === 0, `aucune page de contenu n'est sans <h1>`,
+  aucun.length === 0 ? null
+    : `${aucun.length} page(s) : ${aucun.slice(0, 6).join(' · ')}${aucun.length > 6 ? ' …' : ''}`);
+if (trop.length) {
+  console.log('     ⭐ Un second <h1> caché (`hidden`, `data-membre`) reste LU par Google et');
+  console.log('        par les lecteurs d\'écran : la page dit une chose au robot et une autre');
+  console.log('        aux gens. C\'est exactement SEO‑1 — l\'accueil a annoncé « My dashboard »');
+  console.log('        à la place de sa promesse commerciale pendant huit lots.');
+  console.log('     ➡️  Un seul <h1> par page. Un titre secondaire est un <h2>.');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── 3. AUCUN <title> EN DOUBLE ENTRE DEUX PAGES DIFFÉRENTES ────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// (les §3 sont remplis par la passe unique ci-dessus)
+dit(sansTitre.length === 0, 'toutes les pages de contenu portent un <title>',
+  sansTitre.length === 0 ? null
+    : `${sansTitre.length} sans titre : ${sansTitre.slice(0, 5).join(' · ')}`);
+
+// ⭐ ON NE COMPTE PAS LES PAGES, ON COMPTE LES CHEMINS SANS LOCALE DISTINCTS.
+// Trois traductions d'une même page font trois fichiers et UN chemin : elles
+// ne sont pas un doublon. Deux pages différentes font deux chemins : c'en est
+// un.
+const doublons = [];
+for (const [titre, chemins] of parTitre) {
+  const distincts = [...new Set(chemins.map(sansLocale))];
+  if (distincts.length > 1) doublons.push(`« ${titre} » → ${distincts.slice(0, 4).join(' + ')}`);
+}
+dit(true, `${alias.length} alias d'adresse (canonical vers une autre page) écarté(s) du compte des doublons`
+  + (alias.length ? ` — ${alias.slice(0, 3).join(' · ')}${alias.length > 3 ? ' …' : ''}` : ''));
+dit(aliasCasses.length === 0, 'chaque alias pointe une page qui EXISTE dans dist/',
+  aliasCasses.length === 0 ? null : `${aliasCasses.length} alias vers le vide : ${aliasCasses.slice(0, 4).join(' · ')}`);
+dit(doublons.length === 0, `${parTitre.size} titre(s) distinct(s), aucun partagé par deux pages différentes`,
+  doublons.length === 0 ? null
+    : `${doublons.length} doublon(s) : ${doublons.slice(0, 5).join(' · ')}${doublons.length > 5 ? ' …' : ''}`);
+if (doublons.length) {
+  console.log('     ⭐ Deux pages, un titre : Google en retient UNE et jette l\'autre — celle');
+  console.log('        qu\'il jette est indexée puis désindexée, et personne ne le voit passer.');
+  console.log('     ⚠️  Les traductions d\'une MÊME page ne comptent pas : le <title> reste');
+  console.log('        anglais depuis le lot 129 et `hreflang` dit lequel est lequel. Ce banc');
+  console.log('        les regroupe déjà — un doublon signalé ici est bien deux pages.');
+  console.log('     ➡️  Une adresse, un rôle, un titre.');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── 4. LA DESCRIPTION TIENT DANS LA FENÊTRE QUE LE DÉPÔT S'EST DONNÉE ──────
+// ═══════════════════════════════════════════════════════════════════════════
+// ⭐ SEO‑4 de l'audit du 10/08 : `/comics/` 62 caractères, `/collectibles/` 67,
+// `/collections/` 68. Sous ~70, Google jette la description et fabrique son
+// propre extrait à partir de la page — la balise est écrite, servie, et sans
+// effet. C'est le profil « posé et jamais lu », côté moteur de recherche.
+// ⛔ ET L'AUDIT DIT AUSSI CE QU'IL NE FAUT PAS FAIRE : ne pas rallonger pour
+// rallonger. Une description qui répète le titre ne gagne rien. La seule chose
+// que ce site a et que les autres n'ont pas, c'est le NOMBRE.
+// ⚠️ ON MESURE `dist/`, DONC LE TEXTE AVEC SON `{n}` REMPLACÉ. Une clé qui
+// tient dans la fenêtre « en général » peut en sortir dès que le catalogue
+// grossit : `{n}` vaut 54 dans l'échantillon et 16 682 en production — quatre
+// caractères d'écart, et c'est exactement le genre d'écart qui fait passer un
+// seuil sans qu'une ligne de texte ait bougé.
+// (les §4 sont remplis par la passe unique ci-dessus)
+dit(sansDesc === 0, 'toutes les pages de contenu portent une <meta description>',
+  sansDesc === 0 ? null : `${sansDesc} page(s) sans description`);
+// ⭐⭐ ET ON DIT LES EXTRÊMES OBSERVÉS, PAS SEULEMENT « aucun écart ».
+// Deux builds Docker ont échoué sur des pages dont AUCUNE n'existe dans
+// l'échantillon local : une à 168 caractères, une à 65. Un banc qui ne rend
+// qu'un verdict binaire ne laisse rien voir venir ; deux nombres imprimés à
+// chaque passage montrent la dérive AVANT qu'elle franchisse la borne.
+// *Une phrase se relit ; un nombre se vérifie.*
+if (mini && maxi) {
+  console.log(`     📏 observé : ${mini.n} car. (${mini.p}) … ${maxi.n} car. (${maxi.p})`
+    + ` — marge ${mini.n - DESC_MIN} en bas, ${DESC_MAX - maxi.n} en haut`);
+}
+dit(hors.length === 0,
+  `${vues.size} description(s) distincte(s), toutes dans la fenêtre ${DESC_MIN}–${DESC_MAX} caractères`,
+  hors.length === 0 ? null
+    : `${hors.length} hors fenêtre : ${hors.slice(0, 6).join(' · ')}${hors.length > 6 ? ' …' : ''}`);
+if (hors.length) {
+  console.log(`     ⭐ Sous ${DESC_MIN} caractères, Google ignore la balise et invente son extrait :`);
+  console.log('        la description est écrite, servie, et sans aucun effet. Au-dessus de');
+  console.log(`        ${DESC_MAX}, elle est coupée — et la fin, c'est ce qu'on avait à dire.`);
+  console.log('     ➡️  Y faire entrer le NOMBRE (« 16 682 comics »), pas des adjectifs.');
+  console.log(`     ⚠️  Les bornes viennent de \`engine/lib/editorial_pages.mjs\` — les changer`);
+  console.log('        ici seulement les ferait diverger de l\'avertissement éditorial.');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── 5. LA CONDITION HOSTILE QUE L'ÉCHANTILLON NE CONTIENT PAS ──────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴🔴🔴 CE §5 EXISTE PARCE QUE LES §2–4 ONT ÉTÉ VERTS EN LOCAL ET ROUGES EN
+// PRODUCTION. Le build hors ligne rend 147 pages sur un échantillon de 90
+// pièces ; le catalogue réel en rend 3 097. Les trois sets Disney qui ont fait
+// échouer le déploiement du lot 134 **n'existent pas dans l'échantillon** — et
+// aucun `dist/` local ne les fera apparaître.
+// ⭐⭐ *Un banc qui ne juge que ce que l'échantillon contient déclare conforme
+// tout ce que l'échantillon ignore.* On fabrique donc la condition, avec les
+// noms EXACTS relevés dans le build Docker du 10/08 (log `echec2.txt`) — ⛔ pas
+// des noms inventés : une condition hostile qui n'existe pas en production
+// mesure un écran que personne ne verra.
+//
+// ⚠️ CE §5 NE LIT PAS `dist/` : il appelle les FONCTIONS. C'est volontaire — il
+// doit rester vrai même quand le `dist/` disponible est un échantillon, c'est
+// même sa seule raison d'être.
+// ⭐⭐⭐ DEUX FAMILLES, ET C'EST TOUT L'INTÉRÊT DE CE §5. Le discriminant ne vit
+// pas au même endroit selon le type de page — et une correction qui ne regarde
+// qu'une famille casse l'autre EN SILENCE. C'est arrivé pendant l'écriture de
+// ce lot : `couperMilieu` posée globalement dans `pageTitle()` a réparé les
+// trois sets et cassé quatre groupes de fiches, d'un seul geste.
+// ⇒ Les deux familles sont donc jugées ICI, ensemble, à chaque passage.
+const NOMS_REELS = [
+  // ── FAMILLE 1 : LES SETS — le discriminant est À LA FIN. ────────────────
+  // 50 caractères de préfixe commun, budget de titre à 60 : toute coupe PAR LA
+  // FIN tombe forcément dans le préfixe. Relevé dans le build Docker du 10/08.
+  'Disney100 Platinum Moments Walt Disney Animation Series 1',
+  'Disney100 Platinum Moments Walt Disney Animation Series 2',
+  'Disney100 Platinum Moments Walt Disney Animation Studios Series',
+];
+// ── FAMILLE 2 : LES FICHES — le discriminant est AU DÉBUT. ────────────────
+// La fin est le nom de série que quinze voisines partagent : une coupe qui
+// rogne la TÊTE pour préserver la queue les fait toutes collisionner.
+// ⛔ Ces trois-là existent dans l'échantillon hors ligne — mais ils sont écrits
+// ici quand même : le §2 ne les juge que si le `dist/` du moment les contient,
+// et un échantillon change.
+const FICHES_REELLES = [
+  'Alex Ross Main Cover · Common · 3 — Return of the Jedi #1: Poster Series',
+  'Alex Ross Main Cover · Common · AP — Return of the Jedi #1: Poster Series',
+  'Todd McFarlane Variant · Uncommon · FE — Return of the Jedi #1: Poster Series',
+];
+const GABARIT = '%s | VeVe Price';
+const muet = () => {};
+// ⚠️ CE BANC REFAIT LE GESTE DE `CollectionPage.astro`, IL NE L'IMPORTE PAS :
+// un composant `.astro` ne se charge pas depuis node. ⛔ C'est donc une COPIE,
+// et une copie diverge — la parade est qu'elle appelle les MÊMES fonctions
+// (`couperMilieu`, `TITLE_BUDGET`, `pageTitle`) : si le gabarit change de
+// stratégie sans toucher à celles-ci, ce §5 ment. Le §2, lui, lit `dist/` et ne
+// ment jamais : les deux ensemble, jamais l'un sans l'autre.
+const titreDeSet = (nom) => {
+  const brut = `Set : ${nom}`;
+  const t = [...brut].length <= TITLE_BUDGET
+    ? brut : `Set : ${couperMilieu(nom, TITLE_BUDGET - 'Set'.length - 3)}`;
+  return pageTitle(t, GABARIT, '', muet);
+};
+// ⭐ Le préfixe commun se CALCULE, il ne se recopie pas : le jour où quelqu'un
+// change un de ces noms, le libellé dit la vérité au lieu de citer un souvenir.
+const prefixeCommun = (() => {
+  let i = 0;
+  while (NOMS_REELS.every((n) => n[i] !== undefined && n[i] === NOMS_REELS[0][i])) i++;
+  return i;
+})();
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴🔴🔴 FAMILLE 3 — LE DISCRIMINANT AU MILIEU. AJOUTÉE LE 14/08 (lot 150 B)
+// ═══════════════════════════════════════════════════════════════════════════
+// `couperMilieu` garde la tête et la queue et jette LE MILIEU. Les familles 1
+// et 2 portent leur discriminant à la fin ou au début : elles survivent. ⭐⭐⭐
+// **Une troisième famille le porte pile dans la fenêtre élidée**, et le fichier
+// `seo.mjs` l'avait ANNONCÉE dès le lot 134b — « deux titres qui ne
+// différeraient QUE dans la fenêtre élidée collisionneraient encore » — sans
+// que personne n'écrive le cas. Il est arrivé le 14/08, au déploiement du quota
+// à 1600, et il a coûté un déploiement rouge.
+//
+// ⚠️ LES DEUX PAIRES SONT ICI, PAS SEULEMENT CELLE QUI A ROUGI. La première a
+// fait échouer le build ; la SECONDE n'était pas encore publiée et serait
+// tombée au palier suivant. Mesurées ensemble sur les 2 168 séries du catalogue
+// réel. *Le banc voit ce qui est publié ; la mesure voit ce qui va l'être.*
+// → regle-echantillon-ne-contient-pas
+//
+// ⛔ CE §5 NE REMPLACE PAS LE §3. Un ratio de coupe ne peut pas garantir
+// l'absence de collision sur un catalogue qui grandit : aucune position de
+// coupe ne distingue deux noms sans connaître le voisin. Le §3 lit `dist/`
+// entier et reste le juge. Celui-ci sert à ce que CES régressions-là se voient
+// **hors ligne**, avant le déploiement.
+const NOMS_MILIEU = [
+  // Relevés dans le log Coolify du 14/08 10:05 (déploiement `tmcshmkg…`, KO 44/55).
+  'JURASSIC WORLD DOMINION UCI Cinemas (Germany) Digital Collectible',
+  'JURASSIC WORLD DOMINION UCI Cinemas (Italy) Digital Collectible',
+  // Jamais déployés : mesurés dans `catalogue.csv.gz` le 14/08, 2 168 séries.
+  'Disney100 Platinum Moments Walt Disney Animation Studios Series 1 - Transformative Potion',
+  'Disney100 Platinum Moments Walt Disney Animation Studios Series 2 - Transformative Potion',
+];
+const titresMilieu = NOMS_MILIEU.map((n) => titreDeSet(n));
+dit(new Set(titresMilieu).size === NOMS_MILIEU.length,
+  `${NOMS_MILIEU.length} noms réels dont le discriminant est AU MILIEU rendent ${
+    new Set(titresMilieu).size} titres DISTINCTS`,
+  new Set(titresMilieu).size === NOMS_MILIEU.length ? null
+    : `⛔ l'élision mange le discriminant : ${[...new Set(titresMilieu)].join(' | ')}`);
+// ⭐ ET LE CONTRÔLE QUI EMPÊCHE CE §-CI D'ÊTRE VERT PAR PARESSE. Si un jour la
+// coupe disparaissait, les quatre noms rendraient leur texte entier — distincts,
+// donc verts, et sans avoir rien prouvé. On vérifie qu'ils sont bien COUPÉS.
+dit(titresMilieu.every((t) => t.includes(' … ')),
+  '…et les quatre sont bien passés par une élision (sinon ce contrôle est vide)',
+  titresMilieu.every((t) => t.includes(' … ')) ? null
+    : 'au moins un tient sans coupe — ce §5 ne mesure alors plus la coupe');
+
+const titresFab = NOMS_REELS.map((n) => titreDeSet(n));
+const fichesFab = FICHES_REELLES.map((n) => pageTitle(n, GABARIT, '', muet));
+dit(new Set(titresFab).size === NOMS_REELS.length,
+  `${NOMS_REELS.length} noms réels partageant ${prefixeCommun} caractères de préfixe`
+  + ` rendent ${new Set(titresFab).size} titres DISTINCTS`,
+  new Set(titresFab).size === NOMS_REELS.length ? null
+    : `ils collisionnent : ${[...new Set(titresFab)].join(' | ')}`);
+dit(new Set(fichesFab).size === FICHES_REELLES.length,
+  `${FICHES_REELLES.length} fiches réelles au nom de série PARTAGÉ rendent ${
+    new Set(fichesFab).size} titres DISTINCTS`,
+  new Set(fichesFab).size === FICHES_REELLES.length ? null
+    : `⛔ une coupe qui protège la QUEUE les écrase : ${[...new Set(fichesFab)].join(' | ')}`);
+dit(titresFab.every((t) => [...t].length <= TITLE_BUDGET),
+  `…et aucun ne dépasse le budget de ${TITLE_BUDGET} caractères`,
+  titresFab.every((t) => [...t].length <= TITLE_BUDGET) ? null
+    : `le plus long : ${Math.max(...titresFab.map((t) => [...t].length))}`);
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴🔴🔴 FAMILLE 4 — LES COMICS REORDONNES. AJOUTEE LE 06/09/2026 (LOT A ①)
+// ═══════════════════════════════════════════════════════════════════════════
+// Depuis le LOT A ①, un titre de comic s'ecrit « <serie> <base> » et non plus
+// « <base> — <serie> ». ⭐⭐⭐ CE SEUL ECHANGE DEPLACE LE DISCRIMINANT DANS LA
+// QUEUE, c'est-a-dire pile la ou `pageTitle` coupe. La premiere version du lot
+// a rendu **4 paires de pages avec un <title> identique**, et c'est le §3 qui
+// les a vues sur le `dist/` — pas ce §5, qui ne portait pas la famille.
+// ⇒ Elle est ici desormais, avec les noms REELS de la famille qui a rougi.
+//
+// ⚠️ C'EST UNE COPIE DU GESTE DE `Item.astro`, comme `titreDeSet` plus haut, et
+// elle diverge si le gabarit change de strategie sans toucher a ces fonctions.
+// Le §3 reste le juge ; celui-ci fait voir la regression HORS LIGNE.
+const MINI_SERIE = 24;
+const titreDeComic = (serie, base) => {
+  const inverse = `${serie} ${base}`;
+  if (inverse.length <= TITLE_BUDGET) return pageTitle(inverse, GABARIT, '', muet);
+  const place = TITLE_BUDGET - base.length - 1;
+  if (place < MINI_SERIE) {
+    return pageTitle(`${base} — ${couperMilieu(serie, Math.max(MINI_SERIE, TITLE_BUDGET - base.length - 4))}`, GABARIT, '', muet);
+  }
+  return pageTitle(`${couperMilieu(serie, place)} ${base}`, GABARIT, '', muet);
+};
+// La serie qui a fait rougir : quinze pieces partagent ces 36 caracteres, et
+// leurs `base` sont assez longs pour ne laisser aucune place lisible a la serie.
+const SERIE_PARTAGEE = 'Return of the Jedi #1: Poster Series';
+const BASES_REELLES = [
+  'Alex Ross Main Cover · Common · 5000',
+  'Alex Ross Main Cover · Common · 5000 (2)',
+  'Todd McFarlane Variant · Uncommon · 5000',
+  'Todd McFarlane Variant · Uncommon · 5000 (2)',
+  'Bill Sienkiewicz Original Main Cover · Common · 5000',
+  'Bill Sienkiewicz Original Main Cover · Common · 5000 (2)',
+];
+const comicsFab = BASES_REELLES.map((b) => titreDeComic(SERIE_PARTAGEE, b));
+dit(new Set(comicsFab).size === BASES_REELLES.length,
+  `${BASES_REELLES.length} comics d'une MEME serie longue rendent ${
+    new Set(comicsFab).size} titres DISTINCTS (famille 4, l'ordre inverse)`,
+  new Set(comicsFab).size === BASES_REELLES.length ? null
+    : `⛔ la queue coupee emporte le discriminant : ${[...new Set(comicsFab)].join(' | ')}`);
+// 🔬🔴🔴 JUGE PAR INJECTION LE 06/09, ET LE VERDICT SURPREND : en retirant le
+// repli, LA LIGNE CI-DESSUS RESTE VERTE. Les six titres demeurent distincts
+// parce que `couperMilieu` mange une longueur DIFFERENTE dans chacun — alors
+// que sur le `dist/` reel, le §3 voit bien 4 collisions. ⭐⭐⭐ *Ce controle-ci
+// ne mord donc pas sur le defaut qu'il a l'air de surveiller ; c'est le TEMOIN
+// ci-dessous qui porte la charge.* Il reste, parce qu'il ferme l'autre moitie
+// (une coupe qui ecraserait vraiment le discriminant), mais on ne s'y fie pas
+// seul. → index-juger-son-banc
+// ⭐ ET LE CONTROLE QUI EMPECHE CE §-CI D'ETRE VERT PAR PARESSE, deuxieme forme.
+// Si le repli disparaissait, ces six-la garderaient l'ordre naturel et se
+// couperaient dans la queue. On verifie donc qu'ils ont bien PRIS LE REPLI,
+// c'est-a-dire qu'ils commencent par leur `base` et non par la serie.
+dit(comicsFab.every((t, i) => t.startsWith(BASES_REELLES[i].slice(0, 20))),
+  '…et les six sont bien passes par le REPLI (base en tete), sinon ce controle est vide',
+  comicsFab.every((t, i) => t.startsWith(BASES_REELLES[i].slice(0, 20))) ? null
+    : `au moins un garde l'ordre naturel : ${comicsFab.join(' | ')}`);
+// ⭐⭐ ET LE CAS ORDINAIRE, celui des 97 % : la serie DOIT passer en tete quand
+// la place existe. Sans cette ligne, un repli pose partout serait vert ici.
+const comicCourt = titreDeComic('Wolverine Vol. 8', '#7 (2024) · Common');
+dit(comicCourt.startsWith('Wolverine Vol. 8 #7'),
+  'un comic ordinaire porte bien la SERIE EN TETE — « Wolverine Vol. 8 #7 (2024) · Common »',
+  comicCourt.startsWith('Wolverine Vol. 8 #7') ? null : `rendu : ${comicCourt}`);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴🔴🔴 ET LE TEMOIN QUI MANQUAIT : L'ECHANTILLON PORTE-T-IL DES COMICS ?
+// ═══════════════════════════════════════════════════════════════════════════
+// Mesure du 06/09 : `engine/data/sample/catalogue.csv` n'avait AUCUNE colonne
+// `veve_comic_name`. Donc `item.nomComic` etait null hors ligne, donc la branche
+// comics de `Item.astro` n'etait **JAMAIS EXECUTEE** par un banc — et les 54
+// bancs restaient verts quoi qu'on y ecrive. Le premier jet du LOT A ① est
+// passe vert sur toute la chaine sans qu'une seule page change.
+// ⭐⭐⭐ *Un echantillon a qui il manque un CHAMP debranche une BRANCHE entiere,
+// en silence.* → regle-echantillon-hors-ligne-angle-mort
+const CSV = new URL('../data/sample/catalogue.csv', import.meta.url);
+const lignesCsv = readFileSync(CSV, 'utf8').split('\n').filter(Boolean);
+const enteteCsv = lignesCsv[0].split(',').map((c) => c.trim());
+const iComic = enteteCsv.indexOf('veve_comic_name');
+dit(iComic >= 0,
+  "l'echantillon porte la colonne `veve_comic_name` (sans elle, la branche comics n'est jamais jouee)",
+  iComic >= 0 ? null : `colonnes : ${enteteCsv.join(', ')}`);
+const avecOeuvre = iComic < 0 ? 0
+  : lignesCsv.slice(1).filter((l) => (l.split(',')[iComic] || '').trim()).length;
+dit(avecOeuvre >= 20,
+  `…et ${avecOeuvre} piece(s) de l'echantillon portent un titre d'oeuvre`,
+  avecOeuvre >= 20 ? null : 'moins de 20 : la branche comics est mesuree sur presque rien');
+
+// ⭐ ET LE CONTRÔLE SYMÉTRIQUE, CELUI QUI DIT QUE LE BANC SAIT ENCORE ÉCHOUER.
+// Sans lui, une `pageTitle()` qui rendrait le nom entier sans jamais couper
+// passerait les deux lignes ci-dessus — et le §2 aussi. On vérifie donc qu'un
+// titre trop long est bel et bien RACCOURCI.
+// ── ET LA DESCRIPTION, MÊME MÉTHODE ────────────────────────────────────────
+// Les 17 pages hors fenêtre du build Docker étaient TOUTES sur ce set-là : son
+// nom fait 62 caractères À LUI SEUL, avant même le nom de la pièce. Aucune
+// pièce de l'échantillon hors ligne n'approche ça.
+// ⭐ On refait ici le geste de `Base.astro` — mesurer `nu()`, couper à
+// `DESC_MAX` — avec la VRAIE clé du dictionnaire et le PIRE nom réel connu.
+// 🔴🔴🔴 LES **DEUX** EXTRÉMITÉS, ET LA SECONDE A COÛTÉ UN BUILD DOCKER.
+// La première version de ce §5 fabriquait la pièce la plus LONGUE du catalogue
+// et jamais la plus COURTE. Le déploiement est reparti en échec sur une seule
+// page — `/collectibles/kang/kang-2/`, **65 caractères** — pendant que ce §5
+// restait vert. ⭐⭐⭐ *Un intervalle se teste par ses deux extrémités, sinon ce
+// n'est pas un intervalle, c'est un plafond.* C'est « trois sur quatre ne dit
+// rien de la quatrième », appliqué à mes propres bornes.
+// ⚠️ Et les deux bornes tirent en SENS INVERSE sur la même clé : allonger
+// `desc.itemShort` pour sauver le bas la ferait déborder par le haut. C'est
+// pour ça qu'il y a trois formules et pas deux — et c'est pour ça que ce §5
+// les juge toutes, avec les deux pires entrées réelles.
+const SERIE_MONSTRE = 'Disney100 Platinum Moments Walt Disney Animation Studios Series';
+const PIECE_MINUSCULE = 'Kang 2';   // relevé en production : /collectibles/kang/kang-2/
+const MARQUE = 'VeVe Price';
+
+// ── LE HAUT : la pièce au nom de série démesuré ────────────────────────────
+const descHaute = t('en', 'desc.item', {
+  name: 'Minnie Mouse Poster', series: ` — ${SERIE_MONSTRE}`,
+  price: '$41.00', n: '1,204', year: '2023', brand: MARQUE,
+});
+// ⭐ On refait ici le geste de `Base.astro`, avec les mêmes fonctions.
+const bornee = (x) => ([...nu(x)].length > DESC_MAX ? couperMots(nu(x), DESC_MAX) : nu(x));
+const nHaute = [...bornee(descHaute)].length;
+dit(nHaute <= DESC_MAX && nHaute >= DESC_MIN,
+  `borne HAUTE : la pièce au nom de série démesuré tient dans ${DESC_MIN}–${DESC_MAX}`
+  + ` (${[...nu(descHaute)].length} → ${nHaute} car.)`,
+  nHaute <= DESC_MAX && nHaute >= DESC_MIN ? null
+    : `elle sort à ${nHaute} — la borne de Base.astro ne tient pas`);
+dit([...nu(descHaute)].length > DESC_MAX,
+  '…et ce témoin-là dépasse bien avant correction (sinon il ne prouve rien)',
+  [...nu(descHaute)].length > DESC_MAX ? null
+    : `il fait ${[...nu(descHaute)].length} car. — ce contrôle est devenu décoratif`);
+
+// ── LE BAS : la pièce au nom minuscule, sans série ─────────────────────────
+// ⭐ On refait la CASCADE de `Item.astro` : longue → courte → riche. Elle vit
+// dans un `.astro`, donc elle n'est pas importable ; c'est une copie, et sa
+// parade est d'appeler les MÊMES clés du MÊME dictionnaire.
+const courte = t('en', 'desc.itemShort', { name: PIECE_MINUSCULE, series: '', brand: MARQUE });
+const riche = t('en', 'desc.itemPlus', { name: PIECE_MINUSCULE, series: '', brand: MARQUE });
+const choisie = [...nu(courte)].length >= DESC_MIN ? courte : riche;
+const nBasse = [...bornee(choisie)].length;
+dit(nBasse >= DESC_MIN && nBasse <= DESC_MAX,
+  `borne BASSE : « ${PIECE_MINUSCULE} », sans série, tient dans ${DESC_MIN}–${DESC_MAX}`
+  + ` (${[...nu(courte)].length} → ${nBasse} car.)`,
+  nBasse >= DESC_MIN && nBasse <= DESC_MAX ? null
+    : `elle sort à ${nBasse} — Google jettera la balise et inventera son extrait`);
+dit([...nu(courte)].length < DESC_MIN,
+  '…et ce témoin-là passe bien SOUS le plancher avant correction',
+  [...nu(courte)].length < DESC_MIN ? null
+    : `il fait ${[...nu(courte)].length} car. — trouver plus court, ou ce contrôle est décoratif`);
+// ⛔ ET LA FORMULE RICHE NE DOIT PAS DEVENIR UN NOUVEAU PROBLEME DE HAUT.
+// Elle n'est choisie que sur un nom court, mais rien ne l'empêcherait d'être
+// choisie ailleurs si quelqu'un déplaçait la cascade. On la mesure vide.
+const richeNue = t('en', 'desc.itemPlus', { name: 'X', series: '', brand: MARQUE });
+dit([...nu(richeNue)].length >= DESC_MIN && [...nu(richeNue)].length <= DESC_MAX,
+  `la formule riche tient dans la fenêtre même sur un nom d'UN caractère`
+  + ` (${[...nu(richeNue)].length} car.)`,
+  [...nu(richeNue)].length >= DESC_MIN && [...nu(richeNue)].length <= DESC_MAX
+    ? null : `elle sort à ${[...nu(richeNue)].length}`);
+
+const tropLong = pageTitle(`Set : ${NOMS_REELS[2]}`, GABARIT, '', muet);
+dit([...tropLong].length < [...`Set : ${NOMS_REELS[2]}`].length,
+  'un titre au-dessus du budget est bien raccourci (l\'instrument sait échouer)',
+  `« ${tropLong} »`);
+
+console.log(ko === 0
+  ? `\n✅ ${nbContenu} pages : un <h1> chacune, ${parTitre.size} titres tous distincts,`
+    + ` ${vues.size} descriptions dans la fenêtre\n`
+  : `\n🔴 ${ko} contrôle(s) en échec\n`);
+process.exit(ko === 0 ? 0 : 1);

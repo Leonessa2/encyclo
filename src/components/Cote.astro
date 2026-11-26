@@ -1,0 +1,49 @@
+---
+// ⚠️ Leonessa2/veve-sites — src/components/Cote.astro   (FICHIER NEUF — lot 101)
+// ═══════════════════════════════════════════════════════════════════════════
+// L'EMPLACEMENT D'UN PRIX — vide dans le HTML, rempli pour qui y a droit.
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ⭐⭐⭐ CE COMPOSANT NE REÇOIT AUCUN PRIX, ET C'EST TOUT SON INTÉRÊT.
+// Il ne prend qu'un `uuid` et le NOM d'un champ. À l'instant où il est rendu,
+// `item.floor` n'existe déjà plus (`projeter()` l'a retiré à la fin de
+// `dataset()`) : même en s'y reprenant mal, on ne peut pas lui faire écrire un
+// montant. C'est la différence entre « on a pensé à masquer » et « il n'y a
+// rien à masquer » — la première se défait au lot suivant, la seconde non.
+//
+// ⛔ NE JAMAIS lui ajouter une prop `valeur` « pour le cas où ». Ce serait
+// rouvrir en une ligne les 8 500 pages que ce lot ferme, et le banc anti-fuite
+// (engine/tools/test_fuite_prix.mjs) serait le seul à s'en apercevoir — après
+// un build complet, donc trop tard pour être lu comme un avertissement.
+//
+// ⭐ LE TIRET EST LA CONVENTION DE LA MAISON. `Item.astro` affiche déjà « — »
+// pour une donnée que le catalogue n'a pas encore livrée. Un emplacement de
+// cote lui ressemble volontairement : dans les deux cas la page dit « je ne
+// montre pas ce chiffre », et ne fabrique rien.
+import { t } from '../../engine/lib/i18n.mjs';
+
+const { lang, uuid, champ = 'floor', classe = '' } = Astro.props;
+---
+{/* 🔴 LOT 112 — LE TIRET DIT ENFIN POURQUOI IL EST LÀ (demande Preda) :
+    « les informations qui ne sont pas disponibles en public doivent être
+    signifiées par un cadenas à côté du — ».
+    ⭐ Un tiret nu est ambigu par construction : il veut dire « la donnée
+    n'existe pas » ailleurs sur ce site (un tirage inconnu, une offre absente).
+    Le même signe pour « je n'ai pas » et pour « je ne montre pas » enseigne au
+    visiteur que le site est incomplet, alors qu'il est FERMÉ. Deux causes
+    opposées derrière un seul signe — la confusion que ce projet paie le plus
+    souvent.
+    ⛔ `aria-hidden` sur le cadenas ET `title` sur le parent : le lecteur
+    d'écran entend la phrase entière (`cote.reserve`), pas le mot « cadenas ».
+    ⭐⭐ LE CADENAS DISPARAÎT QUAND LA VALEUR ARRIVE. `CoteScript` pose
+    `data-ouverte="1"` sur ce même élément au retour de `/api/cote/` : le thème
+    s'appuie dessus. Sans ça, un membre verrait son prix AVEC un cadenas à
+    côté — la porte ouverte et le verrou toujours dessiné. */}
+<span class={`cote ${classe}`.trim()} data-cote={uuid} data-champ={champ}
+      title={t(lang, 'cote.reserve')}>
+  <span class="cote__v" data-cote-v>—</span>
+  <span class="cote__l" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+         stroke-linecap="round"><rect x="5" y="11" width="14" height="9" rx="1.8"/><path d="M8.2 11V8.6a3.8 3.8 0 0 1 7.6 0V11"/></svg>
+  </span>
+</span>

@@ -1,0 +1,66 @@
+# Dépôt : Leonessa2/encyclo — fichier : .github/workflows/construire.yml
+#
+# LOT 1 (26/11/2026) : construire le wiki en fichiers statiques, rien de plus.
+# - Aucune mise en ligne : le résultat est seulement joint à l'exécution
+#   (onglet Actions > l'exécution > « site-construit ») pour être comparé
+#   au site actuel.
+# - Recette reprise telle quelle du Dockerfile de Leonessa2/veve-sites
+#   (étapes « build » et « marquer:i18n »), avec SITE=vevewiki.
+# - Les bancs de test seront choisis au lot suivant.
+
+name: Construire le wiki
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: construire
+  cancel-in-progress: true
+
+jobs:
+  construire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SITE: vevewiki
+      SITE_URL: https://vevewiki.com
+      RENDERING: static
+      NODE_OPTIONS: --max-old-space-size=3072
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installer
+        run: npm ci --no-audit --no-fund
+
+      - name: Construire
+        run: I18N_MARQUAGE=1 npm run build
+
+      - name: Marquer les textes traduisibles
+        run: npm run marquer:i18n
+
+      - name: Contrôler le résultat
+        run: |
+          set -e
+          test -f dist/index.html || { echo "ERREUR : pas de page d'accueil (dist/index.html)"; exit 1; }
+          test ! -d dist/server || { echo "ERREUR : un dossier serveur existe, le site n'est pas statique"; exit 1; }
+          test -f dist/404.html || { echo "ERREUR : pas de page 404"; exit 1; }
+          n=$(find dist -name index.html | wc -l)
+          echo "Pages construites : $n"
+          [ "$n" -ge 250 ] || { echo "ERREUR : trop peu de pages ($n)"; exit 1; }
+
+      - name: Joindre le site construit
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-construit
+          path: dist/
+          retention-days: 14

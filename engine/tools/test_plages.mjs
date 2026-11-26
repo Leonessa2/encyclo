@@ -1,0 +1,568 @@
+// ⚠️ Leonessa2/veve-sites — engine/tools/test_plages.mjs   (FICHIER NEUF — lot 132)
+// ═══════════════════════════════════════════════════════════════════════════
+//  LES DURÉES DU GRAPHIQUE — le banc qui aurait vu les trois jours de silence
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// 🔴🔴🔴 CE QU'IL AURAIT ATTRAPÉ, ET QUE PERSONNE N'A VU PENDANT TROIS JOURS.
+// Le lot 104 (07/08) a livré la fonctionnalité « boutons de durée avec cadenas
+// selon le palier » en cinq morceaux :
+//   ① la GRILLE      — `access.gates.price_history.plages` au manifeste ;
+//   ② le CALCUL      — `plages()` dans `engine/lib/access.mjs` ;
+//   ③ l'APPEL        — `const LES_PLAGES = plages();` dans `Item.astro` ;
+//   ④ le LECTEUR     — `querySelector('[data-plages]')` dans `Cadran.astro` ;
+//   ⑤ le STYLE       — `.plages button[data-verrou]` dans le thème.
+// Il manquait le sixième : L'ÉMETTEUR. Aucun `<button data-tier>` n'était écrit.
+// Résultat, mesuré le 10/08 avant de coder : `LES_PLAGES` calculé et jamais lu
+// (`grep` : 1 occurrence, sa définition), `querySelector` rendant `null` sur
+// 3 000 fiches, et trois règles CSS qui n'habillaient rien.
+//
+// ⭐⭐⭐ AUCUN DES CINQ MORCEAUX N'ÉTAIT FAUX. C'est ce qui rend cette panne
+// coûteuse : chaque fichier, relu seul, avait raison. Un banc par fichier
+// n'aurait rien dit. Il faut un banc qui suit la CHAÎNE — « qui écrit, qui
+// lit ? » — et qui refuse qu'un maillon existe sans son voisin.
+//
+// ⛔ IL N'ACCEPTE PAS « LE SÉLECTEUR EST DANS LE CODE » COMME PREUVE. Il monte
+// le HTML RÉELLEMENT SERVI dans un DOM, exécute le script de la page avec un
+// faux `fetch`, et regarde ce qui a bougé. Un sélecteur qui ne matche jamais ne
+// lève rien : c'est la seule mesure qui distingue « posé » de « branché ».
+//
+// ⭐⭐ ET IL EXIGE QUE LE VERROU NE SOIT PAS DÉCORATIF — le défaut d'origine
+// que le lot 104 nommait lui-même : « le verrou ne dépendait d'aucun palier, il
+// était décoratif ». On joue donc DEUX paliers et on exige DEUX résultats
+// différents. Un contrôle qui rend la même chose pour un abonné et pour un
+// visiteur n'est pas un verrou, c'est un dessin de verrou.
+
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+
+const R = new URL('../..', import.meta.url).pathname;
+let echecs = 0, lus = 0;
+const verifie = (titre, ok, detail = '') => {
+  if (!ok) echecs++;
+  console.log(`  ${ok ? 'OK  ' : 'ECHEC'} ${titre}${detail ? `\n       ${detail}` : ''}`);
+};
+const indecis = (titre, pourquoi) => console.log(`  ⏸️   ${titre} — INDÉCIDABLE : ${pourquoi}`);
+const fin = () => {
+  console.log('\n5. auto-contrôle');
+  if (lus < 5) { console.log(`  🔴 ce banc n'a inspecté que ${lus} élément(s) : il ne prouve rien.`); process.exit(2); }
+  console.log(`  OK   ${lus} élément(s) inspecté(s)`);
+  console.log(echecs ? `\n❌ ${echecs} echec(s)` : '\n✅ tout est vert');
+  process.exit(echecs ? 1 : 0);
+};
+
+console.log(`\n═══ LES DURÉES DU GRAPHIQUE — site « ${process.env.SITE || 'veveprice'} » ═══`);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 1. LA GRILLE DU MANIFESTE — et le site a-t-il seulement un graphe ?
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\n1. la grille déclarée au manifeste');
+const { plages, porte, PALIERS, auMoins, profondeur } = await import('../lib/access.mjs');
+const p = porte('price_history');
+if (!p.actif) {
+  console.log('\n⏸️  sans objet — la porte « price_history » est inactive sur ce site.');
+  process.exit(0);
+}
+const GRILLE = plages();
+if (!GRILLE.length) {
+  // ⭐ TROIS VERDICTS. Une grille vide est un choix LÉGITIME (`access.mjs` :
+  //   « aucun défaut inventé »), pas une panne — et pas un succès non plus.
+  indecis('les boutons de durée', 'le manifeste ne déclare aucune plage : rien à émettre, rien à juger');
+  fin();
+}
+lus += GRILLE.length;
+verifie('chaque plage nomme un palier connu',
+  GRILLE.every((g) => PALIERS.includes(g.tier)),
+  GRILLE.map((g) => `${g.cle}=${g.tier}${g.jours === null ? ' (sans borne)' : ` (${g.jours} j)`}`).join(' · '));
+// ⛔ UNE GRILLE QUI NE MONTE PAS EST UNE GRILLE QUI NE VEND RIEN. Deux plages au
+//    même palier sont légitimes (30 J + 90 J chez Langouste, arbitrage du 07/08
+//    — « le + est une conjonction »), mais une plage PLUS LONGUE à un palier
+//    PLUS BAS ouvrirait la profondeur par la porte d'à côté.
+let monotone = true;
+for (let i = 1; i < GRILLE.length; i++) {
+  const a = GRILLE[i - 1], b = GRILLE[i];
+  if (PALIERS.indexOf(b.tier) < PALIERS.indexOf(a.tier)) monotone = false;
+  if (a.jours !== null && b.jours !== null && b.jours < a.jours) monotone = false;
+}
+verifie('la grille MONTE : jamais une durée plus longue à un palier plus bas',
+  monotone, monotone ? 'profondeur et palier vont dans le même sens'
+    : '🔴 une plage plus longue s\'ouvre plus bas : la profondeur se prend par la porte d\'à côté');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 2. L'ÉMETTEUR — le HTML RÉELLEMENT SERVI porte-t-il les boutons ?
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\n2. les boutons sont-ils ÉMIS, sur une vraie fiche ?');
+const DIST = existsSync(join(R, 'dist/client')) ? join(R, 'dist/client') : join(R, 'dist');
+if (!existsSync(DIST)) { indecis('l\'émission', '`dist/` absent — ce banc va APRÈS `npm run build`'); fin(); }
+
+// La première fiche venue : on ne choisit pas, sinon on mesure notre choix.
+const trouverFiche = (dir, prof = 0) => {
+  if (prof > 4) return null;
+  for (const e of readdirSync(dir)) {
+    const c = join(dir, e);
+    if (statSync(c).isDirectory()) { const r = trouverFiche(c, prof + 1); if (r) return r; }
+    else if (e === 'index.html' && /\/(collectibles|comics)\/[^/]+\/[^/]+\//.test(c.replace(/\\/g, '/'))) {
+      const h = readFileSync(c, 'utf8');
+      if (h.includes('data-cadran')) return { chemin: c, html: h };
+    }
+  }
+  return null;
+};
+const fiche = trouverFiche(DIST);
+if (!fiche) { indecis('l\'émission', 'aucune fiche portant un cadran dans `dist/`'); fin(); }
+console.log(`       fiche lue : ${fiche.chemin.replace(R, '')}`);
+
+// ⚠️⚠️ DÉFAUT D'INSTRUMENT PAYÉ EN ÉCRIVANT CE BANC, ET IL VAUT D'ÊTRE ÉCRIT.
+//    Ma première version cherchait `data-jours="([^\"]*)"`. Elle a déclaré
+//    « 4 boutons pour 5 plages » sur une page qui en portait bien cinq : Astro
+//    sérialise une valeur VIDE en attribut NU — `data-jours`, pas
+//    `data-jours=""`. Le cinquième bouton (« Max », `jours: null`) était le seul
+//    concerné, c'est-à-dire le plus cher : le dernier palier.
+//    ⭐⭐⭐ UN BANC ROUGE POUR UNE MAUVAISE RAISON COÛTE PLUS CHER QU'UN BANC
+//    ABSENT — et celui-ci serait devenu rouge en permanence sur un code juste,
+//    jusqu'à ce qu'on apprenne à ignorer sa couleur. ⛔ Le remède n'est PAS
+//    d'écrire `data-jours="0"` dans le gabarit pour lui plaire : ce serait
+//    corriger le code pour l'instrument, et « 0 » raboterait la courbe de Max à
+//    rien. On corrige l'INSTRUMENT.
+//    ⇒ La forme nue ET la forme longue sont acceptées, et `jours: null` est
+//      reconnu à l'ABSENCE de valeur — ce qui est exactement ce que
+//      `getAttribute()` rend au navigateur : la chaîne vide.
+const boutons = [...fiche.html.matchAll(/<button[^>]*data-cle="([^"]*)"[^>]*>/g)]
+  .map((m) => {
+    const brut = m[0];
+    const tier = (brut.match(/data-tier="([^"]*)"/) || [])[1] || '';
+    const j = brut.match(/data-jours(?:="([^"]*)")?/);
+    return { cle: (brut.match(/data-cle="([^"]*)"/) || [])[1], tier, jours: j ? (j[1] ?? '') : null };
+  });
+lus += boutons.length;
+verifie('le groupe `[data-plages]` est ÉMIS dans le HTML',
+  /data-plages/.test(fiche.html.replace(/<script[\s\S]*?<\/script>/g, '')),
+  '⇒ sans lui, `querySelector` rend null et la boucle de déverrouillage tourne dans le vide');
+verifie('autant de boutons que de plages déclarées',
+  boutons.length === GRILLE.length, `${boutons.length} bouton(s) pour ${GRILLE.length} plage(s)`);
+verifie('dans l\'ORDRE du manifeste (« l\'ordre du tableau est l\'ordre affiché »)',
+  boutons.map((b) => b.cle).join(',') === GRILLE.map((g) => g.cle).join(','),
+  `${boutons.map((b) => b.cle).join(' · ')}`);
+verifie('chaque bouton porte le palier de sa plage',
+  boutons.every((b, i) => GRILLE[i] && b.tier === GRILLE[i].tier),
+  boutons.map((b) => `${b.cle}→${b.tier}`).join(' · '));
+// ⛔ `jours: null` = SANS BORNE, et l'attribut doit être VIDE, pas « 0 » ni
+//    « null ». Un `0` raboterait la courbe du dernier palier à rien : la panne
+//    la plus chère possible, sur le grade le plus cher. « inconnu ≠ zéro ».
+verifie('la plage sans borne rend un `data-jours` VIDE, jamais « 0 » ni « null »',
+  boutons.every((b, i) => (GRILLE[i] && GRILLE[i].jours === null
+    ? b.jours === '' : b.jours === String(GRILLE[i].jours))),
+  boutons.map((b) => `${b.cle}=${b.jours === '' ? '(vide)' : b.jours === null ? '(ABSENT)' : b.jours}`).join(' · '));
+
+// ⭐ L'INFOBULLE, demandée nommément par Preda le 10/08 : « n'oublie pas un
+//   cadenas et une infobulle disant quel grade débloque quoi ».
+const avecTitre = (fiche.html.match(/<button[^>]*data-verrou[^>]*title="[^"]+"/g) || []).length;
+verifie('chaque bouton verrouillé porte une infobulle nommant le grade',
+  avecTitre >= GRILLE.filter((g) => g.verrouillee).length && avecTitre > 0,
+  `${avecTitre} infobulle(s) — ⛔ un cadenas sans nom de grade dit « non » sans dire « à quelle condition »`);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 3. LE LECTEUR — le script fait-il quelque chose, et FAIT-IL LA DIFFÉRENCE ?
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\n3. le script déverrouille-t-il, et SEULEMENT ce qu\'il doit ?');
+let parseHTML = null;
+try { ({ parseHTML } = await import('linkedom')); } catch { /* absent */ }
+if (!parseHTML) {
+  // ⛔ INDÉCIDABLE, PAS VERT. Sans DOM, « les boutons sont là » est mesuré et
+  //    « ils se déverrouillent » ne l'est pas — et c'est justement la moitié
+  //    qui distingue un verrou d'un dessin de verrou.
+  indecis('l\'exécution du pilote', 'linkedom absent — `npm i -D linkedom`');
+  fin();
+}
+
+// ⚠️ On extrait le script de `Cadran.astro` DEPUIS LA PAGE SERVIE, pas depuis
+//    la source : c'est ce que le navigateur reçoit qui décide. Un post-traitement
+//    (i18n, minification) passe entre les deux, et il a déjà avalé un `<head>`
+//    entier au lot 129.
+// ⚡ LOT 137 (A2 / OPT‑3) — LE SCRIPT VOYAGE ENCORE AVEC LA PAGE, MAIS PAR
+// RÉFÉRENCE. Le pilote du cadran pesait 8 194 o RENDUS sur chacune des 90
+// fiches ; il est parti dans `socle-<empreinte>.js`, servi une fois.
+// ⭐⭐ LA PHRASE CI-DESSUS RESTE VRAIE, ET C'EST TOUT L'INTÉRÊT : « c'est ce que
+// le navigateur reçoit qui décide ». Un navigateur qui lit
+// `<script src="/socle-….js">` va CHERCHER le fichier — donc ce banc aussi. Il
+// suit le `src` dans `dist/`, exactement comme le ferait le navigateur.
+// ⛔⛔ ET IL NE SE CONTENTE PAS D'EXISTER : le fichier référencé doit être
+// PRÉSENT dans `dist/`. Un `<script src>` vers un fichier absent est un 404
+// silencieux — la page s'affiche, le build est vert, et le cadran est mort sur
+// 1 201 fiches. C'est la panne que ce banc doit voir en premier.
+const enLigne = [...fiche.html.matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)]
+  .map((m) => m[1]);
+const externes = [...fiche.html.matchAll(/<script[^>]*\ssrc="(\/socle-[a-f0-9]+\.js)"[^>]*>/g)]
+  .map((m) => m[1])
+  .map((href) => {
+    const f = join(DIST, href.replace(/^\//, ''));
+    verifie(`le fichier ${href} référencé par la page existe dans dist/`, existsSync(f),
+      existsSync(f) ? '' : 'un <script src> vers un fichier absent est un 404 muet : page verte, cadran mort');
+    return existsSync(f) ? readFileSync(f, 'utf8') : '';
+  });
+const scripts = [...enLigne, ...externes].filter((s) => s.includes('data-cadran'));
+verifie('le script du cadran voyage bien avec la page', scripts.length === 1,
+  `${scripts.length} script(s) portant « data-cadran »`);
+if (scripts.length !== 1) fin();
+lus++;
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 🔴🔴🔴 LOT 140-2 — LE FAUX `fetch` RÉPOND COMME LA VRAIE PORTE, REFUS COMPRIS
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ⛔⛔ CE QUE CE BANC SUPPOSAIT, ET QUI ETAIT FAUX. Sa première version rendait
+// `{ok:true, status:200, palier}` à TOUT appel. Conséquences, mesurées le 12/08 :
+//   · la BRANCHE DE REPLI de `cadran.js` — `/api/cote/` après un refus de
+//     `/api/historique/` — n'était JAMAIS exécutée ;
+//   · or c'est LA SEULE qu'un membre emprunte, puisque la porte `price_history`
+//     exige `crevette` ;
+//   · et la question « est-ce que l'API dirait oui à ce palier ? » n'était
+//     jamais posée.
+// Il était donc VERT sur une chaine cassée : `cadran.js` jetait le palier de la
+// réponse de repli, `deverrouiller()` lisait `'visitor'`, et « 3 J » restait
+// cadenassé à vie pour un membre.
+//
+// ⭐⭐⭐ LA REGLE, ET ELLE VAUT PLUS QUE CE BANC : quand un banc SIMULE une
+// dépendance, il faut ECRIRE CE QUE LA SIMULATION SUPPOSE, et faire répondre le
+// faux comme la vraie porte répondrait — REFUS COMPRIS. Un banc branché sur le
+// dernier maillon, avec le précédent fabriqué favorablement, est vert pour une
+// mauvaise raison.
+//
+// ⚠️ LE FAUX N'INVENTE AUCUNE REGLE : il appelle `profondeur()` et `auMoins()`,
+// c'est-à-dire EXACTEMENT ce que les deux routes appellent. S'il codait « member
+// → 403 » en dur, il testerait ma lecture du manifeste, pas le manifeste.
+const TIER_COTE = porte('cote');
+
+const jouer = (palier, opt = {}) => {
+  const { document, window } = parseHTML(fiche.html);
+  document.documentElement.setAttribute('data-membre', '');
+  const pts = [];
+  const base = Math.floor(Date.now() / 1000);
+  // 400 relevés quotidiens : de quoi qu'une plage « 3 j » et une plage « 90 j »
+  // ne rendent PAS la même courbe. Sinon le filtrage serait vert sans filtrer.
+  for (let i = 400; i >= 0; i--) pts.push([base - i * 86400, 10 + (i % 7)]);
+
+  // ⭐ LE JOURNAL DU FAUX. Sans lui, un fetch simulé qui ne refuse JAMAIS est
+  //   indiscernable d'un fetch simulé correct : les deux rendent le banc vert.
+  //   On COMPTE, et le §4 refuse de conclure si aucun refus n'a été exercé.
+  const journal = { historique: null, cote: null, refus: 0 };
+
+  const json = (o) => Promise.resolve(o);
+  const reponse = (status, corps) => Promise.resolve({
+    ok: status >= 200 && status < 300, status, json: () => json(corps),
+  });
+
+  const faux = (url) => {
+    const u = String(url);
+
+    // --- LA PORTE `price_history`, telle que `/api/historique/[uuid].js` la joue
+    if (u.indexOf('/api/historique/') === 0) {
+      // ⭐⭐ `opt.sansHistorique` FABRIQUE la condition du repli, au lieu de
+      //   l'esperer. La branche `/api/cote/` est la SEULE qu'un membre a
+      //   empruntee pendant deux lots ; un banc qui ne l'exerce que « quand le
+      //   manifeste s'y prete » ne l'exerce pas — il attend.
+      if (opt.sansHistorique) { journal.refus++; return reponse(403, { ok: false, erreur: 'palier' }); }
+      const prof = profondeur({ palier });
+      journal.historique = prof;
+      // ⛔ 0 = aucune profondeur. La route rend 401 sans session, 403 avec.
+      if (prof === 0) { journal.refus++; return reponse(palier === 'visitor' ? 401 : 403, { ok: false, erreur: 'palier' }); }
+      // La troncature se fait A LA LECTURE, comme la route : même ancrage (le
+      // DERNIER relevé), même comparaison (`>=`). Deux règles différentes ici et
+      // là-bas se rattraperaient l'une l'autre et ne se verraient jamais.
+      let vus = pts;
+      if (prof > 0) {
+        const seuil = pts[pts.length - 1][0] - prof * 86400;
+        vus = pts.filter((p2) => p2[0] >= seuil);
+      }
+      return reponse(200, { ok: true, palier, profondeur: prof, h: { n: vus.length, p: vus } });
+    }
+
+    // --- LA PORTE `cote`, telle que `/api/cote/[uuid].js` la joue
+    if (u.indexOf('/api/cote/') === 0) {
+      const ouvre = !TIER_COTE.actif || auMoins(palier, TIER_COTE.tier);
+      journal.cote = ouvre;
+      if (!ouvre) { journal.refus++; return reponse(palier === 'visitor' ? 401 : 403, { ok: false, erreur: 'palier' }); }
+      // ⭐ La cote rend une courbe NORMALISEE et porte son palier (ligne 72 de la
+      //   route). C'est ce palier-là que `cadran.js` doit transmettre.
+      return reponse(200, { ok: true, palier, c: { courbe: pts.map((p2) => [p2[0], p2[1]]) } });
+    }
+
+    // ⛔ Une adresse que ce banc ne connait pas ne doit pas rendre 200 en
+    //   silence : elle rend 404, et le pilote la traitera comme une panne.
+    journal.refus++;
+    return reponse(404, { ok: false, erreur: 'inconnue' });
+  };
+
+  const fn = new Function('document', 'window', 'fetch', 'console', 'localStorage', scripts[0]);
+  try { fn(document, window, faux, { log() {}, warn() {}, error() {} }, undefined); } catch (e) {
+    return { erreur: e.message, document, journal };
+  }
+  return { document, journal };
+};
+
+// ⭐ On laisse au `fetch` faux le temps de résoudre : le script est asynchrone.
+const attendre = () => new Promise((ok) => setTimeout(ok, 0)).then(() => new Promise((ok) => setImmediate(ok)));
+
+const rMembre = jouer('member');
+await attendre(); await attendre(); await attendre();
+verifie('le script s\'exécute sans lever', !rMembre.erreur, rMembre.erreur || 'aucune exception');
+
+const ouverts = (doc) => [...doc.querySelectorAll('[data-plages] button[data-tier]')]
+  .filter((b) => !b.hasAttribute('data-verrou')).map((b) => b.getAttribute('data-cle'));
+
+const attendusPour = (pal) => GRILLE
+  .filter((g) => PALIERS.indexOf(pal) >= PALIERS.indexOf(g.tier)).map((g) => g.cle);
+
+const vusMembre = ouverts(rMembre.document);
+verifie('un MEMBRE voit s\'ouvrir exactement ses plages',
+  vusMembre.join(',') === attendusPour('member').join(','),
+  `ouvertes : ${vusMembre.join(' · ') || '(aucune)'} — attendues : ${attendusPour('member').join(' · ') || '(aucune)'}`);
+
+const rWhale = jouer('whale');
+await attendre(); await attendre(); await attendre();
+const vusWhale = ouverts(rWhale.document);
+verifie('un WHALE en voit s\'ouvrir davantage — le verrou n\'est pas décoratif',
+  vusWhale.length > vusMembre.length,
+  `membre ${vusMembre.length} · whale ${vusWhale.length} sur ${GRILLE.length}`);
+lus += 2;
+
+// ⛔ LA CONTRE-ÉPREUVE, ET C'EST ELLE QUI DONNE SA VALEUR AU RESTE.
+//    Sans elle, un script qui déverrouille TOUT passerait les deux lignes
+//    au-dessus. « Un banc doit rougir sur CHAQUE panne, pas sur trois sur
+//    quatre. »
+const rVisiteur = jouer('visitor');
+await attendre(); await attendre(); await attendre();
+const vusVisiteur = ouverts(rVisiteur.document);
+verifie('⛔ un VISITEUR n\'ouvre rien de plus que ce que le manifeste lui donne',
+  vusVisiteur.join(',') === attendusPour('visitor').join(','),
+  `ouvertes : ${vusVisiteur.join(' · ') || '(aucune)'} — attendues : ${attendusPour('visitor').join(' · ') || '(aucune)'}`);
+
+// ⭐⭐ ET LE FILTRAGE FAIT-IL QUELQUE CHOSE ? Un bouton déverrouillé qui ne
+//    change pas la courbe est un bouton mort — la version « on peut cliquer »
+//    du sélecteur qui ne matche jamais.
+const doc = rWhale.document;
+const svgAvant = (doc.querySelector('[data-svg]') || {}).innerHTML || '';
+const btn3 = doc.querySelector('[data-plages] button[data-cle="3j"]');
+if (!btn3 || !svgAvant) {
+  indecis('le filtrage par durée', 'pas de courbe rendue dans le DOM du banc');
+} else {
+  btn3.click();
+  const svgApres = (doc.querySelector('[data-svg]') || {}).innerHTML || '';
+  verifie('cliquer une durée REDESSINE la courbe (elle raccourcit)',
+    svgApres.length > 0 && svgApres !== svgAvant,
+    svgApres === svgAvant ? '🔴 le clic ne change rien : le bouton est un décor'
+      : `SVG ${svgAvant.length} o → ${svgApres.length} o sur 3 jours`);
+  lus++;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 3 ter. 🔴🔴🔴 LA CHAINE, PAS LE DERNIER MAILLON — LE REPLI TRANSMET-IL LE PALIER ?
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ⭐⭐⭐ C'EST LE PARAGRAPHE QUI VAUT LE LOT. Les trois cas ci-dessus passent tous
+// par la PREMIERE reponse de `/api/historique/`. Le 12/08, la mesure a montre
+// qu'un membre ne la recoit jamais : la porte `price_history` exige `crevette`,
+// il prend 403, et `cadran.js` retombe sur `/api/cote/`. Cette branche-la
+// n'avait JAMAIS ete executee par un banc — et elle jetait le palier
+// (`recevoir(c.c.courbe, { normalisee: true })`, ligne 32). `deverrouiller()`
+// lisait donc `'visitor'`, et « 3 J » restait cadenasse a vie.
+//
+// ⛔ ON NE TESTE PAS « le manifeste refuse-t-il un membre ? » — ca, c'est le
+//   reglage du jour, et il vient de changer. On teste la PROPRIETE PERMANENTE :
+//   quand l'historique se tait, le repli doit livrer un palier UTILISABLE.
+//   La condition se FABRIQUE (`sansHistorique`), elle ne s'espere pas.
+console.log('\n3 ter. quand `/api/historique/` refuse, le REPLI livre-t-il le palier ?');
+const COTE_OUVRE_A = TIER_COTE.actif ? TIER_COTE.tier : 'visitor';
+// Le palier le plus BAS qui franchit la porte `cote` : c'est celui pour qui le
+// repli est la seule route possible, donc celui qui paie le defaut.
+const PALIER_REPLI = PALIERS.filter((p2) => auMoins(p2, COTE_OUVRE_A) && GRILLE.some((g) => auMoins(p2, g.tier)))[0];
+if (!PALIER_REPLI) {
+  indecis('le repli', 'aucun palier ne franchit `cote` ET n\'ouvre une plage — rien a departager');
+} else {
+  const rRepli = jouer(PALIER_REPLI, { sansHistorique: true });
+  await attendre(); await attendre(); await attendre();
+  const vusRepli = ouverts(rRepli.document);
+  const attRepli = attendusPour(PALIER_REPLI);
+  verifie(`⛔ « ${PALIER_REPLI} » servi par le REPLI ouvre les memes plages que par la route directe`,
+    vusRepli.join(',') === attRepli.join(','),
+    vusRepli.join(',') === attRepli.join(',')
+      ? `repli exerce (${rRepli.journal.refus} refus), plages ouvertes : ${vusRepli.join(' · ')}`
+      : `🔴 ouvertes par le repli : ${vusRepli.join(' · ') || '(AUCUNE)'} — attendues : ${attRepli.join(' · ')}\n`
+        + '       ⇒ la reponse de `/api/cote/` porte son palier, et `cadran.js` le JETTE :\n'
+        + '         `recevoir(c.c.courbe, { normalisee: true })` — il manque `palier: c.palier`.');
+  // ⭐ ET LE REPLI A-T-IL VRAIMENT ETE EXERCE ? Un faux `fetch` qui n'aurait pas
+  //   refuse rendrait la ligne ci-dessus verte sans rien prouver.
+  verifie('le refus a bien ete EXERCE (le faux n\'a pas repondu oui a tout)',
+    rRepli.journal.refus > 0 && rRepli.journal.cote === true,
+    `refus emis : ${rRepli.journal.refus} · porte cote : ${rRepli.journal.cote}`);
+  lus += 2;
+}
+
+// ⛔ LE CAS ③ — UN PALIER QUI NE FRANCHIT RIEN DOIT RESTER FERME, ET LE BANC
+//    DOIT POUVOIR ROUGIR DESSUS. Sans lui, la garde du 3 ter serait satisfaite
+//    par un pilote qui deverrouille tout des qu'il recoit quoi que ce soit.
+const rSourd = jouer('visitor', { sansHistorique: true });
+await attendre(); await attendre(); await attendre();
+verifie('⛔ un VISITEUR refuse par les DEUX portes n\'ouvre toujours rien',
+  ouverts(rSourd.document).join(',') === attendusPour('visitor').join(','),
+  `refus emis : ${rSourd.journal.refus} — ouvertes : ${ouverts(rSourd.document).join(' · ') || '(aucune)'}`);
+lus++;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 3 quater. 🔴🔴 LA PROFONDEUR SERVIE — la grille et l'API disent-elles la MEME chose ?
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ⭐ La loi est UNE : `plages:`. `profondeur()` la lit pour l'API, `plages()` la
+//   lit pour les boutons. Ce paragraphe verifie qu'elles ne peuvent pas
+//   diverger — et surtout il porte le TEMOIN INVERSE : sans lui, un plafond qui
+//   ne tronque RIEN serait vert.
+console.log('\n3 quater. la profondeur servie par l\'API suit-elle la grille ?');
+for (const pal of PALIERS) {
+  const prof = profondeur({ palier: pal });
+  const att = attendusPour(pal);
+  const attJours = att.length
+    ? (GRILLE.filter((g) => att.includes(g.cle)).some((g) => g.jours === null)
+      ? -1 : Math.max(...GRILLE.filter((g) => att.includes(g.cle)).map((g) => g.jours)))
+    : 0;
+  verifie(`« ${pal} » : profondeur ${prof === -1 ? 'sans borne' : prof + ' j'} = sa plage la plus longue`,
+    prof === attJours,
+    `API ${prof} · boutons ouverts ${att.join(' · ') || '(aucun)'} ⇒ ${attJours}`);
+  lus++;
+}
+
+// ⛔⛔ LE TEMOIN INVERSE, ET C'EST LUI QUI DONNE SA VALEUR AU RESTE.
+//    Un membre a droit a 3 jours : il doit recevoir le releve d'il y a 3 jours
+//    ET **PAS** celui d'il y a 4. Sans cette moitie, une troncature qui ne
+//    tronque rien passerait toutes les lignes ci-dessus.
+{
+  const base = Math.floor(Date.now() / 1000);
+  const pts = []; for (let i = 400; i >= 0; i--) pts.push([base - i * 86400, 10 + (i % 7)]);
+  const tronque = (prof) => {
+    if (prof === -1) return pts;
+    if (prof === 0) return [];
+    const seuil = pts[pts.length - 1][0] - prof * 86400;
+    return pts.filter((p2) => p2[0] >= seuil);
+  };
+  const PAL_BORNE = PALIERS.find((p2) => profondeur({ palier: p2 }) > 0);
+  if (!PAL_BORNE) {
+    indecis('le temoin inverse', 'aucun palier n\'a de profondeur BORNEE sur ce site : rien a tronquer');
+  } else {
+    const n = profondeur({ palier: PAL_BORNE });
+    const recu = tronque(n);
+    const fin = pts[pts.length - 1][0];
+    verifie(`⛔ « ${PAL_BORNE} » recoit le releve de J-${n}…`,
+      recu.some((p2) => p2[0] === fin - n * 86400),
+      `${recu.length} releve(s) sur ${pts.length}`);
+    verifie(`⛔ …et **PAS** celui de J-${n + 1} (sinon le plafond ne plafonne rien)`,
+      !recu.some((p2) => p2[0] === fin - (n + 1) * 86400),
+      recu.length >= pts.length ? '🔴 la serie n\'a pas ete tronquee du tout' : `borne a ${recu.length} releve(s)`);
+    lus += 2;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 3 bis. LE STYLE — la règle existe-t-elle, et a-t-elle un émetteur ?
+// ═══════════════════════════════════════════════════════════════════════════
+// ⭐ Le contrat gabarit↔thème, dans les DEUX sens, sur cette fonctionnalité
+//   précise : la règle a attendu son émetteur pendant trois jours.
+const feuilles = [];
+const chercheCss = (dir, prof = 0) => {
+  if (prof > 3 || !existsSync(dir)) return;
+  for (const e of readdirSync(dir)) {
+    const c = join(dir, e);
+    if (statSync(c).isDirectory()) chercheCss(c, prof + 1);
+    else if (e.endsWith('.css')) feuilles.push(readFileSync(c, 'utf8'));
+  }
+};
+chercheCss(join(R, 'themes'));
+const css = feuilles.join('\n');
+verifie('le thème habille `.plages button[data-verrou]` — et quelqu\'un l\'émet',
+  /\.plages\s+button\[data-verrou\]/.test(css) && /data-verrou/.test(fiche.html),
+  'règle ET émetteur présents — c\'est la paire, pas l\'un des deux');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🕳️🔴🔴 4. LOT 217 — LE BANC QUI MANQUAIT : UNE FENÊTRE ANNONCÉE DOIT ÊTRE
+//              COUVERTE PAR LA DONNÉE
+// ═══════════════════════════════════════════════════════════════════════════
+// Preda, 03/09, après avoir mesuré deux fiches lui-même : « aucun palier ne
+// peut annoncer une fenêtre que la donnée ne couvre pas. »
+//
+// 🔴🔴🔴 CE QU'IL AURAIT ATTRAPÉ, ET PERSONNE NE L'A VU PENDANT UN MOIS.
+// Le manifeste vendait `3j` au palier d'entrée depuis le lot 132 (10/08).
+// Mesuré le 04/09 sur les 9 354 fiches RÉELLEMENT publiées : seules 3 625
+// d'entre elles (38,8 %) avaient deux points dans une fenêtre de trois jours.
+// ⭐ SIX FICHES SUR DIX RENDAIENT UN CADRE VIDE au palier qu'on vend le plus,
+// et TOUT était vert : le manifeste, la route, les boutons, le dessin. Chaque
+// fichier avait raison ; c'est la RENCONTRE entre la grille commerciale et la
+// densité de la donnée que personne n'interrogeait.
+//
+// ⭐⭐ POURQUOI LA MAJORITÉ, ET PAS UN SEUIL CHOISI. 80 % ou 95 % seraient mon
+// chiffre, donc une décision commerciale prise dans un banc — et un garde-fou
+// sous son seuil n'existe pas. La majorité stricte, elle, se déduit de ce que
+// la phrase VEUT DIRE : au-dessous de la moitié, « sept jours d'historique »
+// est faux pour le client MÉDIAN. Ce n'est pas un objectif de qualité, c'est
+// le point où l'annonce cesse d'être vraie.
+//
+// ⛔ ET IL NE PEUT PAS ÊTRE VERT SANS AVOIR MESURÉ. Sans `.reserve/`, il rend
+// INDÉCIDABLE — jamais « OK ». Un build hors-ligne (`WAREHOUSE_OFFLINE=1`) ne
+// produit aucune réserve, et un banc qui passerait au vert dans ce cas
+// vaudrait exactement zéro le jour où la couverture s'effondre en production.
+console.log('\n4. une fenêtre annoncée est-elle COUVERTE par la donnée ?');
+const DIR_RES = process.env.RESERVE_DIR || join(R, '.reserve/historique');
+const bornees = GRILLE.filter((pl) => Number.isFinite(pl.jours) && pl.jours > 0);
+if (!existsSync(DIR_RES)) {
+  indecis('la couverture des plages',
+    `aucune réserve en ${DIR_RES} — lancer ce banc APRÈS un build en ligne`);
+} else if (!bornees.length) {
+  console.log('  ⏸️   sans objet — aucune plage bornée en jours sur ce site.');
+} else {
+  const fichiers = readdirSync(DIR_RES).filter((n) => n.endsWith('.json'));
+  if (fichiers.length < 50) {
+    indecis('la couverture des plages',
+      `${fichiers.length} fiche(s) en réserve : trop peu pour conclure`);
+  } else {
+    // ⭐ ON REJOUE `tronquer()`, LA VRAIE, ET PAS UNE COPIE DE SA RÈGLE.
+    //   Réécrire ici « ancre − N jours » ferait de ce banc le second endroit
+    //   qui connaît le découpage : le jour où l'un des deux bouge, le banc
+    //   mesurerait sa propre idée de la fenêtre et resterait vert.
+    const { tronquer, ancre } = await import('../lib/reserve.mjs');
+    const couvre = new Map(bornees.map((pl) => [pl.cle, 0]));
+    for (const nom of fichiers) {
+      let serie;
+      try { serie = JSON.parse(readFileSync(join(DIR_RES, nom), 'utf8')); } catch { continue; }
+      for (const pl of bornees) {
+        const t = tronquer(serie, pl.jours);
+        // ⚠️ « COUVERTE » A DEUX MOITIÉS, ET IL FAUT LES DEUX.
+        //   ① LE DÉBUT — on sait à quel prix la pièce était au bord de la
+        //      fenêtre. C'est vrai si et seulement si `tronquer()` a pu
+        //      réinjecter le point d'ouverture, donc si son premier point est
+        //      DATÉ DU BORD. Une pièce apparue il y a trente jours ne peut pas
+        //      couvrir quatre-vingt-dix : son début de fenêtre est inconnu.
+        //   ② LA FIN — on sait jusqu'à quand cette connaissance court. Sans
+        //      `vu`, la courbe s'arrête au dernier changement : le tracé reste
+        //      honnête, mais il ne REMPLIT pas la fenêtre qu'on a vendue.
+        // ⛔ Tester seulement `p.length >= 1` (ma première version) revenait à
+        //    ne mesurer que `vu` : les quatre plages rendaient le MÊME
+        //    pourcentage, donc le banc ne regardait pas la fenêtre du tout.
+        //    *Un banc qui rend le même chiffre pour toutes ses questions n'en
+        //    pose qu'une.*
+        const bord = ancre(serie) - pl.jours * 86400;
+        if (Number.isFinite(Number(serie.vu)) && t.p.length >= 1 && t.p[0][0] === bord) {
+          couvre.set(pl.cle, couvre.get(pl.cle) + 1);
+        }
+      }
+    }
+    const n = fichiers.length;
+    for (const pl of bornees) {
+      const c = couvre.get(pl.cle);
+      const part = c / n;
+      lus++;
+      verifie(`la plage « ${pl.cle} » (${pl.jours} j, palier ${pl.tier}) est couverte pour la majorité des fiches`,
+        part > 0.5,
+        `${c} / ${n} fiches publiées — ${(part * 100).toFixed(1)} %`
+        + (part > 0.5 ? '' : `\n       ⛔ « ${pl.jours} jours d'historique » est FAUX pour le client médian.`
+          + `\n       ⇒ soit la plage sort du manifeste, soit le relevé s'étend (floor-watch).`));
+    }
+  }
+}
+
+fin();

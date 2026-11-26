@@ -1,0 +1,421 @@
+---
+// ⚠️ Leonessa2/veve-sites — src/pages/offre/index.astro  (FICHIER NEUF)
+// ═══════════════════════════════════════════════════════════════════════════
+// LES PALIERS — la page qui débloque le déploiement.
+// ═══════════════════════════════════════════════════════════════════════════
+// ⭐⭐ CETTE PAGE EST PRÉ-GÉNÉRÉE, ET C'EST UNE DÉCISION, PAS UN OUBLI.
+// Elle POURRAIT être dynamique pour dire « vous êtes déjà Crevette ». Elle ne
+// l'est pas, pour deux raisons qui pèsent plus lourd :
+//   1. Le travail d'une page de tarifs est de convertir des INCONNUS. Sa cible
+//      n'a pas de session, par définition.
+//   2. Une page rendue à la demande n'est pas mise en cache et perd la
+//      pré-génération : sur la page la plus partagée du site, c'est payer une
+//      personnalisation que personne ne demande avec la vitesse de tout le monde.
+// La personnalisation vit sur /compte/, dont c'est le métier.
+//
+// ⛔ CETTE PAGE NE PREND PAS DE PAIEMENT. Encaisser exige un prestataire
+// « merchant of record » et le statut professionnel. Ici on DÉCRIT et on
+// oriente. Un bouton qui prétend faire payer sans savoir encaisser est pire
+// qu'un bouton absent.
+import Base from '../../layouts/Base.astro';
+import { dataset } from '../../../engine/lib/dataset.mjs';   // 🔴 LOT 112 — la date du pied de page, rien d'autre
+import { manifest } from '../../../engine/lib/manifest.mjs';
+import { acces, porte, catalogueModules } from '../../../engine/lib/access.mjs';
+import { forme, iconePalier } from '../../../engine/lib/vitrine.mjs';
+// 🔴 LOT 140-4 — un palier gratuit ne s'ouvre que si le site ouvre des comptes.
+// ⛔ Sans ce prédicat, un site qui déclare `member` mais dont l'inscription est
+// éteinte enverrait vers une page que l'intégration `fonctionnalites-eteintes`
+// vient d'effacer : un bouton parfaitement visible vers un 404.
+import { comptesActifs } from '../../../engine/lib/features.mjs';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴🔴 LOT 104 — LE CATALOGUE VIENT DU MANIFESTE, ET IL DIT CE QUI N'EXISTE PAS
+// ═══════════════════════════════════════════════════════════════════════════
+// CE QUI ÉTAIT ÉCRIT ICI : une liste de cinq noms en dur, celle des PORTES du
+// moteur. Elle avait le mérite d'être vraie — une porte existe forcément,
+// puisque le moteur la lit — et le défaut de ne décrire que le moteur : ni le
+// Market, ni les favoris, ni le calculateur MCP n'y figuraient, alors que ce
+// sont eux que Preda vend.
+//
+// ⭐⭐⭐ ARBITRAGE PREDA DU 07/08, PRIS CONTRE MON AVIS : on annonce TOUT, y
+// compris les sept modules qui n'existent pas, avec une pastille. Mon objection
+// est celle de son propre brief — « un palier qui promet un module absent est
+// une promesse rompue PAYANTE ». Elle reste juste, et ce qui la désamorce
+// aujourd'hui n'est pas un argument, c'est un FAIT MESURABLE : `offer.url` est
+// vide, donc rien n'est vendable, donc rien n'est promis contre de l'argent.
+// ⭐ Le jour où ce fait cesse d'être vrai, `test:promesses` casse le build.
+// C'est la seule forme d'avertissement qui survit à ce dépôt : celle qui se
+// mesure. Un commentaire à cet endroit aurait été lu une fois.
+const MODULES = catalogueModules();
+
+// Un module est « ouvert » quand il ne demande rien de plus qu'un visiteur.
+// ⚠️ Un module qui n'est pas une porte du moteur (`porte: null`) n'a pas de
+// verrou technique : c'est son PALIER déclaré qui décide. ⛔ Appeler `porte()`
+// sur son nom lèverait — et c'est très bien : `porte()` doit continuer de
+// refuser les noms inconnus, c'est le contrat d'access.mjs.
+const ouvert = (mo) => (mo.porte ? !porte(mo.porte).actif : mo.tier === 'visitor');
+// Le nom LISIBLE d'un palier, dans la langue de la page. Retombe sur la clé
+// seulement si le manifeste ne declare pas ce plan — et alors c'est un vrai
+// defaut de manifeste, pas un cas normal a masquer.
+// 🔴 LOT 161 — `pick()` NE SE TRADUISAIT PAS (point `s`). Mesuré le 24/08 :
+// « Member · Shrimp · Lobster · Whale » et leurs descriptions restaient en
+// anglais dans les cinq langues. Les traductions étaient pourtant dans le
+// manifeste. ⭐ `pickT` les marque ; `marquer_i18n.mjs` les résout en relisant
+// le manifeste, par la CLÉ du plan et jamais par son index.
+const nomPlan = (cle) => {
+  const p = (m.offer?.plans || []).find((x) => x.cle === cle);
+  return pickT(p?.nom, lang, `mf.offer.plans.${cle}.nom`) || cle;
+};
+// Le cadenas de fin de carte, en SVG : pas de glyphe, pas de dependance a une
+// fonte a symboles (cf. le bouton jour/nuit du lot 18).
+const cadenas = () => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+  + 'stroke-width="2" stroke-linecap="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/>'
+  + '<path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg>';
+import { t, localize, pick, pickT, numberLocale } from '../../../engine/lib/i18n.mjs';   // 🔴 LOT 213 — la TABLE de locales (pas une fonction) pour grouper le chiffre de l'accroche
+
+// ⭐ LA LANGUE ARRIVE EN PROP, ELLE NE SE DEVINE PLUS.
+// La version précédente faisait `locales().def` : la page n'existait donc qu'en
+// anglais, et un lien /fr/offre/ aurait rendu 404. ⚠️ C'est EXACTEMENT le défaut
+// déjà payé sur le blog — « une navigation ne se décide pas au niveau du SITE
+// mais au niveau de la LANGUE » — et je venais de le recommettre en écrivant
+// une page neuve. Une leçon écrite dans un fichier ne protège que celui qui
+// relit ce fichier.
+const { lang } = Astro.props;
+const m = manifest();
+const { tiers } = acces();
+
+// ⭐ LES PRIX VIVENT DANS LE MANIFESTE, PAS ICI. Un tarif écrit en dur dans un
+// gabarit est un tarif qu'on oubliera de changer — et deux tarifs différents
+// sur deux pages est la faute qui coûte un litige, pas seulement une correction.
+// Repli lisible si le bloc `offer.plans` n'existe pas encore.
+// ⚠️ Le repli sert quand `offer.plans` n'existe pas encore. Ses textes sont
+// donc aussi des cartes par langue — un repli qui ment est pire qu'un repli
+// absent, parce qu'il a l'air de marcher.
+const PLANS = m.offer?.plans || [
+  { cle: 'member',    nom: 'Membre',    prix: 0,  alertes: 0,
+    d: { fr: 'Le nom de chaque module, la vitrine libre, les trois derniers jours.',
+         en: 'Every module by name, the free showcase, the last three days.' } },
+  { cle: 'crevette',  nom: 'Crevette',  prix: 15, alertes: 2,
+    d: { fr: "L'historique complet, les extrêmes, les modules d'analyse.",
+         en: 'The full history, the extremes, the analysis modules.' } },
+  { cle: 'langouste', nom: 'Langouste', prix: 35, alertes: 10,
+    d: { fr: 'Tout Crevette, plus dix alertes et les exports.',
+         en: 'Everything in Crevette, plus ten alerts and exports.' } },
+  { cle: 'whale',     nom: 'Whale',     prix: 50, alertes: -1,
+    d: { fr: 'Alertes illimitées et suivi de portefeuilles tiers.',
+         en: 'Unlimited alerts and third-party wallet watching.' } },
+];
+const REMISE_AN = m.offer?.annual_discount ?? 0.20;
+
+// ⚠️ On n'affiche QUE les paliers que le site déclare. Vendre un palier que le
+// moteur ne connaît pas, c'est encaisser pour une porte qui ne s'ouvrira pas.
+const visibles = PLANS.filter((p) => tiers.includes(p.cle));
+// ⚠️ « Gratuit » ÉTAIT ÉCRIT EN DUR — donc en français sur la page anglaise.
+// Un texte destiné à être lu ne s'écrit jamais dans un gabarit multilingue.
+// 🔴🔴 LOT 114 — `plans.prix` EST DÉSORMAIS LE PRIX ANNUEL MENSUALISÉ.
+// Arbitrage Preda du 10/08 : « 5/15/30 $ est le prix ANNUEL ». Le mensuel s'en
+// déduit vers le HAUT — c'est l'engagement qui fait la remise, pas l'inverse.
+// ⭐ La remise du manifeste vaut 1/6 pour que les deux colonnes soient rondes :
+//   annuel 5 / 15 / 30  ·  mensuel 6 / 18 / 36.
+// ⛔ NE PAS relire `prix` comme un mensuel : les deux lectures donnent une
+//    grille cohérente et un prix affiché DIFFÉRENT, sans qu'aucun banc ne
+//    puisse trancher. C'est écrit ici parce que c'est ici qu'on se tromperait.
+const mensuel = (v) => Math.round(v / (1 - REMISE_AN));
+const eurAn = (v) => (v === 0 ? t(lang, 'offer.free.price') : t(lang, 'offer.permonth', { v }));
+const eurMois = (v) => (v === 0 ? t(lang, 'offer.free.price') : t(lang, 'offer.permonth', { v: mensuel(v) }));
+const noteAn = (v) => (v === 0 ? '' : t(lang, 'offer.billedYear', { v: v * 12 }));
+const noteMois = (v) => (v === 0 ? '' : t(lang, 'offer.billedMonth'));
+// 🔴 LOT 205 — L'ACCORD DU COMPTEUR D'ALERTES. La prod servait « 0 alerts »,
+// « 1 alerts », « 5 alerts » : « 1 alerts » est fautif dans les cinq langues.
+// ⭐ LE CHOIX SE FAIT PAR CLÉ, PAS PAR LANGUE, ET C'EST STRUCTUREL : cette
+// page se bâtit en anglais et l'échange de langue du navigateur remplace le
+// texte PAR CLÉ (`data-i18n`). Une règle « par langue » écrite ici serait un
+// chemin jamais emprunté — lang vaut toujours en au build de veveprice.
+// ⇒ à 1 : la clé singulière, juste dans les cinq langues. À 0 et au-delà de
+// 1 : la clé plurielle — juste en en/es/de/it ; le « 0 alertes » français
+// (plutôt que « 0 alerte ») est l'écart ASSUMÉ de ce mécanisme, l'échange ne
+// sachant pas choisir une clé par langue. L'infini reste au pluriel partout.
+const cleAlertes = (n) => (n === 1 ? 'offer.alerts.one' : 'offer.alerts');
+
+// ⭐⭐ LE TABLEAU COMPARATIF — demande Preda : « en dessous des offres, à la
+//    place de Modules, un tableau comparatif des offres avec la liste des
+//    modules ». Une grille de cartes dit ce que CHAQUE palier contient ; un
+//    tableau dit ce qui les SÉPARE, et c'est la question qu'on se pose devant
+//    une page de tarifs.
+//    ⛔ La colonne d'un palier non déclaré n'existe pas : `visibles` filtre
+//    déjà sur `access.tiers`, et le tableau lit la même liste — deux sources
+//    donneraient deux grilles qui divergent au premier palier ajouté.
+const RANGS = ['visitor', 'member', 'crevette', 'langouste', 'whale'];
+const rang = (c) => RANGS.indexOf(c);
+const ouvertPour = (mo, cle) => {
+  if (!mo.porte) return true;                      // pas une porte du moteur
+  const pt = porte(mo.porte);
+  if (!pt.actif) return true;
+  return rang(cle) >= rang(pt.tier);
+};
+const dsOffre = await dataset();
+---
+{/* 🔴 LOT 112 — `updatedAt` pour que le pied de page porte la même première
+    ligne que partout ailleurs (voir Analytics.astro pour la mesure).
+    ⚠️ /offre/ NE LIT PAS L'ENTREPÔT et n'a aucune raison de le faire pour une
+    ligne de pied : elle appelle `dataset()` uniquement pour cette date, qui est
+    MÉMOÏSÉE (`_ds`) — l'entrepôt est déjà chargé quand cette page se rend, le
+    coût est nul. ⛔ Ne PAS en profiter pour y lire des prix : cette page est
+    publique et `projeter()` est passé. */}
+<Base sect="offre" lang={lang} path="/offre/" title={t(lang, 'offer.title')} updatedAt={dsOffre.updatedAt}
+      description={t(lang, 'offer.desc')}
+      crumbs={[{ name: t(lang, 'home.crumb'), url: localize(lang, '/') }, { name: t(lang, 'offer.title') }]}>
+
+  {/* 🔴 LOT 129 — `.toUpperCase()` RETIRÉ, ET IL NE MANQUERA À PERSONNE.
+        `.etiq` porte DÉJÀ `text-transform:uppercase` (theme.css l. 599) : les
+        capitales étaient faites DEUX FOIS, une fois dans le texte et une fois
+        dans le style. Le rendu est identique à l'octet près.
+        ⛔ MAIS LA VERSION MARKUP DÉTRUISAIT LA TRADUCTION : `t()` marque son
+        libellé d'une clé (lot 129), et `.toUpperCase()` mettait LA CLÉ en
+        capitales avec le reste — `analytics.title` devenait `ANALYTICS.TITLE`,
+        introuvable dans le dictionnaire, donc jamais échangé.
+        ⭐⭐ Et c'était déjà une faute avant ce lot : des capitales écrites dans le
+        texte se copient en capitales, et un lecteur d'écran peut les épeler
+        lettre par lettre. La casse est une affaire de STYLE. */}
+  {/* ═══════════════════════════════════════════════════════════════════
+      🔑 LOT 213 — CE QUE LE PALIER DONNE, PAS CE QU'IL EST (arbitrage Preda)
+      ═══════════════════════════════════════════════════════════════════
+      La page s'ouvrait sur « Les paliers » : un mot d'organigramme. Un
+      visiteur qui arrive ici ne cherche pas un palier, il cherche ce qu'il
+      gagne. Le H1 porte donc la promesse (`offer.h1`).
+      ⭐⭐ MAIS `offer.title` RESTE, ET IL RESTE PARTOUT AILLEURS. Il nomme
+      l'onglet, le fil d'Ariane et le sur-titre — trois endroits ou l'on veut
+      le NOM de la page. Une seule cle pour les quatre usages aurait force a
+      choisir entre un onglet lisible et un titre qui vend.
+      ⚠️ LE CHIFFRE EST VIVANT, comme sur `/how-prices-work/`. Il vient de
+      `dsOffre`, deja charge trois lignes plus haut pour la date du pied —
+      aucun cout nouveau, `dataset()` etant memoise. Ecrire « 8 840 » en dur
+      aurait fait vieillir l'argument le plus fort de la page en silence.
+      ⛔ CE QUI N'EST **PAS** REGLE ICI : le « 0 ALERTES » du palier gratuit,
+      visible sur la capture mobile. C'est le LOT 214 (`caps` 1/10/30/100).
+      Le 213 ne touche que le ton. */}
+  <p class="etiq etiq--bleu tete-p__st">// {t(lang, 'offer.title')}</p>
+  <h1 class="mono-t">{t(lang, 'offer.h1')}</h1>
+  <p class="respire">{t(lang, 'offer.lead', { n: dsOffre.items.length.toLocaleString(numberLocale[lang] || 'en-GB') })}</p>
+
+  {visibles.length === 0 && (
+    /* ⭐ Le cas « aucun palier déclaré » n'est pas une erreur : c'est un site
+       gratuit. La page le dit au lieu d'afficher une grille vide. */
+    <p class="muted">{t(lang, 'offer.free')}</p>
+  )}
+
+  {/* ═══════════════════════════════════════════════════════════════════
+      🔴 LOT 114 — LA BASCULE MOIS / ANNÉE (demande Preda, 10/08)
+      ═══════════════════════════════════════════════════════════════════
+      ⭐⭐ L'ANNÉE EST L'ÉTAT PAR DÉFAUT, et ce n'est pas une astuce de vente :
+      c'est le prix que Preda a arbitré comme la référence (« 5/15/30 $ est le
+      prix ANNUEL »). Afficher le mensuel par défaut donnerait une page dont le
+      chiffre principal contredit celui de toutes les autres.
+      ⛔ CE SONT DES BOUTONS, ET ILS ONT BESOIN DE JAVASCRIPT — assumé : les
+      DEUX prix sont dans le HTML, et sans script le visiteur voit l'annuel,
+      c'est-à-dire une page complète et juste. On ne casse rien, on n'ajoute
+      qu'un confort. (Un `<details>` aurait marché sans JS mais aurait donné
+      deux prix EMPILÉS, ce qui est exactement ce qu'une bascule évite.) */}
+  <div class="bascule-p" role="group" aria-label={t(lang, 'offer.period')}>
+    <button type="button" class="bascule-p__b" data-per-b="an" aria-pressed="true">{t(lang, 'offer.yearly')}</button>
+    <button type="button" class="bascule-p__b" data-per-b="mois" aria-pressed="false">{t(lang, 'offer.monthly')}</button>
+    {/* 🔴 LOT 128 — « 2 mois offerts à l'année » A ÉTÉ RETIRÉ (demande de Preda,
+        10/08). ⛔ ON RETIRE L'ÉMETTEUR, PAS SEULEMENT LA TRADUCTION : une clé
+        vidée dans les cinq dictionnaires laisserait ce `<span>` rendre une
+        chaîne vide — donc une gouttière et une bordure autour de rien, que
+        personne ne verrait dans une revue de code.
+        ⭐ La clé `offer.saveHint` est supprimée des CINQ fichiers i18n (dont
+        `it`, qui n'est pourtant jamais actif : une clé morte se recopie au
+        prochain ajout de langue). Et la phrase entre au registre de
+        `test:phrases` dans ses cinq langues — *un texte ne s'importe pas, il se
+        recopie*, et ce retrait-ci portait un CHIFFRE, donc une promesse
+        commerciale qui vieillit encore plus mal qu'une phrase. */}
+  </div>
+
+  <div class="tarifs">
+    {visibles.map((p) => (
+      <div class:list={['tarif', p.cle === 'langouste' ? 'tarif--phare' : '']   /* 🔴 LOT 114 — Preda, 10/08 : le plus choisi est Langouste */} data-phare={t(lang, 'offer.mostChosen')}>
+        {/* ⛔ `p.nom` etait une chaine NUE : « Membre » s'affichait sur la page
+            anglaise. Comme `p.d`, c'est desormais une carte par langue — et on
+            se replie sur la langue pivot plutot que d'afficher un objet. */}
+        {/* ⭐ L'ICONE DU PALIER — demande de Preda. En SVG, jamais en emoji :
+            un emoji impose sa couleur (il ignore la palette et casse le mode
+            nuit), change de dessin d'un systeme a l'autre, et sort en carre
+            vide sur une machine sans fonte a symboles. Troisieme fois
+            aujourd'hui qu'on evite ce piege — cf. le bouton jour/nuit. */}
+        <h2 class="etiq" style="display:flex;align-items:center;gap:8px">
+          <span style="color:var(--sect-a);display:inline-flex"><Fragment set:html={iconePalier(p.cle)} /></span>
+          {pickT(p.nom, lang, `mf.offer.plans.${p.cle}.nom`)}
+        </h2>
+        {/* ⭐⭐ LES DEUX PRIX SONT DANS LE HTML, ET LA BASCULE EN MASQUE UN.
+            ⛔ Pas de calcul en JavaScript : un prix calculé par le navigateur
+            est un prix que le HTML servi ne porte pas — donc invisible pour
+            Google, pour un lecteur d'écran qui lit vite, et pour qui n'a pas
+            de JS. La page dit les deux, l'interrupteur choisit lequel se voit.
+            ⚠️ `hidden` et pas une classe : le thème pose `[hidden]{display:none
+            !important}`, et un prix masqué doit sortir du flux, pas s'effacer. */}
+        <p class="tarif__b" data-per="an">
+          <span class="tarif__p">{eurAn(p.prix)}</span>
+          <span class="prix__u">{noteAn(p.prix)}</span></p>
+        <p class="tarif__b" data-per="mois" hidden>
+          <span class="tarif__p">{eurMois(p.prix)}</span>
+          <span class="prix__u">{noteMois(p.prix)}</span></p>
+        {/* ⭐ `d` est une CARTE PAR LANGUE, comme site.tagline. 🔴 LOT 161 :
+            `pick` la rendait sans sentinelle, donc figée en anglais — `pickT`
+            la marque, et `marquer_i18n.mjs` la résout depuis le manifeste. */}
+        <p class="respire">{pickT(p.d, lang, `mf.offer.plans.${p.cle}.d`)}</p>
+        <p class="etiq etiq--bleu">
+          {/* ⚠️ `-1` veut dire ILLIMITÉ. Afficher « -1 alerte » sur une page de
+              tarifs est le genre de bug qui se voit depuis la rue. */}
+          {p.alertes === -1 ? '∞' : p.alertes} {t(lang, p.alertes === -1 ? 'offer.alerts' : cleAlertes(p.alertes))}
+        </p>
+        {/* ═══════════════════════════════════════════════════════════════
+            🔴🔴 LOT 140-4 — UN PALIER GRATUIT ET OUVERT NE DIT PAS « BIENTOT »
+            ═══════════════════════════════════════════════════════════════
+            MESURÉ EN PRODUCTION LE 12/08 : cette page servait « Plans open
+            soon. » QUATRE fois, une par carte — y compris sur `member`, dont
+            le prix est 0 et dont la porte est ouverte depuis le 06/08, jour où
+            l'inscription par courriel est passée en production.
+            ⭐⭐ LE DÉFAUT VENAIT D'UNE CONDITION JUSTE APPLIQUÉE TROP LARGE :
+            `offer.url` décrit la VENTE, et il décidait du bouton de TOUS les
+            paliers — y compris de celui qui ne se vend pas. Un palier gratuit
+            n'a pas besoin d'un prestataire de paiement pour s'ouvrir. Le
+            visiteur, lui, lisait « bientôt » d'une chose faisable tout de
+            suite, sur la page dont le seul travail est de convertir.
+            ⛔ L'ORDRE DES TROIS BRANCHES COMPTE. La vente ouverte passe en
+            premier : le jour où `offer.url` se remplit, chaque carte retrouve
+            un vrai appel à l'action, y compris la gratuite, et rien de ce
+            bloc ne reste à départager.
+            ⚠️ `/inscription/` EN DUR, SANS `localize()` — comme le bouton du
+            gabarit (Base.astro l. 1004). Cette route est rendue à la demande
+            et n'a qu'UNE adresse : `/fr/inscription/` n'existe pas, et un
+            lien localisé vers elle serait un 404 pour trois langues sur cinq.
+            ⭐ `test:promesses` §5 compte désormais, dans la page SERVIE, un
+            bouton verrouillé par palier payant et un chemin d'entrée par
+            palier gratuit. Il mesure ce qui est RENDU, pas ce qui est écrit
+            ici — le gabarit et la page ont déjà divergé deux fois. */}
+        {/* ═══════════════════════════════════════════════════════════════
+            🔴🔴 LOT 204 — L'ORDRE DES BRANCHES ÉTAIT FAUX, ET JE L'AVAIS ÉCRIT
+            ═══════════════════════════════════════════════════════════════
+            MESURÉ EN PRODUCTION LE 26/08 : cette page servait « Accès membre »
+            QUATRE fois — sous Membre (gratuit) comme sous Crevette, Langouste
+            et Whale. Le bouton d'un palier à 30 $/mois ne disait pas qu'il
+            menait à un paiement.
+            ⭐⭐ LA CAUSE EST LE COMMENTAIRE QUI ÉTAIT ICI. Il affirmait :
+            « L'ORDRE DES TROIS BRANCHES COMPTE. La vente ouverte passe en
+            premier : le jour où `offer.url` se remplit, chaque carte retrouve
+            un vrai appel à l'action. » ⛔ CETTE PRÉMISSE N'A JAMAIS ÉTÉ
+            MESURÉE. Le jour où `offer.url` s'est rempli, la première branche a
+            gagné pour TOUS les paliers et a servi le MÊME libellé aux quatre —
+            exactement la faute que le lot 140-4 avait corrigée pour « bientôt »,
+            refaite à l'identique un cran plus loin. C'est la deuxième fois sur
+            ce bloc qu'une condition JUSTE est appliquée TROP LARGE.
+            ⭐⭐⭐ LE GRATUIT PASSE DONC EN PREMIER, ET C'EST LE BON ORDRE : un
+            palier qui ne se vend pas n'a rien à faire dans une branche qui
+            décrit la VENTE, que la caisse soit ouverte ou fermée. La condition
+            de tête n'est plus « vend-on ? » mais « ce palier se vend-il ? ».
+            ⛔ LE NOM DU PALIER N'EST PAS SUBSTITUÉ DANS LA CLÉ, et ce n'est pas
+            un détail de style. `t(lang, k, vars)` marque sa sortie `clé!`, ce
+            que `marquer_i18n.mjs` lit comme « variable, NE PAS ÉCHANGER » : le
+            bouton serait figé dans la langue du build sur une page dont le seul
+            travail est de convertir. Deux nœuds — le verbe par `t()`, le nom par
+            `pickT()` — restent échangeables tous les deux, chacun par sa source,
+            exactement comme le `<h2>` de la carte quarante lignes plus haut.
+            ⚠️ CE QUE ÇA COÛTE, ET C'EST ASSUMÉ : l'allemand dirait « Crevette
+            wählen », pas « Wählen Crevette ». Un libellé mal ordonné mais
+            traduit vaut mieux qu'un libellé bien ordonné et figé en anglais —
+            et ça se corrige en une ligne de dictionnaire le jour où il le
+            demande. ⛔ Pas en réintroduisant une substitution.
+            🔬 `test:promesses` §5 compte désormais, VENTE OUVERTE, un lien vers
+            `offer.url` par palier payant et le NOM du palier dans son bouton.
+            Ce § se taisait dès que la vente s'ouvrait : c'est pour ça que ce
+            défaut a vécu en production sans qu'un seul banc rougisse. */}
+        {(p.prix === 0 && comptesActifs())
+          ? <a class="btn btn--principal btn--sm" href="/connexion/">{t(lang, 'signup.title')}</a>
+          : m.offer?.url
+            ? <a class="btn btn--principal btn--sm" href={m.offer.url}>{t(lang, 'offer.choose')} {pickT(p.nom, lang, `mf.offer.plans.${p.cle}.nom`)}</a>
+            : <span class="btn btn--verrou btn--sm" aria-disabled="true">{t(lang, 'account.soon')}</span>}
+      </div>
+    ))}
+  </div>
+
+  {/* ═══════════════════════════════════════════════════════════════════
+      🔴🔴 LOT 114 — LE TABLEAU COMPARATIF REMPLACE LA LISTE DE MODULES
+      ═══════════════════════════════════════════════════════════════════
+      Demande de Preda (10/08) : « en dessous des offres, à la place de
+      Modules, un tableau comparatif des offres avec la liste des modules ».
+      ⭐⭐ ET C'EST LE BON OBJET. Une liste de cartes dit ce que CHAQUE palier
+      contient ; un tableau dit ce qui les SÉPARE — la seule question qu'on se
+      pose devant une page de tarifs. La liste faisait lire cinq fois la même
+      chose pour trouver la ligne qui change.
+      ⛔ LES COLONNES VIENNENT DE `visibles`, la MÊME liste que les cartes
+      au-dessus. Deux sources donneraient deux grilles qui divergent au premier
+      palier ajouté — et personne ne relit un tableau de tarifs.
+      ⭐ `ouvertPour()` interroge `porte()`, donc la MATRICE D'ACCÈS RÉELLE.
+      Le tableau ne récite pas une promesse écrite à la main : il montre ce que
+      le moteur fera vraiment. `test:acces` tient l'autre bout.
+      ⚠️ Un module `bientot` garde sa pastille : Preda a tranché (07/08) de les
+      annoncer, et `test:promesses` casse le build si l'un d'eux devient
+      vendable pendant que la vente est ouverte. */}
+  <div class="sect-t sect-t--gd"><h2 class="mono-t">{t(lang, 'offer.compare')}</h2></div>
+  <div class="compa-t__h">
+    <table class="compa-t">
+      <caption class="sr-only">{t(lang, 'offer.compare')}</caption>
+      <thead>
+        <tr>
+          <th scope="col">{t(lang, 'account.modules')}</th>
+          {visibles.map((p) => (
+            <th scope="col" class:list={[p.cle === 'langouste' ? 'compa-t__phare' : '']}>{pickT(p.nom, lang, `mf.offer.plans.${p.cle}.nom`)}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {MODULES.map((mo) => (
+          <tr>
+            <th scope="row">
+              {t(lang, `mod.${mo.cle}`)}
+              {mo.bientot && <span class="pastille">{t(lang, 'offer.soon.badge')}</span>}
+              <span class="compa-t__d">{t(lang, `mod.${mo.cle}.d`)}</span>
+            </th>
+            {visibles.map((p) => (
+              <td class:list={[p.cle === 'langouste' ? 'compa-t__phare' : '']}>
+                {/* ⭐ Un caractère ET un mot pour les lecteurs d'écran : « ✓ »
+                    seul se lit « coche » ou ne se lit pas du tout selon la
+                    voix. La colonne reste lisible à l'œil, la ligne reste
+                    compréhensible à l'oreille. */}
+                {ouvertPour(mo, p.cle)
+                  ? <><span aria-hidden="true">✓</span><span class="sr-only">{t(lang, 'offer.yes')}</span></>
+                  : <><span aria-hidden="true" class="muted">—</span><span class="sr-only">{t(lang, 'offer.no')}</span></>}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+  {MODULES.some((mo) => mo.bientot) && <p class="etiq">{t(lang, 'offer.soon.note')}</p>}
+
+
+{/* ⭐ `is:inline` : huit lignes n'ont pas besoin d'un module, et une bascule de
+    prix qui attend un bundle est une bascule morte pendant deux secondes.
+    ⛔ Il ne CALCULE aucun prix — les deux sont déjà dans le HTML. Il ne fait
+    que choisir lequel se voit. Un script qui calculerait un tarif serait une
+    seconde source de vérité pour un chiffre qu'on facture. */}
+<script is:inline>
+  (function () {
+    var bs = document.querySelectorAll('[data-per-b]');
+    if (!bs.length) return;
+    function poser(per) {
+      document.querySelectorAll('[data-per]').forEach(function (el) {
+        el.hidden = el.getAttribute('data-per') !== per;
+      });
+      bs.forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b.getAttribute('data-per-b') === per));
+      });
+    }
+    bs.forEach(function (b) {
+      b.addEventListener('click', function () { poser(b.getAttribute('data-per-b')); });
+    });
+  })();
+</script>
+</Base>

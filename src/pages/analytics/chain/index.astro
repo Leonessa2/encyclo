@@ -1,0 +1,81 @@
+---
+// ⚠️ Leonessa2/veve-sites — src/pages/analytics/chain/index.astro  (FICHIER NEUF — lot 157)
+// ═══════════════════════════════════════════════════════════════════════════
+// LA CHAÎNE @@TITRE@@ LES WALLETS — RENDUE À LA DEMANDE, RÉSERVÉE AUX MEMBRES
+// ═══════════════════════════════════════════════════════════════════════════
+// Demande Preda du 18/08/2026 : découper Analytics par sujet, « réservées aux
+// membres ». Tout le contenu vit dans `AnalyticsSujet.astro` — cette route ne
+// fait que deux choses : LIRE LA LANGUE et TENIR LA PORTE. Les deux ne peuvent
+// se faire QUE sur une route (`Astro.locals`, `Astro.cookies`), jamais dans un
+// composant : c'est la panne du lot 131, et le lot 154-A l'a réécrite.
+//
+// ⛔⛔ `prerender = true` EN LITTÉRAL, ET C'EST VOULU — même dispositif que les
+// vingt-trois autres routes de compte. Un `false` littéral fait échouer le
+// build en mode static (NoAdapterInstalled) et casserait vevewiki ; une
+// EXPRESSION n'est pas évaluée par Astro, qui retombe silencieusement sur
+// `true` — la panne du lot 24, quatre fois payée. C'est
+// `engine/lib/astro_routes_compte.mjs` qui bascule cette route à la demande.
+// 🔴 L'OUBLIER LÀ-BAS NE CASSE RIEN ICI, ET C'EST LE PIÈGE : la page resterait
+// pré-générée, la redirection ci-dessous serait évaluée UNE fois au build (au
+// niveau visiteur, donc toujours vraie) et figée dans un fichier — une page
+// qui redirige tout le monde, membres compris, sur un build parfaitement vert.
+export const prerender = true;
+
+import AnalyticsSujet from '../../../components/pages/AnalyticsSujet.astro';
+import { locales, COOKIE_LANGUE, languesInterface } from '../../../../engine/lib/i18n.mjs';
+import { connecte } from '../../../../engine/lib/access.mjs';
+
+import { comptesActifs } from '../../../../engine/lib/features.mjs';
+// 🌍 LOT 123 — CETTE PAGE AUSSI LIT LA PRÉFÉRENCE DE LANGUE. Elle est rendue à
+// la demande et réservée : elle peut donc servir des libellés traduits sans URL
+// supplémentaire et sans risque de cache partagé.
+const { def } = locales();
+const _l = Astro.cookies.get(COOKIE_LANGUE)?.value;
+const lang = (_l && languesInterface().includes(_l)) ? _l : def;
+
+// ═══ LOT 223 — LA PORTE S'EST DÉPLACÉE DE LA ROUTE VERS LES CONTRÔLES ═══
+// ⭐⭐⭐ ARBITRAGE ⑦ DE PREDA, TRANCHÉ LE 04/09 : « ouvrir la FORME, borner la
+// PROFONDEUR ». Cette route redirigeait tout visiteur non connecté en 302 vers
+// `/connexion/` — mesuré le 04/09 sur les QUATRE sujets, pas trois. Le sujet
+// entier était invisible : ni au lecteur qui hésite, ni à Google.
+//
+// 🔑 CE QUI REND LE RETRAIT SÛR, ET IL FAUT LE LIRE AVANT DE TOUCHER À CECI :
+// `AnalyticsSujet.astro` porte DÉJÀ, et depuis le lot 157, tout le dispositif
+// de palier fin — `FIG_DEMO` sépare les figures libres des réservées,
+// `franchit('modules', Astro.locals)` répond pour la VRAIE session (la page est
+// rendue à la demande), `<Gate>` NOMME le verrou au lieu de faire disparaître
+// la section, et chaque module du grand livre garde sa propre porte dans
+// `/api/analytics/[module]`. Le mur de route était une SECONDE porte posée
+// par-dessus une première qui suffisait.
+// ⛔ NE PAS remettre `connecte()` ici « pour être sûr » : ce serait refermer la
+//   page entière et rendre muet tout ce dispositif — c'est-à-dire revenir
+//   exactement à ce que ce lot corrige.
+// ⛔ `/market/` (la table) N'EST PAS CONCERNÉE : Preda a maintenu le 04/09 son
+//   arbitrage du 07/08 (« pas visible en public »). Elle garde son mur.
+
+// ⚠️ L'EN-TÊTE DE CACHE DÉPEND DÉSORMAIS DE LA SESSION, ET C'EST LE SEUL
+// ENDROIT DE CE FICHIER QUI PEUT ENCORE FUIRE. Cloudflare est devant ce site.
+//   · MEMBRE  : la réponse contient les figures réservées ⇒ `private, no-store`,
+//               exactement comme avant. Cette version n'entre JAMAIS en cache.
+//   · VISITEUR: la réponse ne contient que ce que `FIG_DEMO` autorise ⇒ elle
+//               peut être mise en cache, et elle doit l'être : c'est ce qui
+//               rend l'ouverture utile plutôt que coûteuse.
+// 🔴 `vary: cookie` RESTE DANS LES DEUX CAS. Sans lui, la version visiteur
+//   mise en cache serait servie à un membre — une dégradation, pas une fuite,
+//   mais une dégradation invisible et permanente. ⛔ Ne pas l'enlever « parce
+//   que la page est publique maintenant » : c'est justement là qu'il sert.
+
+// 🔴🔴 LOT 226 — LA GARDE DE SITE. Tout est dit dans
+// `src/pages/analytics/catalogue/index.astro`, et ce fichier ne le redit pas :
+// le 223 a retiré la garde d'authentification, qui tenait AUSSI la garde de
+// site, et le build de vevewiki en est mort. ⛔ Ne pas la retirer « parce que
+// la page est publique » : publique ne veut pas dire présente sur les deux sites.
+if (!comptesActifs()) return Astro.redirect('/', 301);
+
+const membre = connecte(Astro.locals);
+Astro.response.headers.set('cache-control',
+  membre ? 'private, no-store' : 'public, max-age=0, s-maxage=300');
+Astro.response.headers.set('vary', 'cookie');
+
+---
+<AnalyticsSujet lang={lang} sujet="chain" membre={membre} />

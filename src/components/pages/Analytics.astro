@@ -1,0 +1,412 @@
+---
+// ⚠️ Leonessa2/veve-sites — src/components/pages/Analytics.astro
+// ═══════════════════════════════════════════════════════════════════════════
+// ANALYTICS — LA PORTE. Elle annonce les quatre sujets, elle n'en sert aucun.
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴🔴 LOT 157 (18/08/2026) — CETTE PAGE PERD SON CONTENU, ET C'EST VOULU.
+// Demande Preda : « découper Analytics PAR SUJET DE DONNÉE — Marché,
+// Catalogue, Chaîne & wallets, Collections — réservées aux membres ».
+//
+// ⭐⭐⭐ CE QUI A ÉTÉ MESURÉ ET CHIFFRÉ AVANT D'ÊTRE FAIT, POUR QUE PERSONNE NE
+// « RÉPARE » ÇA PLUS TARD. Cette page servait, en public : 717 mots visibles,
+// 3 figures SVG et un tableau de 8 lignes réelles — 45 046 o bruts,
+// 12 204 o gzip. Elle tombe à une coquille. Les 4 pages de sujet sont
+// `prerender = false` : elles n'existent dans AUCUN index de moteur.
+// ⛔⛔ CE CONTENU N'EST DONC PLUS RÉFÉRENCÉ NULLE PART. Le coût a été présenté
+// à Preda le 18/08 avec l'alternative (« l'index garde le public, les 4 pages
+// portent le réservé ») et il a tranché : « porte nue quand même, j'assume la
+// perte SEO ». ⭐ Un arbitrage de PRODUIT, pas un oubli — ne pas le défaire
+// sans le lui redemander.
+//
+// ⛔ L'EN-TÊTE PRÉCÉDENT DISAIT L'INVERSE, ET IL AVAIT RAISON EN SON TEMPS :
+// « Ne pas basculer cette route en `prerender = false` : on perdrait
+// l'indexation de la seule page qui explique ce qu'on vend. » ⭐ Cette
+// page-CI reste publique et pré-générée, précisément pour cette raison : c'est
+// elle qui explique ce qu'on vend. Ce sont ses QUATRE FILLES qui sont
+// fermées. La phrase d'origine tient donc toujours — elle a juste changé de
+// sujet.
+//
+// ⭐⭐ ELLE NE PEUT PLUS RIEN FAIRE FUITER, ET C'EST SA SEULE PROPRIÉTÉ NEUVE.
+// Elle est pré-générée, donc évaluée au palier `visitor` pour tout le monde ;
+// elle ne lit plus aucune donnée réservée, ne rend plus aucune figure, ne
+// calcule plus aucun extrême. Le `<Gate>` et les conteneurs du grand livre
+// sont partis avec le contenu, chez `AnalyticsSujet.astro`.
+import Base from '../../layouts/Base.astro';
+import { dataset } from '../../../engine/lib/dataset.mjs';
+import { franchit, porte, acces } from '../../../engine/lib/access.mjs';
+import { t, localize, numberLocale } from '../../../engine/lib/i18n.mjs';
+// 🎭 LOT H — le bandeau-outil, avec la perche `analytics`.
+import BandeauOutil from '../BandeauOutil.astro';
+
+const { lang } = Astro.props;
+const ds = await dataset();
+
+// Les 5 modules du catalogue d'accès, dans l'ordre de privilège.
+// ⭐ LE CATALOGUE RESTE ICI, ET C'EST LUI QUI FAIT LE TRAVAIL DE LA PAGE. Il
+// dit ce qui EXISTE ; les cartes ci-dessous disent seulement où ça vit. C'est
+// la différence entre « il n'y a rien ici » et « il y a quelque chose ici, et
+// c'est à vous » — la phrase du lot 44, et elle est encore plus vraie sur une
+// page qui ne montre plus un seul chiffre.
+const MODULES = ['modules', 'extremes', 'price_history', 'alerts', 'wallet_watch'];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 LOT 226 — LE CLASSEUR ET MINT HUNTER ARRIVENT ICI, DEPUIS LE MENU
+// ═══════════════════════════════════════════════════════════════════════════
+// Demande de Preda, 04/09 : « classeur et mint hunter ne doivent pas être dans
+// le menu, ils doivent être rangés dans la page Analytics ». Leurs deux entrées
+// quittent `nav:` du manifeste dans le même lot.
+//
+// ⛔⛔ ILS SONT ÉCRITS ICI **AVANT** D'ÊTRE RETIRÉS DU MENU, et pas l'inverse.
+//    Une page produite qui n'a plus aucun lien entrant est une page morte au
+//    sens de `test:pages` — « produite ≠ atteignable », et le dépôt l'a déjà
+//    payé. Couper d'abord, ranger ensuite, aurait laissé une fenêtre où ces
+//    deux pages n'existaient plus pour personne.
+//
+// ⭐ CE NE SONT PAS DES `MODULES`, ET ILS N'Y ENTRENT PAS. La grille du bas
+//   liste ce qu'un PALIER ouvre — des capacités, sans adresse. Ces deux-là
+//   sont des pages où l'on TAPE quelque chose (une adresse de portefeuille, un
+//   identifiant de pièce) et où l'on obtient une réponse. D'où une section à
+//   part, `analytics.apps` (« Chercher vous-même »), et son libellé qui ne
+//   ressemble volontairement pas à `analytics.tools` (« Les outils ») : deux
+//   sections voisines qui portent le même nom, c'est une des deux qu'on ne
+//   modifiera plus jamais par peur de se tromper.
+//
+// ⭐ LES LIBELLÉS SONT DES CLÉS QUI EXISTENT DÉJÀ dans les cinq dictionnaires
+//   (`nav.binder`, `nav.mint` pour le nom ; `binder.desc`, `mint.desc` pour la
+//   ligne). ⛔ Ne pas écrire de texte en clair ici : ce composant sert cinq
+//   langues, et `test:cles` ne dirait le contraire qu'après un build.
+const OUTILS = [
+  { href: '/classeur/',    nom: 'nav.binder', desc: 'binder.desc' },
+  { href: '/mint-hunter/', nom: 'nav.mint',   desc: 'mint.desc' },
+];
+
+// ⭐ LE PALIER OBSERVÉ, pas celui de la porte. Au build il vaut toujours
+// `visitor` — et c'est ce qui rend cette page identique pour Google et pour un
+// visiteur anonyme, donc indexable sans mensonge.
+const ouvert = Object.fromEntries(MODULES.map((mo) => [mo, franchit(mo, Astro.locals)]));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 📊🔴🔴 LOT 214 — LE BANDEAU DE STATS. POINT ⓒ DU LOT 213, RESTE NON FAIT.
+// ═══════════════════════════════════════════════════════════════════════════
+// Demande de Preda au lot 213 ; mesuré le 02/09 : ce fichier ne contenait
+// AUCUN bloc `.stats`. Le lot avait livré ses autres points et perdu celui-ci.
+//
+// ⭐⭐⭐ TROIS COMPTES, ET PAS UN MONTANT. Cette page est PRÉ-GÉNÉRÉE et
+// évaluée au palier `visitor` : tout ce qu'on y écrit part chez Google et chez
+// l'anonyme. Ces trois valeurs disent COMBIEN, jamais QUOI ni À COMBIEN — la
+// même frontière que le § « CE QUE CHAQUE SUJET CONTIENT » plus bas, qui existe
+// pour la même raison. ⛔ Un « plancher médian » ici serait un prix : il n'y a
+// pas sa place, et aucun banc ne le rattraperait — `test:fuite` ne couvre que
+// les cinq champs de `.reserve/cote/`.
+//
+// 🔬🔴🔴 UNE TUILE SANS SON CHIFFRE DISPARAÎT ; ELLE N'AFFICHE JAMAIS ZÉRO.
+// C'est la règle déjà écrite dans `Dashboard.astro` l. 224 : « une tuile sans
+// son chiffre reste utile, alors qu'une tuile qui affiche 0 affirme quelque
+// chose de faux ». Ici elle n'est pas décorative : `catalogueSize` est le SEUL
+// des trois dont je n'ai pas pu lire la valeur de production avant d'écrire ce
+// lot — ni `/api/sante` ni aucune page publique ne le sert. S'il sort `null`,
+// le bandeau doit tomber à deux tuiles, pas afficher « 0 pièce suivie » sur la
+// page qui explique ce qu'on vend.
+//
+// ⭐ ZÉRO RÈGLE CSS AJOUTÉE, ET LE MARQUAGE EST CHOISI POUR ÇA. `.stats`,
+// `.stat`, `.stat .k` et `.stat .v` existent dans LES TROIS thèmes (vitrine
+// l. 252 et 841, aurora l. 32-35, encyclopedie l. 325-330), et la bascule à
+// deux colonnes sous 640 px avec. ⛔ `.stat__v` NE VIT QUE DANS `vitrine`.
+//
+// ⚠️⚠️ ET J'AI FAILLI ÉCRIRE ICI UNE PRÉMISSE FAUSSE — mesurée le 02/09, APRÈS
+// avoir écrit la phrase. Mon premier jet disait : « `.stat__v` sortirait nu sur
+// vevewiki ». C'EST FAUX AUJOURD'HUI : bâti avec `SITE=vevewiki`,
+// `dist/analytics/index.html` fait **271 octets** et n'est qu'une redirection
+// vers `/`. Ce composant n'est JAMAIS rendu sur le second site, et le thème
+// `encyclopedie` ne voit donc jamais ce bandeau.
+// ⇒ L'argument tient quand même, mais ce n'est pas le même : ce n'est pas un
+//   défaut MESURÉ, c'est de la ROBUSTESSE. Le jour où `/analytics/` s'ouvrira
+//   sur vevewiki — ou le jour où quelqu'un réutilisera ce marquage sur une page
+//   qui, elle, y est rendue — la forme retenue tient toute seule, et l'autre
+//   non. Choisir la forme portée par les trois feuilles ne coûte rien
+//   aujourd'hui et évite un défaut qu'aucun banc ne verrait ce jour-là.
+// ⭐ *Le bon marquage n'est pas celui qui compile, c'est celui dont la feuille
+//   prévoit le petit écran* — et l'argument qui le défend doit être mesuré,
+//   lui aussi. Une prémisse fausse dans un commentaire est un piège posé pour
+//   celui qui relira.
+// ⛔ PAS DE SOUS-TITRE SOUS LA VALEUR : il demanderait un `.stat .d` qui
+//    n'existe dans AUCUN thème, donc trois règles CSS servies sur 3 097 pages
+//    pour trois lignes de légende. L'étiquette porte le sens toute seule.
+//
+// 🙋 ARBITRAGE DE PREDA, 02/09 : TROIS tuiles, pas quatre — « Dernier relevé »
+//    est retirée (elle répétait ce que `/how-prices-work/` dit déjà) — et le
+//    bandeau va AU-DESSUS du panneau « réservé aux membres » : on montre la
+//    matière avant le cadenas. ⛔ Ne pas le redescendre sans lui redemander.
+const nf = numberLocale[lang] || 'en-GB';
+const STATS = [
+  { k: 'analytics.stat.items',  v: ds.catalogueSize },
+  { k: 'analytics.stat.priced', v: ds.marcheTotal },
+  { k: 'analytics.stat.series', v: ds.collections instanceof Map ? ds.collections.size : null },
+].filter((s) => Number.isFinite(s.v) && s.v > 0);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LES QUATRE SUJETS
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚠️ CETTE LISTE EST LA SECONDE MOITIÉ DE `SUJETS` DANS `AnalyticsSujet.astro`,
+// et elles sont SÉPARÉES VOLONTAIREMENT. Importer la première ici ferait
+// dépendre une page PUBLIQUE et pré-générée d'un module qui parle de contenu
+// réservé — la dépendance va dans le mauvais sens, et c'est comme ça qu'un
+// jour un champ réservé se retrouve dans `dist/`.
+// ⛔ Le prix de cette séparation est qu'elles peuvent diverger : `test:analytics`
+// compare les deux listes clé par clé, et rougit si l'une gagne un sujet que
+// l'autre ignore.
+// 🔴🔴🔴 LES DEUX CLÉS SONT ÉCRITES EN ENTIER, ET SURTOUT PAS « la clé du sujet, suffixée .d ».
+// Mesuré le 18/08 : cette forme-là a fait ÉCHOUER l'auto-contrôle de
+// `test:cles`. Son extracteur prend « la clé du sujet, suffixée .d » pour une clé LITTÉRALE, la
+// choisit comme témoin, fabrique une page qui la contient — et son propre
+// détecteur ne la retrouve pas. Verdict du banc : « le détecteur est aveugle,
+// son vert ne vaut rien ».
+// ⭐⭐⭐ ET C'EST LE CONTRÔLE QUI GARDE LES 12 945 PAGES CONTRE UNE CLÉ RENDUE
+// EN CLAIR. Une seule ligne de gabarit écrite d'une certaine façon le rendait
+// muet pour TOUT LE DÉPÔT — pas seulement pour cette page. ⛔ On corrige donc
+// le gabarit, jamais le banc : *on réduit le travail, pas le thermomètre.*
+const SUJETS = ['market', 'catalogue', 'collections', 'chain'];
+const CLE = { market: 'analytics.market', catalogue: 'analytics.catalog',
+              collections: 'analytics.collections', chain: 'analytics.chain' };
+const DESC = { market: 'analytics.market.d', catalogue: 'analytics.catalog.d',
+               collections: 'analytics.collections.d', chain: 'analytics.chain.d' };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴🔴🔴 LOT 165 — CE QUE `.module__c` A COUTE, ECRIT ICI PARCE QU'UN
+// COMMENTAIRE DE `theme.css` EST SERVI ET PAS CELUI-CI.
+// ═══════════════════════════════════════════════════════════════════════════
+// LE DEFAUT, VU PAR PREDA EN PRODUCTION LE 19/08 : les quatre cartes ci-dessous
+// rendaient tout leur contenu sur UNE SEULE LIGNE, qui debordait de sa case de
+// 232 px et recouvrait les cartes voisines. Illisible.
+// ⭐⭐⭐ LA CAUSE N'ETAIT PAS DANS CE FICHIER, ET C'EST LA LECON. Le commentaire
+// juste en dessous dit « on reutilise `.modules` / `.module`, la grille qui
+// existe deja » — il avait raison sur la grille et tort sur la sous-classe :
+// `.module__c` etait ecrite pour LE CHEVRON DE DROITE (`margin-left:auto`,
+// `flex:0 0 auto`, un `svg` de 14 px), pas pour le conteneur du texte.
+//   · `flex:0 0 auto` ⇒ le bloc ne retrecit jamais et deborde ;
+//   · aucun `display` de bloc ⇒ les trois `<span>` restent EN LIGNE.
+// ⭐ CINQ EMETTEURS SUR SIX s'en servaient comme conteneur (ici x2,
+// `AnalyticsSujet.astro`, `Dashboard.astro` x2) ; un seul voulait le chevron —
+// et celui-la REECRIVAIT `margin-left:auto;flex:0 0 auto` en style en ligne.
+// C'est ce style en ligne qui a tranche : `.module__c` prend le role des cinq,
+// le chevron demenage dans `.module__x`.
+// ⛔ NE PAS « REPARER » CE FICHIER EN CHANGEANT SA STRUCTURE : le defaut vivait
+//   dans la feuille, et le corriger ici l'aurait laisse sur trois autres pages.
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// CE QUE CHAQUE SUJET CONTIENT — LA TROISIEME LISTE, ET ELLE EST GARDEE
+// ═══════════════════════════════════════════════════════════════════════════
+// ⭐⭐ POURQUOI ELLE EXISTE. Les quatre cartes portaient la MEME etiquette
+// « RESERVE AUX MEMBRES ». Repetee quatre fois, elle ne distingue rien et ne
+// dit pas s'il y a de la matiere derriere la porte — le reproche exact qu'on
+// peut faire a une porte nue. Ces chiffres-la, eux, ne sont pas reserves : ils
+// disent COMBIEN, jamais QUOI.
+// ⛔ ELLE NE S'IMPORTE PAS DEPUIS `AnalyticsSujet.astro`, pour la meme raison
+//   que `SUJETS` ci-dessus : la dependance irait de la page PUBLIQUE vers le
+//   module qui parle de contenu reserve.
+// 🔬 LE PRIX DE LA SEPARATION EST PAYE PAR UN BANC : `test:analytics` § 4 bis
+//   relit `figures` et `led` dans `AnalyticsSujet.astro` et rougit si un
+//   compteur d'ici ne correspond plus. ⛔ Corriger le chiffre, jamais le banc.
+const CONTENU = {
+  market:      { fig: 0, mod: 1, rang: true  },
+  catalogue:   { fig: 5, mod: 0, rang: false },
+  // 🏆 LOT 228 — `mod` passe de 1 a 2 : le rendement MCP des sets rejoint la
+  // cornerisation. ⭐ C'est `test:analytics` § 4 bis qui l'a exige, en rougissant
+  // sur « annonce mod 1 — reel mod 2 » : la porte promettait moins que ce
+  // qu'elle garde. *Un fichier depose n'est pas branche, et la troisieme liste
+  // ne se met pas a jour toute seule.*
+  collections: { fig: 3, mod: 2, rang: false },
+  chain:       { fig: 0, mod: 3, rang: false },
+};
+
+// ⭐ UNE CLE PAR NOMBRE GRAMMATICAL, ET PAS UN `n > 1 ? 's' : ''`. Le suffixe
+// code la regle du FRANCAIS dans un gabarit servi en cinq langues.
+const unites = (c) => [
+  c.rang ? t(lang, 'analytics.n.rank') : null,
+  c.fig ? t(lang, c.fig > 1 ? 'analytics.n.figs' : 'analytics.n.fig', { n: c.fig }) : null,
+  c.mod ? t(lang, c.mod > 1 ? 'analytics.n.mods' : 'analytics.n.mod', { n: c.mod }) : null,
+].filter(Boolean).join(' · ');
+---
+<Base sect="analytics" lang={lang} path="/analytics/" title={t(lang, 'analytics.title')} updatedAt={ds.updatedAt}
+      description={t(lang, 'desc.analytics')}
+      crumbs={[{ name: t(lang, 'home.crumb'), url: localize(lang, '/') }, { name: t(lang, 'analytics.title') }]}>
+
+  {/* 🎭 LOT H — LA PERCHE `analytics` ÉTAIT DÉCLARÉE ET N'EXISTAIT NULLE PART.
+      `POSE_DE.analytics = 'emerveille'` et sa bulle `floora.analytics` sont
+      posées dans les cinq dictionnaires depuis le 04/09 ; cette page gardait
+      un `<h1>` nu, quand `/market/`, `/collections/` et `/sets/` avaient déjà
+      leur bandeau-outil.
+      ⭐ Ce n'est donc pas un ajout de décor, c'est la MISE AU MÊME PATRON de la
+      quatrième page-outil du site : même bandeau, même perche, même hauteur de
+      176. Une page-outil qui n'a pas la tête des trois autres se lit comme une
+      page d'un autre site.
+      ⛔ `mono-t` RESTE sur le `<h1>` — `BandeauOutil` le porte lui-même, et
+      `test:titres` / `test:entete` s'y branchent. */}
+  <p class="etiq etiq--bleu tete-p__st">// {t(lang, 'analytics.title')}</p>
+  <BandeauOutil titre={t(lang, 'analytics.title')}
+                aide={t(lang, 'desc.analytics')}
+                perche="analytics" lang={lang} />
+
+  {/* ═══ CE QUE CETTE PAGE EST, ET CE QU'ELLE N'EST PAS ═══
+      ⭐⭐ LE BANDEAU DE DÉMONSTRATION EST RETIRÉ, PAS RÉÉCRIT. Il disait « les
+      chiffres montrés sont réels, c'est le périmètre qui est réduit » — une
+      phrase juste tant que la page MONTRAIT des chiffres. Elle n'en montre
+      plus aucun : la garder aurait été un mensonge de plus dans un dépôt qui
+      en a déjà payé plusieurs. Les trois clés `analytics.demo*` restent
+      VIVANTES dans les cinq dictionnaires (`/offre/` s'en sert) — ⛔ ne pas
+      les supprimer « puisqu'elles ne servent plus » : c'est la panne du
+      lot 34, et `test:cles` ne le dirait qu'après un build. */}
+  {/* ═══ LE BANDEAU DE STATS — LOT 214, POINT ⓒ DU 213 ═══
+      📄 Le POURQUOI est en tête de fichier : trois comptes, aucun montant,
+      zéro règle CSS, et une tuile sans chiffre disparaît au lieu d'afficher 0.
+      ⛔ `STATS` est déjà filtré : s'il est vide, on ne rend pas un `.stats`
+         vide — une grille sans enfant garde sa marge et laisse un trou que
+         personne ne saurait expliquer en regardant la page. */}
+  {STATS.length > 0 && (
+    <div class="stats" style="margin-top:var(--s5)">
+      {STATS.map((s) => (
+        <div class="stat">
+          <div class="k">{t(lang, s.k)}</div>
+          <div class="v">{s.v.toLocaleString(nf)}</div>
+        </div>
+      ))}
+    </div>
+  )}
+
+  {/* ═══ CE BANDEAU EST FAUX POUR UN MEMBRE, ET C'EST TOUT CE QU'ON CORRIGE ═══
+      🔴 LE DEFAUT, SIGNALE PAR PREDA LE 19/08 : connecte, il lisait encore
+      « RESERVE AUX MEMBRES » et « Connectez-vous pour lire les chiffres ».
+      ⭐⭐⭐ `data-anonyme` ET RIEN D'AUTRE — AUCUNE REGLE CSS N'EST AJOUTEE.
+      `html[data-membre] [data-anonyme] { display:none }` existe depuis le lot
+      100 dans `Base.astro`, et c'est le `<head>` qui pose `<html data-membre>`
+      sur le cookie d'affichage. Le style est donc applique AVANT la premiere
+      peinture : pas de scintillement, pas de script, pas d'appel reseau, et
+      le HTML servi a Google ne bouge pas d'un octet.
+      ⛔ ON RETIRE UNE AFFIRMATION FAUSSE, ON N'EN POSE PAS UNE AUTRE. Le cookie
+      dit « connecte », JAMAIS « a quel palier » — il n'existe aucun cookie de
+      palier dans ce depot (mesure du 19/08 : cinq cookies, aucun ne porte de
+      palier). Afficher ici un etat de palier demanderait un appel reseau sur
+      une page pre-generee.
+      🔬 ⛔ ET LE NOM DU COOKIE NE S'ECRIT PAS DANS CE FICHIER. `test:session`
+      § 2 bis rougit des qu'il le voit cotoyer un `franchit(` ou un `porte(` —
+      ce fichier en contient. Le banc est volontairement grossier : il ne
+      distingue pas un commentaire d'une decision, parce qu'un cookie
+      falsifiable qui approche un droit devrait etre SIGNE, et qu'un faux
+      negatif ici serait une faille. ⭐ Il m'a repris pendant ce lot meme.
+      📄 Le nom vit dans `Base.astro`, avec le script qui le lit. */}
+  <div class="panneau" data-anonyme style="margin-top:var(--s5)">
+    <p class="num-s">// {t(lang, 'analytics.membersOnly')}</p>
+    <p style="margin:8px 0 0">{t(lang, 'analytics.lead')}</p>
+    {acces().tiers.length > 1 && (
+      <p style="margin-top:var(--s4)">
+        <a class="puce" href={localize(lang, '/offre/')}>{t(lang, 'nav.offer')} →</a>
+      </p>
+    )}
+  </div>
+
+  {/* ═══ 🔑 LOT J — LE MÊME EMPLACEMENT, L'AUTRE MESSAGE ═══════════════════
+      MAQUETTE v5 : « La porte change avec le palier : public → créer un
+      compte ; membre → voir les paliers. Un seul emplacement, des messages
+      différents. » Le panneau ci-dessus s'efface pour un membre — et
+      l'emplacement restait alors VIDE : le visiteur était invité, le membre
+      n'était plus invité à rien.
+      ⛔⛔ ET CE MESSAGE NE DIT PAS « VOUS N'ÊTES PAS ABONNÉ ». Il ne peut pas :
+      aucun cookie ne porte de palier (mesuré le 19/08), et `data-membre` dit
+      « session », jamais « payé » — la vue ABONNÉ est INDÉCIDABLE côté client.
+      Une phrase du genre « passez à un palier » serait donc FAUSSE pour un
+      abonné, sur sa propre page. ⇒ On dit ce qui reste vrai des DEUX : ce que
+      chaque palier ouvre, et où le lire.
+      ⭐ Aucune classe neuve : `.panneau`, `.num-s`, `.puce` sont déjà servies. */}
+  {acces().tiers.length > 1 && (
+    <div class="panneau" data-connecte style="margin-top:var(--s5)">
+      <p class="num-s">// {t(lang, 'analytics.subjects')}</p>
+      <p style="margin:8px 0 0">{t(lang, 'analytics.tiersLead')}</p>
+      <p style="margin-top:var(--s4)">
+        <a class="puce" href={localize(lang, '/offre/')}>{t(lang, 'nav.offer')} →</a>
+      </p>
+    </div>
+  )}
+
+  {/* ═══ LES QUATRE SUJETS ═══
+      ⚠️ ON RÉUTILISE `.modules` / `.module`, LA GRILLE QUI EXISTE DÉJÀ JUSTE
+      EN DESSOUS. Inventer une classe de carte ici aurait ajouté une règle CSS
+      servie sur 3 097 pages pour quatre boîtes — et une grille neuve dont
+      personne n'aurait plafonné les enfants. ⭐ C'est la règle des cartes de
+      set, appliquée en amont plutôt qu'en correctif. */}
+  <div class="sect-t sect-t--gd"><h2 class="mono-t">{t(lang, 'analytics.subjects')}</h2>
+    <span class="etiq">{SUJETS.length}</span></div>
+  <div class="modules">
+    {SUJETS.map((s) => (
+      <div class="module">
+        <span class="module__c">
+          {/* ⛔ LE LIEN PORTE LE NOM, PAS TOUTE LA CARTE. `.module` n'est pas
+              un `<a>` — en faire un exigerait une règle de thème qu'aucun des
+              trois thèmes ne porte, et le défaut ne se verrait qu'à l'œil, en
+              production. */}
+          <span class="module__n"><a href={localize(lang, `/analytics/${s}/`)}>{t(lang, CLE[s])}</a></span>
+          <span class="module__d">{t(lang, DESC[s])}</span>
+          {/* ⭐ CE QU'IL Y A DERRIERE LA PORTE, PAS QUATRE FOIS « RESERVE ».
+              Le cadenas reste dit par la bordure `--lock` de `.module` et par
+              le bandeau ci-dessus ; le repeter en toutes lettres sur chaque
+              carte occupait la seule ligne qui pouvait porter une information
+              qui distingue les sujets. */}
+          <span class="etiq" style="color:var(--lock)">{unites(CONTENU[s])}</span>
+        </span>
+      </div>
+    ))}
+  </div>
+
+  {/* ═══ CHERCHER VOUS-MÊME — LOT 226 ═══
+      📄 Le POURQUOI est dans le frontmatter, à `OUTILS`.
+      ⚠️ ON RÉUTILISE `.modules` / `.module`, comme les sujets juste au-dessus.
+      Le lot 214 a déjà écrit pourquoi : inventer une classe de carte pour deux
+      boîtes ajouterait une règle CSS servie sur 3 097 pages, et une grille
+      neuve dont personne n'aurait plafonné les enfants.
+      ⭐ LE LIEN PORTE LE NOM, PAS TOUTE LA CARTE — `.module` n'est pas un
+      `<a>`, et en faire un exigerait une règle qu'aucun des trois thèmes ne
+      porte. Même raison, mot pour mot, que les cartes de sujet.
+      ⭐ Le cadenas est DIT : ces deux pages redirigent un visiteur sans
+      session. Annoncer la porte AVANT le clic vaut mieux qu'une redirection
+      qu'on subit — c'est ce que Preda appelle « pousser vers le compte ». */}
+  <div class="sect-t sect-t--gd"><h2 class="mono-t">{t(lang, 'analytics.apps')}</h2>
+    <span class="etiq">{OUTILS.length}</span></div>
+  <div class="modules">
+    {OUTILS.map((o) => (
+      <div class="module">
+        <span class="module__c">
+          <span class="module__n"><a href={localize(lang, o.href)}>{t(lang, o.nom)}</a></span>
+          <span class="module__d">{t(lang, o.desc)}</span>
+          <span class="etiq" style="color:var(--lock)" data-anonyme>{t(lang, 'analytics.membersOnly')}</span>
+        </span>
+      </div>
+    ))}
+  </div>
+
+  {/* ═══ CE QUE CHAQUE OUTIL FAIT, ET À QUEL PALIER ═══
+      ⭐ Le catalogue vient APRÈS les sujets depuis ce lot : les sujets disent
+      OÙ aller, le catalogue dit CE QU'ON Y TROUVE. L'ordre inverse faisait
+      lire cinq cadenas avant la première adresse utile. */}
+  {/* ⚠️ LE COMPTEUR EST MASQUE AU MEMBRE, IL N'EST PAS CORRIGE. Cette page est
+      pre-generee au palier `visitor` : le numerateur y vaut TOUJOURS 0, et un
+      membre y lisait donc « 0/5 » quel que soit son palier reel. Le rendre
+      juste exigerait de connaitre le palier cote navigateur — ce qu'aucun
+      cookie ne porte. ⭐ On applique la regle de `Dashboard.astro` l. 224 :
+      « une tuile sans son chiffre reste utile, alors qu'une tuile qui affiche
+      0 affirme quelque chose de faux ». 🔑 Le vrai compte existe et il est
+      juste : c'est celui du tableau de bord, rendu a la demande.
+      ⛔ Ne pas remplacer par un appel a `/api/…` : `/analytics/` est servie
+      par le cache, elle ne touche pas le serveur pour un membre. */}
+  <div class="sect-t sect-t--gd"><h2 class="mono-t">{t(lang, 'analytics.tools')}</h2>
+    <span class="etiq" data-anonyme>{MODULES.filter((mo) => ouvert[mo]).length}/{MODULES.length}</span></div>
+  <div class="modules">
+    {MODULES.map((mo) => (
+      <div class={ouvert[mo] ? 'module module--ouvert' : 'module'}>
+        <span class="module__c">
+          <span class="module__n">{t(lang, `mod.${mo}`)}</span>
+          <span class="module__d">{t(lang, `mod.${mo}.d`)}</span>
+          {!ouvert[mo] && <span class="etiq" style="color:var(--lock)">{porte(mo).tier}</span>}
+        </span>
+      </div>
+    ))}
+  </div>
+</Base>

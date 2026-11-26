@@ -1,0 +1,122 @@
+---
+// LA PORTE : soit le visiteur passe et voit tout, soit on lui annonce ce qui
+// manque. Trois cas, jamais un de plus.
+//
+//   1. il FRANCHIT  -> on rend l'emplacement « complet » (contenu reserve)
+//   2. il ne franchit pas ET il reste quelque chose -> l'appel a l'action
+//   3. sinon (rien de cache) -> rien du tout
+//
+// LE MECANISME DE CONVERSION DU RESEAU tient dans le cas 2 : on ne cache pas,
+// on MONTRE une vraie valeur et on annonce la difference. « 482 releves au
+// total, vous en voyez 15. » Un bloc vide ou un flou decoratif n'y arrivent
+// pas — et le flou n'est de toute facon pas un verrou, la donnee serait dans
+// le HTML.
+//
+// QUATRE REGLES TENUES ICI :
+//  1. le total vient de la DONNEE REELLE, jamais du plafond du manifeste ;
+//  2. 🔴 la donnee cachee n'atteint JAMAIS le HTML — ce composant ne recoit que
+//     des NOMBRES, et le contenu reserve arrive par un emplacement que seule
+//     une page rendue au serveur peut remplir. Un `<Gate>` sur une page
+//     statique ne peut donc pas fuiter : il n'a rien a fuiter ;
+//  3. aucun test de palier n'est ecrit ici — [[access.mjs]] repond a tout ;
+//  4. le palier EXIGE (manifeste) et le palier OBSERVE (session) ne se
+//     touchent pas : `franchit()` est seul a les rapprocher.
+//
+// ⚠️ ETAT AU 21/07/2026 : aucun compte n'existe, `franchit()` est donc toujours
+// faux sur une porte active. Le cas 1 est ecrit, teste, et ne se declenche
+// jamais en production — c'est ce qui rend ce lot a comportement constant.
+import { t, numberLocale, dateLocale } from '../../engine/lib/i18n.mjs';
+import { porte, cibleOffre, restant, franchit } from '../../engine/lib/access.mjs';
+
+const { lang, gate, total, shown, since = null } = Astro.props;
+
+const p = porte(gate);                          // LEVE si le nom est inconnu (voulu)
+const passe = franchit(gate, Astro.locals);
+const cache = restant(total, shown);
+
+// Cas 2 : uniquement pour qui ne passe pas, et seulement s'il reste vraiment
+// quelque chose. Annoncer « 0 releve cache » serait une insulte, et annoncer
+// un nombre tire du manifeste serait un mensonge.
+// 🔴 LOT 112 — UNE PORTE BINAIRE N'A RIEN À COMPTER, ET ELLE DOIT QUAND MÊME
+// S'ANNONCER. `cache > 0` supposait une porte à TRONCATURE (« 75 relevés de
+// plus »). Sur `movers` — un classement, qui s'ouvre ou non — `total` et
+// `shown` n'existent pas, `cache` vaut 0, et le sceau ne se serait JAMAIS
+// affiché. ⛔ Sans erreur, sans page blanche : un bloc simplement absent.
+// ⭐ C'est le même mode de panne que `hidden` sur une page pré-générée — la
+// condition était juste pour le cas qu'elle connaissait, et muette pour
+// l'autre.
+const teaser = !passe && p.actif && (p.binaire || cache > 0);
+
+const nf = numberLocale[lang] || 'en-GB';
+const df = dateLocale[lang] || 'en-GB';
+const offre = cibleOffre();
+const depuis = since ? new Date(since).toLocaleDateString(df) : null;
+---
+{passe && <slot name="complet" />}
+
+{/* ⭐⭐ LE SCEAU DE LA MAQUETTE — 31/07/2026. L'appel a l'action sortait dans
+    la `.card` generique du moteur : une boite grise au milieu d'une page qui
+    a par ailleurs tout son caractere. Le theme habillait `.sceau`,
+    `.sceau__in`, `.cadenas`, `.verrou__t`, `.verrou__d`, `.btn--verrou`
+    depuis le lot 15 — six regles ecrites pour un composant qui n'existait pas.
+
+    ⛔⛔ ET NON LE `voile` DE LA MAQUETTE, DELIBEREMENT. La maquette a DEUX
+    portes : `sceau()` (un panneau) et `voile()` (le VRAI contenu, flouté, sous
+    un calque). Le second est plus spectaculaire — et c'est une FUITE : le flou
+    est une propriete de PRESENTATION, la donnee reste en clair dans le HTML,
+    lisible par n'importe qui via « afficher la source ». On vendrait un acces
+    a une information qu'on aurait deja donnee.
+    ⭐ C'est exactement ce que l'en-tete de ce fichier dit depuis le 21/07 :
+    « la donnee cachee n'atteint JAMAIS le HTML ». La maquette ne connait pas
+    cette contrainte — elle n'a pas de vraies donnees a proteger. En portant
+    une maquette, ce qui vient d'elle ne doit jamais defaire ce que le moteur
+    a decide de tenir. */}
+{/* ⭐ `data-sceau` — AJOUT DU 01/08/2026, UN SEUL ATTRIBUT.
+    Le <Cadran> retire ce sceau quand il a REÇU le contenu réservé : sans
+    marqueur, il devrait le retrouver par sa position ou sa classe, et le
+    premier changement de mise en page casserait le lien en silence.
+    ⛔ Cet attribut ne PORTE aucun droit et n'en révèle aucun : il nomme un
+    emplacement. Le seul juge du palier reste le serveur. */}
+{teaser && (
+  <div class="sceau" data-sceau={gate} style="margin-top:var(--s4)">
+    <span class="verrou__prof" aria-hidden="true"><i></i><i></i><i></i></span>
+    <div class="sceau__in">
+      <span class="cadenas" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg>
+      </span>
+      {/* ⛔ L'ETIQUETTE `mod.${gate}` — « Full history » — EST RETIREE LE
+          03/08/2026 (lot 45, demande Preda). Elle sortait ICI, puis A NOUVEAU
+          quelques lignes plus bas dans <Cadran>, sous un <h2> « Floor price » :
+          le meme titre trois fois de suite, dont deux mot pour mot.
+          ⭐ ON RETIRE LE LIBELLE, PAS LA PORTE. `franchit()`, la matrice
+          d'acces et `data-sceau` ne bougent pas d'une ligne : c'est un retrait
+          d'AFFICHAGE, et test:acces continue de prouver les paliers.
+          ⚠️ LA CLE i18n `mod.price_history` RESTE VIVANTE — Analytics.astro,
+          Offre.astro et /compte/ l'affichent dans leur catalogue de modules.
+          ⛔ Ne pas la supprimer des cinq dictionnaires « puisqu'elle ne sert
+          plus » : elle sert, ailleurs, et test:cles ne le dirait qu'apres
+          le build — c'est exactement la panne du lot 34. */}
+      {/* ⭐ LE NOMBRE RESTE LE COEUR DU MESSAGE. « 482 releves au total, vous
+          en voyez 15 » convertit ; « contenu reserve » ne convertit pas. Le
+          total vient de la donnee reelle, jamais du plafond du manifeste. */}
+      {/* 🔴🔴 LOT 112 — LES COMPTES SORTENT (demande Preda, 10/08) :
+          « 80 records in total, since 18/05/2025 » et « This page shows 5.
+          75 earlier records… » disparaissent au profit d'un module qui DIT
+          simplement que ce contenu existe pour les membres.
+          ⚠️⚠️ ET CE LOT DÉFAIT UN ARBITRAGE ANTÉRIEUR, EN CONNAISSANCE DE
+          CAUSE. Le commentaire retiré ici disait : « LE NOMBRE RESTE LE CŒUR
+          DU MESSAGE — 482 relevés au total, vous en voyez 15 CONVERTIT ;
+          contenu réservé NE CONVERTIT PAS. » C'était juste, et c'est un
+          choix de conversion, pas une erreur. Preda tranche l'inverse.
+          ⭐ Ce qu'on perd est écrit ici pour que le retour arrière soit
+          possible sans réapprendre : `total`, `shown`, `since` et `cache`
+          restent CALCULÉS et reçus en props. Rien à recâbler pour revenir. */}
+      <div class="verrou__t">{t(lang, 'gate.reserved')}</div>
+      <p class="verrou__d" style="margin:0">{t(lang, 'gate.reserved.d')}</p>
+      {offre.url
+        ? <a class="btn btn--principal btn--sm" href={offre.url}>{t(lang, 'offer.cta')}</a>
+        : <span class="btn btn--verrou btn--sm" aria-disabled="true">{t(lang, 'offer.soon')}</span>}
+    </div>
+  </div>
+)}

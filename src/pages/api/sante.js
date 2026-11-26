@@ -1,0 +1,533 @@
+// ROUTE DE SANTE — la preuve que le mode serveur vit vraiment.
+//
+// C'est la seule route dynamique du socle hybride, et elle ne fait rien d'utile :
+// elle repond « je suis la, dans tel mode ». Son role est d'etre la premiere
+// chose a interroger apres un deploiement. Si /api/sante repond « server »,
+// alors l'image, le port et l'adaptateur sont corrects — et les lots suivants
+// (comptes, webhook du prestataire) peuvent s'appuyer dessus.
+//
+// ⚠️ LE `prerender` EST CONDITIONNEL, ET IL LE DOIT.
+// Une route `prerender = false` fait ECHOUER le build en mode static, ou aucun
+// adaptateur n'est installe (erreur NoAdapterInstalled). En mode static cette
+// route devient donc un simple fichier ; en mode server, elle est calculee a la
+// demande. Le mode se lit dans la reponse : c'est ce qui distingue « une page
+// servie » de « une page calculee ».
+// ⭐ LITTERAL, ET C'EST LE POINT. Astro exige que `prerender` soit
+// statiquement analysable ; une EXPRESSION n'est pas evaluee et retombe
+// silencieusement sur `true`. La valeur reelle est posee par l'integration
+// `veve:routes-compte` (engine/lib/astro_routes_compte.mjs) selon le mode du
+// manifeste. `true` ici est le defaut SUR : sans adaptateur, un build static
+// ne peut pas rendre cette route a la demande.
+export const prerender = true;
+
+// ⛔⛔ LE MODE SE FIGE AU BUILD, IL NE SE LIT PAS A LA REQUETE (31/07/2026).
+// Cette sonde lisait `process.env.RENDERING` AU MOMENT DE L'APPEL. Or ce
+// reglage est consomme par le BUILD (le Dockerfile fait
+// `export RENDERING=$(cat /app/.rendering)` juste avant `astro build`) ; le
+// processus qui SERT, lui, ne l'a pas. Resultat mesure : la sonde d'un site
+// tournant en mode server repondait `"mode":"static"`.
+// ⭐ Une sonde de sante qui se trompe sur ce qu'elle surveille est pire
+// qu'absente : elle donne une reponse plausible a la question qu'on lui pose
+// pour verifier. `import.meta.env` est fige a la compilation — c'est ce
+// qu'on veut : la sonde rapporte le mode DANS LEQUEL ELLE A ETE CONSTRUITE.
+// ⭐ Et cette route ne peut repondre a la demande que si elle a ete construite
+// en mode server : `mode` est donc, litteralement, verifiable par le fait
+// meme que cette reponse n'est pas un fichier statique.
+const MODE = import.meta.env.RENDERING === 'server' ? 'server' : 'static';
+const SITE = import.meta.env.SITE || 'veveprice';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ⭐⭐⭐ LA SONDE DIT AUSSI CE QUE LE SERVEUR CROIT ETRE — ajoute au lot 92.
+// ═══════════════════════════════════════════════════════════════════════════
+// CE QUE CA A COUTE DE NE PAS L'AVOIR : deux lots pour trouver que nginx
+// envoyait `X-Forwarded-Proto: http` a Node. Le symptome etait un 403 CSRF ;
+// la cause etait une seule valeur, invisible de l'exterieur, que personne ne
+// pouvait lire sans ouvrir un terminal sur le serveur.
+//
+// `origin` est CE QU'ASTRO A RECONSTRUIT, et c'est exactement ce qu'il compare
+// a l'en-tete `Origin` du navigateur pour accepter ou refuser un POST de
+// formulaire. S'il affiche `http://…` alors que le site est en https, tout
+// envoi de formulaire rendra 403 — et ca se lit maintenant en une requete.
+//
+// ⭐ Un service doit savoir dire lui-meme s'il est correctement installe. Le
+//   `demarrage.ts` de veveid porte deja ce principe ; ici la difference est
+//   qu'un demarrage ne voit pas Cloudflare, et une vraie requete si.
+//
+// ⛔ ON NE REND AUCUN EN-TETE BRUT, ni IP, ni cookie : seulement l'origine
+//   reconstruite, que le visiteur connait deja puisque c'est la sienne.
+// ⭐⭐ ET CE QUI LUI MANQUE POUR SERVIR — ajoute au lot 93.
+// ⛔ DES BOOLEENS, JAMAIS DES VALEURS. Ni URL, ni secret, ni fragment : la
+//    question est « est-ce branche ? », pas « branche sur quoi ». Le jour ou
+//    quelqu'un voudra y mettre l'adresse « pour verifier plus vite », cette
+//    route cessera de pouvoir rester publique.
+// ⭐ Et l'information n'apprend rien a personne : la page /inscription/ dit
+//    deja en clair « la creation de compte n'est pas encore ouverte ».
+//
+// CE QUE CA A COUTE DE NE PAS L'AVOIR : la route rend 503 avec le MEME texte
+// que `INSCRIPTION_API` manque ou que `SESSION_API` manque. Deux causes, un
+// seul message — impossible de savoir laquelle depuis le navigateur.
+// ⭐⭐⭐ « CAUSE A » ET « CAUSE B » NE DOIVENT PAS EMPRUNTER LE MEME CHEMIN DE
+//   SORTIE, exactement comme « je ne sais pas » ne doit pas emprunter celui de
+//   « rien a signaler ».
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔬 LOT 136 — LA SONDE DIT ENFIN *QUELLE VERSION* ELLE SERT (P35)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// CE QUE CA A COUTE DE NE PAS L'AVOIR, ET C'EST MESURE : le 11/08/2026, un
+// deploiement declare ECHOUE tournait, et DEUX conteneurs servaient en
+// parallele sur le meme reseau. Six `curl` identiques ne prouvaient rien : ils
+// pouvaient tomber sur l'un ou sur l'autre, et les deux repondaient `ok:true`.
+// « Quelle version sert la production ? » etait litteralement INDECIDABLE.
+//
+// ⭐⭐ ET LE CACHE REND CETTE QUESTION CENTRALE, PAS ANECDOTIQUE. A partir du
+//   moment ou Cloudflare sert le HTML depuis le bord, un deploiement peut
+//   REUSSIR sans atteindre personne : l'origine sert la nouvelle version, le
+//   bord continue de servir l'ancienne, et rien ne rougit nulle part. Sans ce
+//   champ, ce chemin de panne serait invisible — c'est exactement le profil
+//   « posé ≠ branché ».
+//
+// ⛔ `commit` PEUT ETRE `null`, ET C'EST ECRIT COMME TEL. Rien ne garantit que
+//   le constructeur passe un SHA (Coolify ne le fait pas toujours). ⭐ INCONNU
+//   ≠ ZERO : la sonde rend `null`, et `test:cache` sort INDECIDABLE sur ce
+//   point plutot que de conclure. Une valeur inventee serait pire qu'absente —
+//   c'est la lecon de la sonde qui repondait `"mode":"static"` sur un site en
+//   mode server.
+//
+// ⭐ Les deux valeurs sont FIGEES A LA COMPILATION (`vite.define` dans
+//   `astro.config.mjs`), pas lues a la requete. Meme raison que `MODE` juste
+//   au-dessus : le processus qui SERT n'a pas l'environnement du BUILD. Une
+//   sonde qui lit son horodatage a la requete rendrait « maintenant », c'est-a-
+//   dire la seule reponse qui ne renseigne sur rien.
+/* global __BUILD_TIME__, __COMMIT__ */
+const BUILD = typeof __BUILD_TIME__ === 'string' ? __BUILD_TIME__ : null;
+const COMMIT = typeof __COMMIT__ === 'string' && __COMMIT__ ? __COMMIT__ : null;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ⏱️🔴🔴🔴 LOT 214 — `demarre` : L'INSTANT OÙ CE PROCESSUS A COMMENCÉ À VIVRE
+// ═══════════════════════════════════════════════════════════════════════════
+// CE QU'IL DIT, ET RIEN D'AUTRE : `demarre − build` est la durée de TOUT ce qui
+// se passe APRÈS que l'image est faite — pousser l'image, la tirer, démarrer le
+// conteneur, basculer le proxy. C'est la seule phase du déploiement qu'AUCUN
+// instrument de ce dépôt ne voyait, et le chrono du Dockerfile ne peut pas la
+// voir non plus : elle commence après son dernier jalon.
+// 🔑 Le 01/09, l'écart total était de 43 minutes. Si `demarre − build` en fait
+//   deux, la cible est le BUILD ; s'il en fait trente, c'est la BASCULE — et
+//   ce sont deux chantiers qui n'ont rien à voir.
+//
+// ⛔ CE N'EST PAS EXACTEMENT LE DÉMARRAGE DU CONTENEUR, ET JE L'ÉCRIS PLUTÔT
+//    QUE DE LAISSER CROIRE LE CONTRAIRE : c'est le premier CHARGEMENT DE CE
+//    MODULE. En mode server Astro charge l'entrée au démarrage, donc les deux
+//    coïncident à quelques millisecondes ; si un jour le module devenait
+//    paresseux, cette valeur glisserait vers « le premier appel ». Elle reste
+//    un MAJORANT honnête du démarrage, jamais un minorant.
+// ⭐ Et c'est justement pour ça qu'elle est lue ICI, au chargement, et pas dans
+//   le `GET` : une date lue à la requête rendrait « maintenant », c'est-à-dire
+//   la seule réponse qui ne renseigne sur rien. Même leçon que `BUILD`.
+const DEMARRE = new Date().toISOString();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ❤️ LOT 140-3 — LA SENTINELLE DU VOLUME, ET ELLE EXISTE POUR UN OUBLI PRÉCIS
+// ═══════════════════════════════════════════════════════════════════════════
+// Sans volume monté sur `/data`, LES FAVORIS FONCTIONNENT. Ils se posent, ils
+// se relisent, la page est correcte. Jusqu'au déploiement suivant, où le
+// conteneur est remplacé et où `/data` redevient un dossier vide de l'image :
+// tout disparaît, sans erreur, sans run rouge, et sans plainte puisqu'il n'y a
+// que deux comptes. ⭐⭐⭐ *Une feature que personne n'utilise ne se plaint
+// jamais d'être cassée* — donc rien ne se juge sur l'usage, tout sur le
+// MÉCANISME. Ce § est ce mécanisme.
+//
+// ⛔ DES BOOLÉENS, JAMAIS DE CHEMIN. La question est « est-ce monté ? », pas
+//    « monté où ». Le dossier n'apprend rien à un visiteur et cette route est
+//    publique.
+// ⭐ `montee: null` EST UNE RÉPONSE, et c'est la troisième. INCONNU ≠ FAUX :
+//    un `false` inventé parce qu'on n'a pas su lire ferait crier la sonde sur
+//    une installation correcte, et on apprendrait à l'ignorer. C'est la leçon
+//    de la sonde qui répondait `"mode":"static"` sur un site en mode server.
+// ⭐⭐ LA CONDITION VOYAGE AVEC LE CODE, OU ELLE DISPARAIT EN SILENCE.
+// vevewiki n'ouvre aucun compte : il n'a pas de favoris, donc pas de base, donc
+// pas de volume a monter. Sans cette porte, sa sonde annoncerait
+// `favoris:{ouverte:false}` — une sonde qui CRIE sur une installation
+// parfaitement correcte. On apprend a l'ignorer, et le jour ou elle crie pour
+// de bon, plus personne ne l'ecoute. C'est mesure : le build statique de
+// vevewiki rendait bien ce faux negatif avant cette ligne.
+// 🔴 ET LE PREDICAT EST IMPORTE, PAS RECOPIE. `socle_js.mjs` l. 119 emploie
+// EXACTEMENT `acces().tiers.length > 1` pour decider s'il embarque le script
+// d'espace membre. Ecrire ici `manifest().features.comptes`, qui « veut dire la
+// meme chose », donnerait deux definitions d'un seul etat — la panne P30 du
+// lot 139.
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { acces } from '../../../engine/lib/access.mjs';
+import { etatDuStockage } from '../../../engine/lib/favoris.mjs';
+import { etatDesAlertes } from '../../../engine/lib/alertes.mjs';
+import { etatDeLaCaisse } from '../../../engine/lib/caisse_sonde.mjs';
+import { etatDuMagasin } from '../../../engine/lib/caisse.mjs';
+
+const comptesOuverts = () => acces().tiers.length > 1;
+
+const favoris = () => {
+  try {
+    const e = etatDuStockage();
+    return { ouverte: e.ouverte, montee: e.montee };
+  } catch {
+    // ⛔ La sonde ne tombe JAMAIS à cause de ce §. Une sonde de santé qui
+    //    échoue sur la question qu'elle pose est pire qu'absente.
+    return { ouverte: false, montee: null };
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔔 LOT 215 — LES ALERTES, ET CE QU'ELLES DISENT SANS RIEN RÉVÉLER
+// ═══════════════════════════════════════════════════════════════════════════
+// ⛔⛔ CETTE ROUTE EST PUBLIQUE. Elle ne rend donc QUE DES COMPTES — combien de
+// configurations, combien de déclenchements, la rétention, et quel build a été
+// dépouillé. ⚠️ LES SEUILS SONT DES MONTANTS et ils ne sortent JAMAIS d'ici :
+// un chiffre qui part par cette porte ne se rattrape pas.
+//
+// ⭐⭐ CE QUE `balaye` REND VISIBLE, ET QUE RIEN D'AUTRE NE DIT : le producteur
+// ne tourne qu'une fois par build, déclenché par la première visite de
+// `/alertes/`. Si ce champ reste sur un build ANCIEN alors que `build` a
+// changé, c'est que personne n'est venu voir depuis le déploiement — ce qui est
+// normal, et qui ne se distingue d'une panne que si on peut lire les deux.
+// ⛔ `null` ici veut dire « jamais balayé », pas « à jour ».
+const alertes = () => {
+  try {
+    const e = etatDesAlertes();
+    return {
+      ouverte: e.ouverte,
+      configurations: e.configurations,
+      declenchements: e.declenchements,
+      retentionJours: e.retentionJours,
+      balaye: e.balaye,
+    };
+  } catch {
+    // ⛔ La sonde ne tombe JAMAIS à cause de ce §, exactement comme au-dessus.
+    return { ouverte: false, configurations: null, declenchements: null,
+             retentionJours: null, balaye: null };
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🖥️ LE PIC MÉMOIRE DU BUILD — LOT 175, ET IL EXISTE PARCE QUE LE LOG MENT
+// ═══════════════════════════════════════════════════════════════════════════
+// La sonde du lot 171 imprime six jalons pendant le build. Mesuré sur DEUX
+// déploiements du VPS : le journal de l'étape de build s'arrête toujours à la
+// même ligne — juste après le téléchargement des baselines, à 21 s puis 27 s,
+// sur une étape qui dure **3 min 49**. Les cinq jalons suivants, dont celui qui
+// porte le pic, ne sont dans aucun log.
+// ⛔ Et ce n'est PAS un plafond de volume : 101 lignes / 11 124 o d'un côté,
+//   70 lignes / 7 637 o de l'autre. La cause reste inconnue.
+//
+// ⇒ Le rapport voyage donc par un canal dont on SAIT qu'il arrive : un fichier
+//   embarqué dans l'image, servi ici. **Une requête suffit désormais à savoir
+//   ce que le build a consommé**, sans log, sans Coolify et sans personne.
+//
+// ⛔ QUE DES NOMBRES EN MÉGAOCTETS ET DES NOMS D'ÉTAPES. Pas de chemin, pas de
+//   variable d'environnement, rien qui décrive la machine autrement que par sa
+//   consommation. Cette route est publique et elle le reste.
+// ⭐ `null` EST UNE RÉPONSE, et c'est la troisième. Un build qui n'a pas écrit
+//   son rapport (mode static, ou sonde absente) rend `null` — jamais `0`, qui
+//   se lirait « le build n'a rien consommé ». INCONNU ≠ ZÉRO.
+// ⚠️ LU À CHAQUE APPEL, PAS AU DÉMARRAGE : en mode server la route est calculée
+//   à la demande, et lire au chargement du module figerait la réponse d'un
+//   conteneur qui aurait été remplacé. Le fichier fait quelques centaines
+//   d'octets et la route porte `cache-control: no-store`.
+const memoireDuBuild = () => {
+  // 🔴🔴 `import` EN TÊTE, PAS `require()`. Premier jet : `require('node:fs')`
+  //   dans la fonction. Ce fichier est un module ES — `require` n'y existe pas,
+  //   et l'erreur ne serait tombée qu'À LA REQUÊTE, attrapée par le `catch`
+  //   juste en dessous : la sonde aurait rendu `memoire: null` **pour
+  //   toujours**, sur un build parfaitement vert. ⭐⭐⭐ *Un `try/catch` autour
+  //   d'un chargement transforme une faute de syntaxe en réponse plausible.*
+  try {
+    const chemin = process.env.RESERVE_MEMOIRE
+      || join(process.env.PROJECT_ROOT || process.cwd(), '.reserve', 'memoire-build.json');
+    const r = JSON.parse(readFileSync(chemin, 'utf8'));
+    return {
+      picMo: Number.isFinite(r.picMo) ? r.picMo : null,
+      plafondMo: Number.isFinite(r.plafondMo) ? r.plafondMo : null,
+      // ⏱️ LOT 214 — la charge de la MACHINE relevée à chaque jalon du build.
+      // ⭐ `coeurs` voyage avec, sinon le nombre ne se compare à rien : 3,5 est
+      //   catastrophique sur 2 cœurs et confortable sur 8. Même raison que
+      //   `plafondMo` à côté de `picMo`, une ligne plus haut.
+      // ⚠️ `null` et pas `0` sur un rapport écrit AVANT ce lot : un ancien
+      //   conteneur encore en service rendrait « charge nulle », c'est-à-dire
+      //   exactement la réponse qui innocenterait la piste qu'on instrumente.
+      chargeMax: Number.isFinite(r.chargeMax) ? r.chargeMax : null,
+      coeurs: Number.isFinite(r.coeurs) ? r.coeurs : null,
+      etapes: Array.isArray(r.etapes) ? r.etapes : [],
+    };
+  } catch {
+    return null;
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🖼️🔴🔴🔴 LOT 196 — CE QUE LA PROJECTION DU MARCHÉ PORTE VRAIMENT
+// ═══════════════════════════════════════════════════════════════════════════
+// Preda, 24 puis 25/08 : « la vignette en mode tableau n'est visible sur AUCUNE
+// ligne. » Tout ce qui se mesure depuis le dépôt dit qu'elle devrait s'afficher :
+// le gabarit émet la cellule, le CSS servi la dimensionne, un vrai serveur hors
+// ligne rend 19 images sur 20 lignes. Il manquait UN chiffre — celui de la
+// PRODUCTION, où les uuid sont réels.
+//
+// ⛔ LE JOURNAL DU BUILD NE PEUT PAS LE DONNER. Le lot 195 y avait posé la
+// ligne ; mesuré sur le déploiement du 25/08 à 11 h 23, **le journal Coolify
+// s'arrête à la 10ᵉ seconde de cette étape**, au milieu de la lecture des
+// sources. La ligne existait, elle était juste, elle n'a jamais atteint
+// personne. *Un instrument dont la sortie n'atteint pas son lecteur ne mesure
+// rien* — et c'est la deuxième fois que ce journal tronqué coûte une journée.
+//
+// ⭐⭐⭐ CETTE SONDE, ELLE, EST INTERROGEABLE À TOUT MOMENT, depuis n'importe
+// où, sans terminal et sans journal. Elle répond sur le conteneur QUI SERT, pas
+// sur celui qu'on croit déployé — c'est déjà l'argument de `build` plus haut.
+//
+// ⛔ AUCUN MONTANT NE PASSE ICI, et c'est ce qui rend le bloc publiable : trois
+//   nombres qui disent « combien de lignes », « combien portent une couverture »
+//   et « combien de planchers ont été écartés ». Aucun ne désigne un prix, aucun
+//   ne s'en approche. La règle du lot 101 est tenue.
+// ⚠️ `null` PARTOUT PLUTÔT QUE `0` quand le témoin manque ou ne dit rien : sur
+//   un site sans porte « cote », il n'y a pas de projection — « inconnu » n'est
+//   pas « vide », et c'est justement le vide qu'on cherche à reconnaître.
+const marcheDuBuild = () => {
+  try {
+    const chemin = process.env.RESERVE_TEMOIN
+      || join(process.env.PROJECT_ROOT || process.cwd(), '.reserve', '_temoin-build.json');
+    const t = JSON.parse(readFileSync(chemin, 'utf8'));
+    const n = (v) => (Number.isFinite(v) ? v : null);
+    return {
+      lignes: n(t.marche),
+      avecImage: n(t.marcheAvecImage),
+      ecartes: n(t.marcheEcartes),
+      // 🔬🔴 LOT 214 — CE CHAMP EXISTE POUR DESAMBIGUISER SON VOISIN.
+      // `ecartes: 0` seul ne dit pas si la collecte s'est nettoyee ou si la
+      // regle a cesse de mordre — deux etats du monde opposes derriere le meme
+      // zero. Mesure du 02/09 : 44 la veille, 0 le lendemain, et rien pour
+      // trancher. `candidats` compte les pieces qui franchissent la PREMIERE
+      // marche de la regle ; `candidats: 0` innocente, `candidats > 0` avec
+      // `ecartes: 0` accuse.
+      // ⛔ CE N'EST PAS UN PRIX : un nombre de fiches au-dessus d'un seuil qui
+      //    est deja public dans `sites/*/manifest.yml`. Lot 101 tenu.
+      candidats: n(t.marcheCandidats),
+      // ⭐ Sans lui, « 83 sur 90 » se lirait comme un chiffre de production
+      //   alors qu'il vient de l'échantillon. Le témoin le sait, il le dit.
+      horsLigne: typeof t.horsLigne === 'boolean' ? t.horsLigne : null,
+      quand: typeof t.quand === 'string' ? t.quand : null,
+    };
+  } catch {
+    return null;
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ⏱️🔴🔴🔴 LOT 214 — LE CHRONO DU DÉPLOIEMENT, PHASE PAR PHASE
+// ═══════════════════════════════════════════════════════════════════════════
+// Cinq jalons posés en tête de `RUN` existants (voir `engine/lib/chrono_build.mjs`
+// pour le POURQUOI de « en tête, jamais en fin »). Leurs écarts donnent les
+// quatre durées qu'on cherche depuis le 01/09 :
+//     debut → build .............. les 23 bancs d'avant   (132 s au bac à sable)
+//     build → apres-build ........ `astro build`          ( 67 s au bac à sable)
+//     apres-build → precompression  i18n + les 22 bancs   (  4 s au bac à sable)
+//     precompression → image ..... gzip -9 sur `dist/`    (14,9 s au lot 161)
+// ...et `demarre − build` donne la cinquième, celle que personne ne voyait :
+// pousser l'image, la tirer, démarrer, basculer.
+// 🔑 La somme mesurée au bac à sable fait QUATRE minutes. Le déploiement en
+// prend QUARANTE-CINQ. Ce bloc dit enfin OÙ passent les quarante et une autres.
+//
+// ⛔⛔ ON NE REND QUE DES HORODATAGES BRUTS ET DES ÉCARTS. Pas de verdict, pas
+//    de seuil, pas de « c'est lent » : cette route MESURE, elle ne juge pas.
+//    Un seuil ici deviendrait un garde-fou que personne n'a réglé — et un
+//    garde-fou sous son seuil n'existe pas.
+// ⚠️ UN ÉCART NÉGATIF OU ABSURDE N'EST PAS CORRIGÉ, IL EST MONTRÉ. C'est la
+//    signature d'une couche servie par le CACHE Docker, dont le jalon date d'un
+//    build antérieur. Lisser ça effacerait la seule trace de la seule chose que
+//    ce fichier ne peut pas savoir tout seul.
+//
+// ⭐⭐⭐ « CHRONO VIDE » ET « CHAMP ABSENT » NE PRENNENT PAS LE MÊME CHEMIN, ET
+//    C'EST LA MOITIÉ DE L'INTÉRÊT DE CE BLOC :
+//      · `chrono: null` .......... le fichier manque ou est illisible — un
+//                                  conteneur bâti AVANT ce lot répond ça, et
+//                                  c'est la bonne réponse : « je ne sais pas ».
+//      · `chrono.jalons: []` ..... le fichier existe et ne porte AUCUN jalon —
+//                                  donc le Dockerfile ne les appelle plus, ou
+//                                  les appelle sous un nom refusé. C'est une
+//                                  PANNE DE L'INSTRUMENT, et elle doit se
+//                                  distinguer d'un instrument absent.
+//    Confondre les deux dans un seul `null` ferait passer une sonde débranchée
+//    pour une sonde pas encore déployée. C'est la faute du lot 193 sur
+//    `ecartes: 0`, et on ne la refait pas ici.
+//
+// ⛔ AUCUN CHEMIN, AUCUN NOM DE MACHINE. Des noms de phase (`[a-z0-9-]`,
+//    imposés à l'écriture), des dates, des nombres. Publique et le reste.
+// ═══════════════════════════════════════════════════════════════════════════
+// 📒 LE CLASSEUR A-T-IL TOURNÉ ?   (LOT 226 — le témoin de la mesure)
+// ═══════════════════════════════════════════════════════════════════════════
+// ⭐⭐⭐ CE CHAMP N'EXISTE QUE POUR RENDRE UNE MESURE DÉCIDABLE, ET C'EST SA
+// SEULE RAISON D'ÊTRE. `CLASSEUR_OFF=1` existe depuis le lot 224 et s'applique
+// dans `classeur.mjs` — mais RIEN, une fois le conteneur en ligne, ne disait
+// s'il avait été lu. On aurait donc comparé deux `basculeS` en SUPPOSANT que
+// le second build avait bien éteint le classeur.
+//
+// 🔴🔴 ET CETTE SUPPOSITION AURAIT ÉTÉ FATALE, PARCE QUE LE BRUIT DÉPASSE LE
+// SIGNAL CHERCHÉ. Trois builds du 04/09, code quasi identique :
+//     13:21 → 783,1 s / 2 464 Mo · 13:44 → 752,6 s / 2 593 Mo
+//     15:28 → 795,0 s / 2 506 Mo
+// soit **42,4 s et 129 Mo d'amplitude sans changement de fond**. Un build
+// « avec `CLASSEUR_OFF=1` » qui n'aurait pas reçu la variable rendrait un
+// écart dans cette fourchette — c'est-à-dire un chiffre parfaitement crédible,
+// et faux. ⭐ *Une mesure sans témoin de son propre dispositif mesure le
+// bruit et l'appelle par le nom qu'on espérait.*
+//
+// ⛔ ON NE LIT PAS `process.env.CLASSEUR_OFF` ICI. Ce serait relire la
+//    variable du processus qui RÉPOND, pas de celui qui a BÂTI — et ce sont
+//    deux processus différents (le build est dans l'image, la réponse dans le
+//    conteneur). On lit donc la TRACE laissée sur le disque : `meta.json`
+//    n'est écrit que par un classeur qui est allé au bout.
+// ⭐ Trois états, et le troisième compte : `actif: true` (il a tourné et on
+//    sait combien), `actif: false` (le dossier est là mais sans `meta.json`),
+//    `null` (on n'a pas pu regarder — ⛔ jamais confondu avec « éteint »).
+const classeurDuBuild = () => {
+  try {
+    const dir = process.env.CLASSEUR_DIR
+      || join(process.env.PROJECT_ROOT || process.cwd(), '.reserve', 'classeur');
+    const f = join(dir, 'meta.json');
+    if (!existsSync(f)) return { actif: false, pieces: 0, fragments: 0 };
+    const m = JSON.parse(readFileSync(f, 'utf8'));
+    return {
+      actif: true,
+      pieces: Number.isFinite(m?.pieces) ? m.pieces : null,
+      fragments: Number.isFinite(m?.fragments) ? m.fragments : null,
+      lignes: Number.isFinite(m?.lignes) ? m.lignes : null,
+    };
+  } catch { return null; }
+};
+
+const chronoDuBuild = () => {
+  try {
+    const chemin = process.env.CHRONO_FICHIER
+      || join(process.env.PROJECT_ROOT || process.cwd(), '.chrono.json');
+    const c = JSON.parse(readFileSync(chemin, 'utf8'));
+    // ⛔ `jalons` ABSENT N'EST PAS `jalons` VIDE. Un fichier sans le tableau est
+    //    un fichier qu'on ne comprend pas : il rejoint `null`, pas la liste vide.
+    if (!Array.isArray(c.jalons)) return null;
+    const n = (v) => (Number.isFinite(v) ? v : null);
+    const secondes = (a, b) => {
+      const ta = Date.parse(a); const tb = Date.parse(b);
+      if (!Number.isFinite(ta) || !Number.isFinite(tb)) return null;
+      return Math.round((tb - ta) / 100) / 10;
+    };
+    let precedent = null;
+    const jalons = c.jalons
+      // ⭐ LA FORME EST EXIGÉE À LA LECTURE AUSSI, pas seulement à l'écriture.
+      //   Le fichier voyage dans une image ; une route publique ne fait pas
+      //   confiance à ce qu'elle relit, même si c'est elle qui l'a écrit.
+      .filter((j) => j && typeof j.nom === 'string' && /^[a-z0-9-]{1,32}$/.test(j.nom)
+                     && typeof j.ts === 'string')
+      .map((j) => {
+        const depuis = precedent ? secondes(precedent, j.ts) : null;
+        precedent = j.ts;
+        return { nom: j.nom, ts: j.ts, charge: n(j.charge), depuisPrecedentS: depuis };
+      });
+    return {
+      jalons,
+      coeurs: n(c.jalons.find((j) => j && Number.isFinite(j.coeurs))?.coeurs),
+      // ⭐ Du premier au dernier jalon : ce que le BUILD a duré, vu de l'intérieur.
+      buildS: jalons.length > 1 ? secondes(jalons[0].ts, jalons[jalons.length - 1].ts) : null,
+      // 🔑 LA PHASE QUE PERSONNE NE VOYAIT — voir le § de `DEMARRE`.
+      basculeS: BUILD ? secondes(BUILD, DEMARRE) : null,
+    };
+  } catch {
+    return null;
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 💳🔴🔴🔴 LOT 199 — « CE CONTENEUR PEUT-IL LIRE LE RÉSEAU BASE ? »
+// ═══════════════════════════════════════════════════════════════════════════
+// Preda, 25/08 : « recevoir des usdc/usdt sur le reseau base et que ça donne
+// automatiquement le role ». Tout le reste du chantier est mesuré : le noeud
+// public répond, la base SQLite de `/data` est montée, `/api/abonner` attend
+// chez veveid. Il restait UNE inconnue, et elle est de celles qui décident de
+// l'architecture : le conteneur Coolify joint-il un hôte de l'internet public ?
+//
+// ⛔ ON NE POUVAIT PAS LA DÉDUIRE. veveprice ne `fetch` que veveid, qui vit sur
+// la MÊME machine ; veveid joint `collectscan.com`, ce qui est un indice et pas
+// une preuve — deux applications, deux configurations. *Le bac à sable prédit
+// le code, jamais la machine.*
+//
+// ⭐⭐⭐ ET C'EST LA ROUTE QUI DOIT LE DIRE, PAS LE JOURNAL DU BUILD. Le lot 195
+// a payé cette leçon : le journal Coolify s'arrête à la 10ᵉ seconde de l'étape
+// qui bâtit, et la ligne mesurée n'a jamais atteint son lecteur. Ici la réponse
+// s'obtient d'un navigateur, à tout moment, sur le conteneur QUI SERT.
+//
+// 🔴 CETTE FONCTION N'ATTEND JAMAIS RIEN — c'est la propriété qui compte.
+// `docker-entrypoint.sh` interroge `/api/sante` au démarrage et refuse de
+// servir si elle tarde ; un réseau bloqué deviendrait un 503 sur tout le site.
+// Le détail de la non-attente est dans `caisse_sonde.mjs`.
+// ⚠️ Conséquence assumée : le TOUT PREMIER appel après un déploiement rend
+//   `joignable: null`. Ce n'est pas une panne, c'est « je n'ai pas encore
+//   fini de regarder ». Le second appel répond. INCONNU ≠ FAUX.
+// ═══════════════════════════════════════════════════════════════════════════
+// 💳 LOT 200 — LE BLOC DIT MAINTENANT DEUX CHOSES, ET IL FAUT LES DEUX
+// ═══════════════════════════════════════════════════════════════════════════
+// Le lot 199 répondait « puis-je LIRE la chaîne ? ». C'était la bonne question
+// tant qu'il n'y avait rien à encaisser. Depuis qu'il y a des commandes, une
+// caisse peut être parfaitement joignable ET complètement en panne : le noeud
+// répond, et pas un palier ne s'ouvre.
+//
+// ⭐⭐⭐ `magasin.orphelins` EST LE SEUL CHIFFRE QUI COMPTE VRAIMENT. Il dit
+// « quelqu'un a envoyé de l'argent sur l'adresse et AUCUNE commande n'y
+// correspondait ». C'est le seul défaut de cette caisse qui coûte à un tiers,
+// et le seul qui, sans ce compteur, serait parfaitement silencieux : l'argent
+// arrive, rien ne s'ouvre, et personne ne s'en aperçoit avant la plainte.
+// ⚠️ `magasin.aAccorder` est son petit frère : le paiement a été reconnu mais
+// veveid n'a pas répondu. Le filet existe (`/admin` accorde à la main), encore
+// faut-il savoir qu'il faut s'en servir.
+//
+// ⛔ DES COMPTEURS, JAMAIS DES MONTANTS, JAMAIS UNE RÉFÉRENCE, JAMAIS UN
+//    COMPTE. La règle du lot 101 tient ici aussi : cette route est publique, et
+//    elle le reste. Le numéro de bloc, lui, est public par construction.
+const caisse = () => {
+  try {
+    return { ...etatDeLaCaisse(), magasin: etatDuMagasin() };
+  } catch {
+    // ⛔ La sonde ne tombe JAMAIS à cause de ce §, même règle que `favoris()` :
+    //    une sonde de santé qui échoue sur la question qu'elle pose est pire
+    //    qu'absente.
+    return { configuree: false, adresse: null, joignable: null, bloc: null, ms: null, cause: null, quand: null, magasin: null };
+  }
+};
+
+const branche = () => ({
+  inscription: Boolean(process.env.INSCRIPTION_API),
+  session: Boolean(process.env.SESSION_API),
+  // ⭐ Les DEUX noms comptent : voir `secretDeService()` (lot 94).
+  service: Boolean(process.env.VEVEID_SERVICE || process.env.ID_SERVICE),
+});
+
+export const GET = ({ url }) => new Response(
+  JSON.stringify({
+    ok: true,
+    mode: MODE,
+    site: SITE,
+    // 🔬 P35 — ce que sert CE processus, pas ce qu'on croit avoir deploye.
+    build: BUILD,
+    commit: COMMIT,
+    origin: url.origin,
+    proto: url.protocol.replace(':', ''),
+    comptes: branche(),
+    // 🖥️ Le pic mémoire du build — voir le bloc au-dessus. `null` si inconnu.
+    memoire: memoireDuBuild(),
+    // 🖼️ Ce que la projection du marché porte — voir le bloc au-dessus.
+    marche: marcheDuBuild(),
+    // ⏱️ Quand CE processus a commencé à vivre — voir le bloc de `DEMARRE`.
+    demarre: DEMARRE,
+    // ⏱️ Où passe le temps d'un déploiement — voir le bloc au-dessus.
+    chrono: chronoDuBuild(),
+    // 📒 Le classeur a-t-il tourné dans CE build ? — voir le bloc au-dessus.
+    //   ⭐ C'est le témoin sans lequel la mesure `CLASSEUR_OFF=1` ne conclut rien.
+    classeur: classeurDuBuild(),
+    ...(comptesOuverts() ? { favoris: favoris(), caisse: caisse(), alertes: alertes() } : {}),
+  }),
+  { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } },
+);

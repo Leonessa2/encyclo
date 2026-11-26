@@ -1,0 +1,2416 @@
+// Modele de donnees du site.
+// REGLES (spec v3) :
+//  - on ne publie QUE des fiches utiles (seuil de releves)
+//  - l'historique public est tronque AU NIVEAU DE LA DONNEE
+//  - les variations ne sont calculees que si elles ont un sens statistique
+//  - l'historique des prix est lu EN FLUX : la memoire ne depend pas de la
+//    taille du fichier, qui grandit indefiniment avec le backfill.
+import { readFileSync, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { join } from 'node:path';
+import { projeter as projeterCote, deposerMarche, CHAMPS_COTE } from './cote.mjs';
+// 🎯 LOT 219 — LA NOTE DE TENSION, SANS AUCUN PRIX. Voir tension.mjs : c'est
+// ce choix qui la rend publiable sur la fiche au lieu de la mettre sous cadenas.
+import { poserTension } from './tension.mjs';
+// 🖥️ LA SONDE MEMOIRE DU BUILD (lot 171). Elle N'OBSERVE QUE — voir memoire.mjs.
+import * as memoire from './memoire.mjs';
+// 🖼️ LOT 154-A — l'index « uuid → couverture », lu par `/favoris/` à la demande
+//    et, au lot 155, par les tuiles de `/market/`. Voir l'en-tête du module :
+//    il ne copie que des champs déjà publics, et il est déposé APRÈS
+//    `projeterCote()` pour que ce soit vrai par construction.
+import { deposerVignettes } from './vignettes.mjs';
+import { deposerSetsMcp } from './sets_mcp.mjs';
+import { deposerRayonIndex } from './rayon_index.mjs';
+import { getCatalogue, getBaselines, getReleves, getFichesStackr, getOmiUsd, getVentes, getExtremesStackr, streamPrices, vuLe } from '../data/warehouse.mjs';
+// 💱 LOT 181 — le cours OMI → USD, déposé dans la réserve pour `/api/cote/lot`.
+//    Toute la règle (péremption, refus du zéro) vit dans le module ; ici il
+//    n'y a qu'un chargement et un dépôt.
+import { lireCsv as lireTauxCsv, deposerTaux } from './taux_omi.mjs';
+import { manifest, SITE } from './manifest.mjs';
+// 🔴 LOT 193 — LA RÈGLE DU PLANCHER ÉCARTÉ EST IMPORTÉE, PAS RECOPIÉE. Écrite
+// dans `marche_selection.mjs` parce que c'est le seul endroit où elle est
+// éprouvable sans construire un dataset. ⛔ Deux écritures de « ce plancher
+// n'est pas retenu » divergeraient, et le jour où elles divergent, c'est celle
+// qui écarte le MOINS qui gagne — donc la page qui remontre des blagues.
+import { planchierEcarte } from './plancher_ecarte.mjs';
+import { porte } from './access.mjs';
+import { jourISO } from './vitrine.mjs';   // 🔴 LOT 113 — JJ/MM/AAAA, jamais `new Date(chaine)`
+import { exigerColonneSets, construireSets } from './sets.mjs';
+// ⭐ LA RÉSERVE — l'historique COMPLET, écrit HORS de dist/, pour la route
+// `/api/historique/[uuid]`. Elle se greffe sur LA passe de prix qui a DÉJÀ
+// lieu ici : `streamPrices` n'est pas mis en cache (contrairement à `load()`),
+// un second script retéléchargerait le fichier entier — et `test:donnees`
+// interdit une seconde construction du jeu de données, précisément pour ça.
+import * as reserve from './reserve.mjs';
+import * as ventes from './ventes.mjs';
+import * as classeur from './classeur.mjs';
+import { comptesActifs } from './features.mjs';
+
+const ROOT = process.env.PROJECT_ROOT || process.cwd();
+const DAY = 86400000;
+
+// Les deux types publies, et la RACINE D'ADRESSE de chacun.
+// Racines au PLURIEL (decision Preda 18/07) : /collectibles/ et /comics/.
+export const TYPES = ['collectible', 'comic'];
+export const RACINE = { collectible: 'collectibles', comic: 'comics' };
+const RACINES_VALIDES = new Set(Object.values(RACINE));
+
+export const slugify = (s) =>
+  String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'item';
+
+const num = (v) => { const n = Number(String(v).replace(',', '.')); return Number.isFinite(n) ? n : null; };
+// Comme num(), mais 0 et les valeurs negatives comptent pour « inconnu ».
+const pos = (v) => { const n = num(v); return n && n > 0 ? n : null; };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴🔴🔴 LOT 218 — `num('')` REND **0**, ET C'EST UN PRIX FAUX SERVI 2 162 FOIS
+// ═══════════════════════════════════════════════════════════════════════════
+// Preda, 04/09 : « 0 GEMS · 16 Listings » sur `#100 Todd McFarlane Batman -
+// Blue & Yellow Variant ». Seize annonces et un plancher a zero ne peuvent pas
+// etre vrais ensemble — et c'etait la seule chose visible d'un defaut general.
+//
+// LA CAUSE, EN UN CARACTERE. `Number('')` vaut **0** en JavaScript, pas NaN.
+// Donc `num('')` passe `Number.isFinite` et rend `0` au lieu de `null` — le
+// `??` de la ligne du plancher ne se declenche JAMAIS, et le repli sur le
+// dernier point de la courbe, qui existe et qui est bon, n'est jamais emprunte.
+//
+// MESURE DU 04/09/2026, sur `catalogue.csv.gz` (19 786 lignes) et
+// `prices.csv.gz` (2 385 311 releves) :
+//   · floor VIDE au catalogue ................ 2 392 fiches (12,1 %)
+//   · dont `listings > 0` — la contradiction .. 2 162 fiches SERVIES
+//   · floor litteral `0` ..................... 91, toutes a `listings = 0`
+//   · reparables par le repli ................ 2 388 sur 2 392 (99,8 %)
+//   · sans historique, donc « — » ............ 4, et elles n'ont pas de page
+//     (moins de deux points : `continue` plus bas)
+//   · relevés a floor VIDE dans prices ....... **0** ⇒ le repli est SAIN
+// Exemples de ce que le correctif rend au lieu de « 0 gems » : Janie - Blue
+// Metallic 599 · Namor - Avengers 2018 2 500 · Gekido #1 999.
+//
+// ⭐⭐⭐ LA LECON EST DEJA ECRITE DIX LIGNES PLUS BAS, ET LE CODE NE SE
+// L'APPLIQUAIT PAS : « un catalogue qui renvoie 0 veut dire je ne sais pas,
+// pas zero ». Elle avait ete tiree pour `ath`/`atl` — qui utilisent `pos()` —
+// et jamais reportee sur `floor` ni `listings`, qui sont pourtant les deux
+// champs que la fiche montre en grand. *Une lecon rangee a cote du champ
+// qu'elle ne protege pas ressemble a une lecon appliquee.*
+//
+// ⛔ ET LES DEUX CHAMPS NE SE TRAITENT PAS PAREIL, C'EST TOUT L'ENJEU :
+//   · `floor`    : un plancher de 0 gems n'existe pas ⇒ `pos()`, 0 = inconnu.
+//   · `listings` : 0 annonce est un FAIT, et le fait le plus courant ⇒ il faut
+//     distinguer le VIDE (inconnu) du ZERO (mesure). C'est `numRenseigne`.
+// Les confondre remplacerait une donnee fausse par une donnee absente.
+const numRenseigne = (v) => {
+  const s = String(v ?? '').trim();
+  return s === '' ? null : num(s);
+};
+
+function pctChange(hist, days, o) {
+  if (hist.length < o.minPoints) return null;
+  const last = hist[hist.length - 1];
+  if (!last || !last.floor) return null;
+  const cutoff = Date.now() - days * DAY;
+  // Sans releve RECENT, la variation est inconnue - pas nulle. Afficher
+  // « 0,0 % » ferait croire a une stabilite qui n'a jamais ete mesuree.
+  if (new Date(last.ts).getTime() < cutoff) return null;
+  let ref = null;
+  for (const p of hist) { if (new Date(p.ts).getTime() <= cutoff) ref = p; }
+  if (!ref || ref.ts === last.ts) return null;          // une seule et meme mesure
+  if (!ref.floor || ref.floor < o.minRef) return null;
+  const v = ((last.floor - ref.floor) / ref.floor) * 100;
+  if (!Number.isFinite(v) || Math.abs(v) > o.maxAbs) return null;
+  return v;
+}
+
+let _ds = null;
+
+// Le vocabulaire du champ « kind » du catalogue n'est pas garanti. Mesure en
+// production le 18/07 : {"Collectible":2690,"Comic":16271} -> MAJUSCULE
+// initiale. Mon test initial `kind === 'comic'` n'aurait jamais rien matche.
+// On accepte donc toute variante contenant « comic », sans casse.
+function estComic(kind) {
+  return /comic/i.test(String(kind || ''));
+}
+export const typeDe = (c) => (estComic(c.kind) ? 'comic' : 'collectible');
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  🔴🔴 LOT 170 — POINT `b` DE LA LISTE DE PREDA : « À VENIR = LES SÉRIES,
+//  PAS LES ITEMS ». LA CAUSE EST DANS LA DONNÉE, PAS DANS LE GABARIT.
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// 🔴 MA NOTE DISAIT « chez un comic, `series` porte le numéro à 100 % ». ELLE
+// ÉTAIT FAUSSE, et la vieille mesure qui la portait mesurait sa PROPRE
+// fabrique : elle comptait les noms de SETS, que `cleSet()` construit en
+// AJOUTANT ` #<edition_type>`. Elle ne disait rien de la colonne `series`.
+//
+// ⭐ MESURE DU 21/08 SUR LA PRODUCTION, sur `/rayon-index/comics.json` — donc
+// sur `rayonDe().series`, la colonne brute du catalogue, sans transformation :
+//     comics       : 16 902 lignes · 1 264 séries · 104 séries polluées
+//                    = 154 lignes (0,91 %)  ⇒ 1 264 séries deviennent 1 180
+//     collectibles :  2 748 lignes ·   926 séries ·  94 séries de même FORME
+//
+// 🔴🔴 ET C'EST POURQUOI CE NETTOYAGE EST RÉSERVÉ AUX COMICS. Sur les 104
+// séries de comics, 44 fusionnent avec une série NUE déjà présente au
+// catalogue (« Avengers Vs X-Men Vol. 1 #8 (2012) » ET « Avengers Vs X-Men
+// Vol. 1 » coexistent) : la preuve que c'est de la pollution. Sur les
+// collectibles, ZÉRO ne fusionne — « Adam Kubert - Wolverine #107 », « DJ Big
+// Bot - Record #1 » sont des noms de série LÉGITIMES. Y appliquer la même
+// règle détruirait 94 séries sans rien réparer.
+// ⇒ *La même forme de chaîne ne veut pas dire la même chose dans deux corpus.*
+//
+// ⭐ ANCRÉ EN FIN DE CHAÎNE, et c'est ce qui protège les cas mesurés où le
+// dièse est au MILIEU : « Spidey And His Amazing Friends #1 Halloween
+// Trick-Or-Read 2025 » ne bouge pas. `#\d*` avec une étoile, parce que le
+// catalogue porte aussi « DuckTales # (2024) » et « Gargoyles Vol. 1 # (2025) »
+// — un dièse sans numéro, que `#\d+` aurait laissé passer.
+// ⛔ FILET : si la coupe rend une chaîne vide, on garde l'original. Une série
+// nommée « #1 » perdrait sinon son nom, et un groupe sans nom absorberait tout.
+const SUFFIXE_NUMERO = /\s+#\d*[A-Za-z]?\s*(?:\(\d{4}\))?\s*$/;
+export function serieNue(series) {
+  const v = String(series || '').trim();
+  if (!v) return '';
+  const nu = v.replace(SUFFIXE_NUMERO, '').trim();
+  return nu || v;
+}
+
+// Chez les comics, le nom recopie tres souvent la serie
+// (« Return of the Jedi #1: Poster Series - Alex Ross Main Cover »). Comme la
+// serie est DEJA un segment de l'adresse, la repeter donnerait
+// /comics/return-of-the-jedi-1-poster-series/common-return-of-the-jedi-1-poster-series-alex-ross...
+// On ne garde donc que ce qui distingue reellement la couverture. Meme regle
+// que pour les titres et le fil d'Ariane, appliquee aux adresses.
+function sansPrefixeSerie(nom, serie) {
+  const n = String(nom || '').trim();
+  const s = String(serie || '').trim();
+  if (!s) return n;
+  // Nom STRICTEMENT egal a la serie : rien de distinctif du tout.
+  if (n.toLowerCase() === s.toLowerCase()) return '';
+  if (n.length <= s.length) return n;
+  if (n.slice(0, s.length).toLowerCase() !== s.toLowerCase()) return n;
+  // Chaine VIDE si le nom ne fait que recopier la serie : il n'y a alors rien
+  // de distinctif a mettre dans l'adresse, et repeter la serie
+  // (/comics/alias-1-2001/common-alias-1-2001/) serait du bruit pur.
+  // L'appelant enchaine alors sur l'identifiant court.
+  return n.slice(s.length).replace(/^[\s\-–—:,.·|]+/, '').trim();
+}
+
+// SECRET_RARE -> Secret Rare
+function jolieRarete(r) {
+  return String(r).toLowerCase().split(/[_\s]+/).filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
+}
+
+// ═══ SCORE D'UTILITE ═══
+// On NE classe PLUS par nombre de releves. Les prix sont enregistres AU
+// CHANGEMENT : ce nombre mesure surtout (a) jusqu'ou le backfill est alle et
+// (b) a quel point le prix flotte. Il fait donc remonter les pieces bavardes
+// et bon marche -- et c'est lui qui a laisse les collectibles evincer 100 %
+// des comics de la vitrine.
+// Le score croise ce que le produit PROMET (un historique profond) avec ce
+// que les gens CHERCHENT (des pieces qui valent quelque chose). Les
+// logarithmes empechent l'un des deux facteurs d'ecraser l'autre : un item a
+// 10 000 $ ne doit pas passer devant tout le reste au seul titre de son prix.
+// ⚠️ LE PRIX UTILISE ICI EST LA MEDIANE, PAS LE DERNIER FLOOR.
+// Constate en production le 18/07 : le marche VeVe contient de vraies annonces
+// farceuses (« Faces of The ADDICTION » a 42 420 420 420 420, une seule offre).
+// Un score bati sur le dernier floor les propulsait en tete du classement et
+// donc en page d'accueil — la vitrine d'un tracker de prix s'ouvrait sur un
+// prix de 42 000 milliards. Une mediane, elle, ne bouge pas pour une annonce
+// isolee. Regle generale : classer sur une statistique ROBUSTE, jamais sur la
+// derniere valeur observee.
+function scoreUtilite(c) {
+  const debut = Date.parse(c.since);
+  const jours = Number.isFinite(debut) ? Math.max(1, (Date.now() - debut) / DAY) : 1;
+  const valeur = Math.max(1, c.prixMedian || c.floor || 0);
+  return Math.log1p(jours) * Math.log1p(valeur);
+}
+
+// ═══ ADRESSES GELEES : migration + hygiene ═══
+// Reecrit une table slugs.json heritee et ecarte ce qui n'est plus servable.
+// Exporte car freeze-slugs.mjs doit appliquer EXACTEMENT la meme regle avant
+// de reecrire le fichier -- sinon la migration ne vivrait qu'en memoire et le
+// disque garderait les anciennes adresses.
+export function migrerRacines(map) {
+  const out = {};
+  let migres = 0;
+  const abandonnes = [];
+  for (const [uuid, p] of Object.entries(map || {})) {
+    if (typeof p !== 'string' || !p.startsWith('/')) continue;
+    const np = p
+      .replace(/^\/collectible\//, '/collectibles/')
+      .replace(/^\/comic\//, '/comics/');
+    const racine = np.split('/')[1];
+    if (!RACINES_VALIDES.has(racine)) {
+      // Typiquement une table gelee du temps des adresses plates /item/<nom>/,
+      // qui ne sont plus servies par aucune route (aucune redirection : une
+      // /item/ a designe deux objets differents dans la meme journee). La
+      // conserver epinglerait la fiche sur une adresse qui n'existe pas.
+      abandonnes.push(p);
+      continue;
+    }
+    if (np !== p) migres++;
+    out[uuid] = np;
+  }
+  return { map: out, migres, abandonnes };
+}
+
+// ⚠️ MEMOISER LA PROMESSE, PAS LE RESULTAT.
+// 18 fichiers de route appellent dataset() et Astro les evalue EN PARALLELE.
+// Si l'on ne memorise qu'a la fin (apres le telechargement et la lecture en
+// flux), chaque appel voit encore null et relance un flux complet du fichier
+// de prix : 18 lectures simultanees de centaines de Mo = build a genoux.
+// Invisible sur l'echantillon, fatal sur les vraies donnees.
+let _promesse = null;
+export function dataset() {
+  if (!_promesse) _promesse = construireDataset();
+  return _promesse;
+}
+
+// Quotas par type, lus au manifeste. Retrocompatible : un ancien manifeste
+// qui ne connait que `max_items` continue de fonctionner (tout le budget va
+// aux collectibles + report, donc comportement inchange).
+function quotasDuManifeste(pub) {
+  const q = pub.quotas;
+  if (q && typeof q === 'object') {
+    const out = {};
+    for (const t of TYPES) out[t] = Math.max(0, Number(q[t]) || 0);
+    return out;
+  }
+  const total = pub.max_items ?? 0;
+  return { collectible: total, comic: 0 };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LES RELEVES — ON RETIENT LE PLUS FRAIS, ET C'EST TOUT LE LOT 144
+// ═══════════════════════════════════════════════════════════════════════════
+// ⭐⭐⭐ ELLE EST EXPORTEE, ET C'EST DELIBERE : c'est la SEULE partie de ce lot
+// qu'un banc puisse departager sans reconstruire un site. Laissee en ligne dans
+// `construireDataset()`, la regle « on garde le plus frais » n'aurait ete
+// verifiable que par ses CONSEQUENCES sur 1 200 pages — c'est-a-dire pas du
+// tout, puisqu'une date perimee a exactement la meme forme qu'une date juste.
+// ⛔ Un banc ne doit JAMAIS rappeler `dataset()` pour se donner de la matiere
+// (lecon du lot 104 : il DETRUISAIT la reserve du build, 1 201 fichiers -> 0).
+// Une fonction pure, elle, se teste avec quatre lignes de fixture.
+//
+// 🔴🔴🔴 LE PIEGE N'EST PAS THEORIQUE, IL EST MAJORITAIRE.
+// Mesure du 13/08 sur le fichier PUBLIE (10 886 lignes) : 3 470 uuid sur 7 416
+// (47 %) portent DEUX lignes — une par marche. Le writer trie sur `(uuid, ts)`,
+// donc la premiere ligne d'un uuid est sa PLUS ANCIENNE : verifie 3 470 fois
+// sur 3 470, sans une exception. Un lecteur qui garderait la premiere — c'est-
+// a-dire tout lecteur ecrit sans y penser — publierait une date perimee de
+// 2,9 j en mediane, 8,5 j au p90, 23,8 j au maximum, EN SORTANT VERT.
+//
+// ⚠️ `ts_releve` EST UN EPOCH EN SECONDES (`"%.0f"` cote workflow), pas une date
+// ISO : `new Date('1786525683')` rend `Invalid Date` sans rien lever. Une valeur
+// non finie, vide ou <= 0 est IGNOREE — ⛔ jamais comptee comme « datee ».
+// ⚠️ `floor` sort en `repr` de flottant Python (`900000.0`) ⇒ `Number()`,
+// ⛔ jamais `parseInt` (900000 ici, mais 7 sur « 7.98 »).
+// ⛔⛔ DEUX MARCHES, PAS DEUX UNITES : `stackr` en OMI, `veve` en USD, rapport
+// non constant. Le floor de StackR se retient A PART du « plus frais » — si la
+// ligne la plus fraiche est celle de VeVe (le cas le plus courant), la valeur
+// OMI existe quand meme et n'a aucune raison d'etre jetee avec sa ligne.
+// ═══ LOT 146 — UNE DATE PAR MARCHE, PARCE QU'IL Y A DEUX MARCHES ═══
+// Le lot 144 ne retenait qu'un `sec` : le PLUS FRAIS des deux marches, toutes
+// sources confondues. Le lot 145 a ecrit, en toutes lettres et de bonne foi,
+// « `releveLe` du mur de DROITE date une observation StackR ». C'ETAIT FAUX,
+// et c'est mesure sur la PRODUCTION du 13/08, 1 200 fiches sur 1 200 :
+//
+//     date servie sous « StackR Floor »          943
+//        dont la ligne la plus fraiche est VEVE     904   (75,3 % du site)
+//        dont elle est vraiment STACKR               39
+//        comics 127/148 · collectibles 777/795
+//
+// ⇒ 904 fiches servaient « Recorded on <date> » sous le plancher StackR, la
+// ligne SUIVANTE disant « Not collected yet » pour ce meme plancher. Deux
+// affirmations contradictoires, cote a cote, sur les trois quarts du site.
+// La date etait juste ; le mur ne l'etait pas.
+//
+// ⭐⭐⭐ C'EST LA MEME FAUTE QUE LE LOT 145 A CORRIGEE UN MUR PLUS LOIN, et le
+// commentaire qui la corrigeait s'appuyait sur elle pour se justifier. Une
+// lecon apprise sur UN cas ne se generalise pas toute seule : elle a produit
+// le cas suivant. → [[regle-lecon-non-generalisee]]
+//
+// ⭐ `stackrSec` EXISTAIT DEJA — pose par le lot 144 pour ne pas jeter la
+// valeur OMI, jamais lu pour sa DATE. DIX-SEPTIEME occurrence de « collectee
+// puis jetee ». → [[regle-donnee-collectee-puis-jetee]]
+//
+// ⛔ ET IL NE POUVAIT PAS SERVIR TEL QUEL, la raison est une horloge de plus :
+// il n'avance QUE si `floor` est un nombre fini, parce qu'il date la VALEUR.
+// « J'ai regarde » et « il y avait un prix » sont deux faits distincts, et un
+// releve sans montant reste un releve. D'ou `stackrObsSec`, qui date
+// l'OBSERVATION et ne regarde pas le montant.
+/**
+ * 📉📈 LOT H — L'INDEX DES EXTRÊMES StackR, `{uuid -> {atl, atlSec, ath, athSec}}`.
+ *
+ * ⭐ IL EST ÉCRIT À CÔTÉ DE `indexerReleves` ET EXPORTÉ COMME LUI : les deux
+ * lisent un CSV de la même release, et le banc doit pouvoir les exercer sans
+ * réseau ni build. Une fonction cachée dans le corps de `dataset()` ne serait
+ * exerçable que par un build entier — c'est-à-dire, hors ligne, sur 90 fiches
+ * qui ne portent pas forcément le cas.
+ *
+ * ⛔ CHAQUE EXTRÊME EST INDÉPENDANT DE L'AUTRE, et c'est la raison d'être de la
+ * forme retenue. `ath` naît vide avec ce lot : une pièce peut très bien avoir
+ * un plus-bas vieux de six mois et aucun plus-haut. Un objet unique
+ * `{valeur, date}` par pièce aurait forcé à choisir lequel des deux existe.
+ *
+ * ⛔ `null` ET JAMAIS `0` : un prix à zéro n'est pas un extrême, c'est une
+ * ligne abîmée. Le collecteur filtre déjà, on ne lui fait pas confiance pour
+ * autant — un CSV se relit toujours comme une source étrangère.
+ */
+export function indexerExtremesStackr(lignes) {
+  const par = new Map();
+  let ignorees = 0;
+  const nb = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  for (const r of lignes || []) {
+    const u = r.veve_uuid || r.uuid;
+    if (!u) { ignorees++; continue; }
+    const atl = nb(r.atl); const atlSec = nb(r.atl_ts);
+    const ath = nb(r.ath); const athSec = nb(r.ath_ts);
+    // ⚠️ UNE VALEUR SANS SA DATE EST REFUSÉE, et pas rendue « sans date ».
+    // Le mur StackR dit « vu le … » : un montant qu'on ne sait pas dater y
+    // apparaîtrait sous une date empruntée à autre chose. C'est la faute des
+    // DEUX HORLOGES du lot 146, celle qui a cassé la CI au lot G.
+    const a = atl !== null && atlSec !== null ? { v: atl, sec: atlSec } : null;
+    const h = ath !== null && athSec !== null ? { v: ath, sec: athSec } : null;
+    if (!a && !h) { ignorees++; continue; }
+    par.set(u, { atl: a ? a.v : null, atlSec: a ? a.sec : null,
+                 ath: h ? h.v : null, athSec: h ? h.sec : null });
+  }
+  return { par, ignorees };
+}
+
+export function indexerReleves(releves) {
+  const par = new Map();
+  let ignorees = 0;
+  for (const r of releves || []) {
+    const u = r.veve_uuid || r.uuid;
+    const sec = Number(r.ts_releve);
+    if (!u || !Number.isFinite(sec) || sec <= 0) { ignorees++; continue; }
+    const src = String(r.source || '').trim();
+    let e = par.get(u);
+    if (!e) {
+      e = { sec: -Infinity, source: null, stackr: null, stackrSec: -Infinity,
+            stackrObsSec: -Infinity, veveSec: -Infinity };
+      par.set(u, e);
+    }
+    if (sec > e.sec) { e.sec = sec; e.source = src || null; }
+    if (src === 'stackr') {
+      if (sec > e.stackrObsSec) e.stackrObsSec = sec;
+      const f = Number(r.floor);
+      if (Number.isFinite(f) && sec >= e.stackrSec) { e.stackr = f; e.stackrSec = sec; }
+    } else if (src === 'veve') {
+      if (sec > e.veveSec) e.veveSec = sec;
+    }
+    // ⛔ PAS DE `else` FOURRE-TOUT. Une troisieme source atterrirait dans
+    // `sec` (donc dans le pied de page) sans jamais atteindre un mur. Le banc
+    // du lot 146 le dirait : le pied depasserait le max des deux murs.
+  }
+  return { par, ignorees };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🛰️ LES FICHES StackR — lot 190, 25/08/2026
+// ═══════════════════════════════════════════════════════════════════════════
+// Ce que StackR publie sur une pièce et que notre entrepôt n'avait pas : les
+// éditions BRÛLÉES, la circulation réelle, le nombre d'offres en cours, la
+// commission du marché.
+//
+// 🔴🔴🔴 ZÉRO N'EST PAS « PAS DE DONNÉE », ET C'EST TOUT L'ENJEU DE CE LECTEUR.
+// `editions_burnt = 0` est un FAIT (« aucune pièce détruite »), tandis qu'un
+// item que la rotation n'a pas encore visité n'a RIEN. Les deux s'affichent
+// différemment — « 0 » et « — » — et les confondre ferait dire au site qu'il
+// sait quelque chose qu'il ignore, sur ~90 % du catalogue pendant dix jours.
+// ⇒ On rend `null` sur une case vide ou illisible, et le NOMBRE sinon.
+// ⛔ `Number('')` vaut 0 : ce piège-là est exactement celui qu'on désamorce ici.
+//
+// 🔴 UNE SEULE LIGNE PAR PIÈCE EN THÉORIE, MAIS ON NE LE SUPPOSE PAS. Le
+// collecteur réécrit le CSV entier à chaque tour et déduplique par uuid ; si
+// cette garantie tombait un jour, garder la PREMIÈRE ligne publierait une
+// valeur périmée en sortant vert. ⇒ on retient le `ts_releve` le plus GRAND,
+// comme `indexerReleves` retient `MAX(ts)` pour la même raison.
+export function indexerFichesStackr(lignes) {
+  const par = new Map();
+  let ignorees = 0;
+  // ⛔ `nombre` REFUSE la chaîne vide AVANT d'appeler `Number`. Une garde
+  //    posée après aurait laissé passer `0`, et « aucune brûlée » aurait été
+  //    indistinguable de « jamais visité ».
+  const nombre = (x) => {
+    const v = String(x ?? '').trim();
+    if (v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  for (const r of lignes || []) {
+    const u = r.veve_uuid || r.uuid;
+    const sec = Number(r.ts_releve);
+    if (!u || !Number.isFinite(sec) || sec <= 0) { ignorees++; continue; }
+    const e = par.get(u);
+    if (e && e.sec >= sec) continue;
+    par.set(u, {
+      sec,
+      famille: String(r.famille || '').trim() || null,
+      circulation: nombre(r.in_circulation),
+      brulees: nombre(r.editions_burnt),
+      emises: nombre(r.issued),
+      offres: nombre(r.offres_en_cours),
+      // ⚠️ `market_fee` ARRIVE EN FRACTION (`0.02`), PAS EN POURCENTAGE. Le
+      //   gabarit multiplie ; le stocker déjà multiplié ferait deux endroits
+      //   qui décident de l'unité, et c'est ainsi qu'on obtient « 200 % ».
+      frais: nombre(r.market_fee),
+      // ⭐ La date de relevé du floor selon StackR — le champ que le projet
+      //   n'avait pas. ⚠️ Il est VIDE sur les collectibles (mesuré sur les
+      //   2 000 premières fiches, 25/08) : leur API ne le porte pas. Une chaîne
+      //   vide devient `null`, jamais une date d'aujourd'hui.
+      floorMaj: String(r.floor_maj || '').trim() || null,
+    });
+  }
+  return { par, ignorees };
+}
+
+/** La date d'un releve, en ISO court. ⚠️ Epoch en SECONDES. */
+export const jourDeReleve = (sec) => new Date(sec * 1000).toISOString().slice(0, 10);
+
+async function construireDataset() {
+  if (_ds) return _ds;
+  const m = manifest();
+  const pub = m.publication || {};
+  const MIN_POINTS = pub.min_price_points ?? 8;
+  // ⭐ Les plafonds de l'historique public sont un REGLAGE D'ACCES, pas un
+  // reglage de publication : un quota de vitrine decide QUELLES fiches
+  // existent, un palier decide CE QU'ON MONTRE d'une fiche qui existe. Les
+  // confondre a deja produit l'angle mort des comics. Ils sont donc lus par
+  // la matrice — et par elle seule.
+  // Porte inactive (site entierement gratuit) => Infinity, c'est-a-dire
+  // « aucune troncature ». Les deux branches sont couvertes par test_access.
+  const PORTE_PRIX = porte('price_history');
+  const MAX_POINTS = PORTE_PRIX.public_max;
+  const WINDOW_DAYS = PORTE_PRIX.public_days;
+  const MAX_SERIE = Math.max(0, Number(pub.max_new_per_series) || 0);   // 0 = pas de plafond
+  const SPILL = pub.quota_spillover !== false;
+  const FACTEUR_ABERRANT = Math.max(2, Number(pub.outlier_factor) || 10);
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🔴🔴 LOT 193 — LE PLANCHER QU'ON N'AFFICHE PAS (Preda, 25/08/2026)
+  // ═══════════════════════════════════════════════════════════════════════
+  // Sa demande, mot pour mot : « les planchers (hors item 1/1) qui depassent
+  // 5 000 et qui n'ont pas plus de deux listings ne doivent pas etre pris en
+  // compte ».
+  //
+  // ⭐⭐⭐ SA CAUSE EST JUSTE. MESUREE SUR L'ENTREPOT (13 630 pieces avec un
+  // plancher, archive du 18/07) : 188 pieces au-dessus de 5 000 avec deux
+  // offres ou moins. Les regarder de pres ne laisse aucun doute — un timbre
+  // « 1840 Two Penny Blue » a 10 000 042 $, un « Faces of The ADDICTION » a
+  // 42 420 420 420 420 $ (la blague du 420), et vingt « 9 999 999 $ » d'affilee.
+  // Ce sont des annonces farceuses, pas des prix.
+  //
+  // ⛔⛔ ET SON REMEDE SEUL EMPORTE DE VRAIES PIECES. Meme mesure, meme jour :
+  // 15 pieces passent son filtre alors qu'elles valent VRAIMENT ce prix —
+  // `Amazing Fantasy` a 8 888 $ dont la mediane est 8 799 $ sur 592 releves,
+  // `Marvel Comics` a 5 900 $ (mediane 4 999 $, 645 releves), les quatre
+  // BLACKPINK « Salute » a 10 000 $. Ce sont exactement les pieces qu'un
+  // collectionneur vient voir. Les faire disparaitre du marche serait pire
+  // que d'y laisser une blague.
+  //
+  // ⭐⭐⭐ CE QUI SEPARE VRAIMENT LES DEUX N'EST PAS UN MONTANT, C'EST L'ECART
+  // A SA PROPRE HISTOIRE :
+  //     Amazing Fantasy          8 888 / mediane 8 799  =        x1,01
+  //     Star Wars: Ahsoka    9 999 999 / mediane    44  =  x224 719
+  // ⛔ MAIS L'ECART SEUL NE SUFFIT PAS NON PLUS, et c'est le piege qui m'a
+  //    coute une iteration : une piece qui n'a QU'UN SEUL releve — et il est
+  //    farceur — a une mediane EGALE a son floor. Son ecart vaut x1,00, et le
+  //    garde-fou la sauverait. Mesure : 10 des 9 999 999 $ etaient dans ce cas.
+  // ⇒ IL FAUT LES DEUX, et l'historique arbitre : « assez cher, presque
+  //    personne pour le confirmer, et son propre passe ne le confirme pas —
+  //    ou il n'a pas de passe du tout ».
+  //
+  // 🔴 `outlier_min_points` SE COMPTE SUR `totalPoints`, JAMAIS SUR `points`.
+  //    `points` est la longueur de l'historique PUBLIC : la porte le tronque a
+  //    trois jours pour un visiteur. Le brancher la rendrait la regle
+  //    dependante du PALIER DU LECTEUR — la meme piece ecartee chez l'un et
+  //    gardee chez l'autre, sans qu'aucun banc ne rougisse.
+  //
+  // ⚠️ `?? ` ET PAS `|| ` POUR LES TROIS : `Number(0) || 5000` rend 5 000, donc
+  //    un reglage a 0 (« n'ecarte rien ») serait silencieusement ignore et
+  //    ferait exactement le contraire de ce qu'il demande. La forme est exigee,
+  //    elle n'est pas devinee — meme geste que `jours` dans `/admin/abonner`.
+  const nbReglage = (v, defaut) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : defaut;
+  };
+  const ECART_PRIX   = nbReglage(pub.outlier_price, 5000);
+  const ECART_OFFRES = nbReglage(pub.outlier_listings, 2);
+  const ECART_POINTS = nbReglage(pub.outlier_min_points, 20);
+  // ⭐ UN SEUL OBJET, PASSÉ À LA RÈGLE. Quatre arguments positionnels auraient
+  //   fini par s'inverser — et deux d'entre eux sont des nombres du même ordre.
+  const SEUILS_ECART = { prix: ECART_PRIX, offres: ECART_OFFRES,
+                         points: ECART_POINTS, facteur: FACTEUR_ABERRANT };
+  const CHANGE = { minPoints: 5, minRef: 1, maxAbs: 300 };
+
+  // ⭐ `getReleves()` est FACULTATIF (`chargerFacultatif`) : son absence rend
+  // `[]` et crie, elle n'interrompt pas le build. ⛔ Ne jamais le remplacer par
+  // `load('releves')` — voir le bloc de `warehouse.mjs` qui dit pourquoi.
+  // ═════════════════════════════════════════════════════════════════════════
+  //  🖥️🔴 LES JALONS MEMOIRE — LOT 171. Ils n'ont AUCUN effet sur le calcul.
+  // ═════════════════════════════════════════════════════════════════════════
+  //  Trois builds sont morts en silence en quatre jours, en plein prerender,
+  //  sur un VPS de 7,8 Go SANS SWAP. Aucune trace : ni exception, ni code de
+  //  sortie — la signature d'un conteneur tue par le noyau.
+  //  ⭐⭐⭐ Ces lignes ne reparent rien. Elles font en sorte que la PROCHAINE
+  //  mort dise elle-meme ou etait le pic. Sans elles, tout remede (plafonner
+  //  le tas ? alleger les prix ? couper le prerender ?) choisit sa cible au
+  //  hasard. ⛔ Ne pas les retirer avant que le defaut soit clos.
+  await memoire.plafond();
+  memoire.jalon('avant de lire les sources');
+  // 💱 LOT 181 — le cours OMI entre dans le MÊME `Promise.all`, et pas dans un
+  //    `await` à lui. C'est un fichier de 40 octets : séquencé, il coûterait un
+  //    aller-retour réseau complet en plus, sur le chemin critique d'un build
+  //    qui meurt déjà de sa durée (chantier « durée du déploiement »). En
+  //    parallèle des trois autres, il ne coûte RIEN de mesurable.
+  // ⛔ `chargerFacultatif` ne rejette jamais pour une absence (il rend `[]`) :
+  //    ce `Promise.all` ne peut pas échouer à cause de lui.
+  // 🛰️ LOT 190 — les fiches StackR entrent dans le MÊME `Promise.all`, pour la
+  //    raison exacte du cours OMI trois lignes plus haut : un `await` à lui
+  //    ajouterait un aller-retour réseau complet sur le chemin critique d'un
+  //    build dont la durée est déjà un chantier ouvert.
+  // 💰 LOT 210 — les ventes entrent dans le MEME `Promise.all`, pour la raison
+  //    exacte des deux sources au-dessus : un `await` a lui ajouterait un
+  //    aller-retour reseau complet sur le chemin critique du build.
+  // 📉📈 LOT H — les extrêmes StackR entrent dans le MÊME `Promise.all`, pour
+  //    la raison exacte des trois sources au-dessus : un `await` à lui
+  //    ajouterait un aller-retour réseau complet sur le chemin critique.
+  const [cat, baselines, releves, tauxLignes, fichesSt, lignesVentes, extSt] = await Promise.all([
+    getCatalogue(), getBaselines(), getReleves(), getOmiUsd(), getFichesStackr(), getVentes(),
+    getExtremesStackr()]);
+  memoire.jalon(`catalogue (${cat.length}) + baselines (${baselines.length}) + releves (${releves.length}) lus`);
+  // 🔴🔴 LOT N — LA PORTE DES SETS, AVANT TOUTE AUTRE LECTURE DU CATALOGUE.
+  // Sans `series_uuid` dans l'en-tête, ~3 000 adresses `/collection/`
+  // rebasculeraient sur l'ancien découpage. On échoue ICI, en clair, plutôt
+  // que de servir hier avec la date d'aujourd'hui. Voir `sets.mjs`.
+  exigerColonneSets(cat);
+
+  // --- Agregation EN FLUX -------------------------------------------------
+  // Par item on ne retient que : le nombre total de releves, la date du
+  // premier, et une courte queue des derniers points. La memoire depend du
+  // nombre d'items (~19 000), JAMAIS de la taille du fichier de prix.
+  const known = new Set();
+  for (const c of cat) { const u = c.uuid || c.veve_uuid; if (u) known.add(u); }
+  // ⭐⭐ LA RÉSERVE NE S'OUVRE QUE SI LE SITE VEND DE LA PROFONDEUR.
+  // Porte inactive = tout l'historique est déjà public (vevewiki, ou un site
+  // entièrement gratuit) : écrire une réserve coûterait des dizaines de Mo
+  // dans l'image pour protéger ce que la page donne déjà. Le manifeste décide,
+  // le code obéit — comme pour le thème, la palette et le mode de rendu.
+  if (PORTE_PRIX.actif) reserve.ouvrir();
+  // Porte inactive : pas de fenetre (on remonte a l'origine) et une tranche
+  // d'1 ms, donc un seau par releve — la courbe garde tout. Le calcul du seau
+  // ne doit JAMAIS voir un Infinity : (Inf/Inf) donne NaN, et un NaN en cle de
+  // seau ne provoque aucune erreur — il ecrase tout dans une seule tranche.
+  const BORNE = Number.isFinite(WINDOW_DAYS) && Number.isFinite(MAX_POINTS);
+  const cutoffTs = Number.isFinite(WINDOW_DAYS) ? Date.now() - WINDOW_DAYS * DAY : -Infinity;
+  const BUCKET_MS = BORNE ? Math.max(1, Math.floor((WINDOW_DAYS / MAX_POINTS) * DAY)) : 1;
+  const agg = new Map();
+  await streamPrices((cols, idx) => {
+    // ⭐ UN MODULO PAR LIGNE, RIEN DE PLUS. Le cout est invisible devant le
+    //   decoupage d'une ligne CSV, et c'est le SEUL endroit ou l'on peut voir
+    //   la memoire monter PENDANT la lecture des 2,4 M de releves — un pic
+    //   entre deux jalons est un pic invisible.
+    memoire.pointDeBoucle('lecture des prix');
+    const u = cols[idx.uuid];
+    if (!u || !known.has(u)) return;   // on ignore ce qui n'est pas au catalogue
+    const f = Number(cols[idx.floor]);
+    if (!Number.isFinite(f)) return;
+    const ts = cols[idx.ts];
+    let a = agg.get(u);
+    if (!a) { a = { n: 0, first: ts, buckets: new Map(), tail: [] }; agg.set(u, a); }
+    a.n++;
+    if (ts < a.first) a.first = ts;
+    const pt = { ts, floor: f, listings: Number(cols[idx.listings]) || 0 };
+    // ⛔ UNE SEULE LIGNE, ET ELLE EST À SA PLACE. C'est le seul endroit du
+    // moteur où chaque relèvé passe une fois et une seule. La réserve
+    // bufferise et vide sur disque : la promesse de l'en-tête de cette
+    // fonction (« la mémoire dépend du nombre d'items, JAMAIS de la taille du
+    // fichier de prix ») reste tenue.
+    reserve.point(u, ts, f, pt.listings);
+    // repli : les tout derniers releves, quel que soit leur age (les prix sont
+    // enregistres AU CHANGEMENT : un item stable n'a rien de recent).
+    a.tail.push(pt);
+    if (a.tail.length > 5) a.tail.shift();
+    // courbe publique : un point par tranche, etale sur la fenetre.
+    const t = new Date(ts).getTime();
+    if (Number.isFinite(t) && t >= cutoffTs) {
+      a.buckets.set(Math.floor(t / BUCKET_MS), pt);
+      if (a.buckets.size > MAX_POINTS) a.buckets.delete(Math.min(...a.buckets.keys()));
+    }
+  });
+
+  memoire.jalon(`prix agreges (${agg.size} items suivis)`);
+
+  const bl = new Map();
+  for (const b of baselines) bl.set(b.veve_uuid || b.uuid, b);
+
+  const { par: rel, ignorees: relIgnores } = indexerReleves(releves);
+  const { par: extS } = indexerExtremesStackr(extSt);
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 💱 LOT H ④ — LE COURS DU JOUR, LU **ICI** ET PAS SEULEMENT À LA FIN
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Il était déjà chargé (`tauxLignes`, dans le `Promise.all` ci-dessus) mais
+  // n'était lu qu'à la toute fin, pour être DÉPOSÉ dans la réserve. Les deux
+  // filtres StackR de ce lot ont besoin de sa valeur pendant la construction
+  // des fiches : `floorStackr` arrive en OMI, `floor` est en dollars, et on ne
+  // compare pas deux unités.
+  // ⛔ LA PÉREMPTION EST REFAITE ICI, ET CE N'EST PAS UN DOUBLON. `lireCsv()`
+  // valide la FORME (jamais 0, jamais négatif) ; c'est `lireTaux()` qui juge
+  // l'ÂGE — et lui lit un fichier, donc il n'est pas appelable au build. Un
+  // cours de plus de 24 h veut dire que la chaîne est arrêtée : convertir avec
+  // lui écrirait un écart faux qui a l'air juste, sur 7 000 fiches.
+  // ⭐ `null` et jamais 0 : un cours absent doit faire disparaître les deux
+  //    champs dérivés, pas les mettre à zéro.
+  const tauxBrut = lireTauxCsv(tauxLignes);
+  const AGE_MAX_S = 24 * 3600;
+  const maintenantS = Math.floor(Date.now() / 1000);
+  const omiUsd = tauxBrut && (maintenantS - tauxBrut.ts) <= AGE_MAX_S ? tauxBrut.omiUsd : null;
+  if (tauxBrut && omiUsd === null) {
+    console.log(`[taux] cours OMI PÉRIMÉ (${Math.round((maintenantS - tauxBrut.ts) / 3600)} h)`
+      + ' — les deux filtres StackR (écart, prix) seront sans objet sur toutes les fiches.');
+  }
+  const { par: fst, ignorees: fstIgnores } = indexerFichesStackr(fichesSt);
+  // ⭐⭐ L'INSTRUMENT SE DECLARE, MEME QUAND IL VA BIEN. Un `0` sur cette ligne
+  // est la seule trace, dans 3 000 lignes de log, de la difference entre « la
+  // source est absente » et « la source est la et ne joint rien ».
+  console.log(`[entrepot] releves : ${releves.length} ligne(s), ${rel.size} uuid date(s), ${relIgnores} ligne(s) sans horodate exploitable`);
+  // 🛰️ ET LA COUVERTURE SE DIT TOUT HAUT. Pendant la rotation (~10 jours pour
+  //    un tour complet), la plupart des items n'ont PAS de fiche StackR. Sans
+  //    ce chiffre au journal, une chute de couverture — collecteur en panne,
+  //    release renommée, schéma changé — ressemblerait à un build normal.
+  //    ⭐ C'est le seul endroit où « 0 fiche lue » et « tout va bien » se
+  //    distinguent, et il ne coûte qu'une ligne.
+  console.log(`[entrepot] fiches StackR : ${fichesSt.length} ligne(s), ${fst.size} piece(s) couverte(s)`
+    + ` sur ${cat.length} au catalogue (${cat.length ? Math.round(1000 * fst.size / cat.length) / 10 : 0} %)`
+    + `${fstIgnores ? `, ${fstIgnores} ligne(s) sans horodate exploitable` : ''}`
+    + `${fichesSt.length === 0 ? ' — ⚠️ AUCUNE fiche : les colonnes StackR afficheront « — » partout' : ''}`);
+  // ⭐ Le schema de l'entrepot n'est pas fige : on le JOURNALISE au lieu de le
+  // supposer. Un champ absent ne provoque aucune erreur, il rend juste une
+  // valeur nulle — le defaut le plus difficile a voir. C'est exactement ce qui
+  // a rendu le classement par mediane inoperant pendant un deploiement entier.
+  if (baselines.length) {
+    console.log(`[entrepot] colonnes de prices_baselines : ${Object.keys(baselines[0]).join(', ')}`);
+  }
+
+  const pinPath = join(ROOT, 'sites', SITE, 'slugs.json');
+  let pinned = {};
+  if (existsSync(pinPath)) {
+    try {
+      const brut = JSON.parse(readFileSync(pinPath, 'utf8'));
+      const mig = migrerRacines(brut);
+      pinned = mig.map;
+      if (mig.migres) console.log(`[adresses] ${mig.migres} adresses gelees migrees vers les racines au pluriel`);
+      if (mig.abandonnes.length) console.log(`[adresses] ATTENTION ${mig.abandonnes.length} adresses gelees ecartees (racine inconnue, ex. ${mig.abandonnes[0]})`);
+    } catch (e) { console.log(`[adresses] slugs.json illisible (${e.message}) : on repart sans gel`); }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🕰️🔴🔴 LOT 217 — LA CARTE DES OBSERVATIONS, ET SES DEUX SOURCES
+  // ═══════════════════════════════════════════════════════════════════════
+  // Elle répond à UNE question, et une seule : *jusqu'à quand sait-on que le
+  // prix n'a pas changé ?* C'est la seconde moitié de la courbe en escalier
+  // (Preda, 03/09 : « un prix inchangé est une donnée »).
+  //
+  // ① `releves.csv` — QUAND ON A REGARDÉ LE MARCHÉ. Précis, par pièce… mais
+  //    il dérive de `floor_state.json`, qui ne connaît que ce qui a été LISTÉ.
+  //    Mesuré le 04/09 : 3 003 fiches publiées n'y ont JAMAIS figuré. Étendre
+  //    ce collecteur n'y changerait rien — on ne relève pas le prix de ce que
+  //    personne ne vend.
+  // ② LE CATALOGUE — QUAND ON A REGARDÉ LE CATALOGUE. Une seule date pour
+  //    tout le fichier (son `Last-Modified`), mais elle couvre les 19 786
+  //    pièces, listées ou non.
+  //
+  // 🔴🔴🔴 ET LA ② NE VAUT QUE SI LES DEUX SOURCES DISENT LE MÊME PRIX.
+  // Mesuré le 04/09 sur les 3 359 fiches sans relevé : le `floor` du catalogue
+  // égale le dernier point de la courbe dans 81,5 % des cas, et EN DIFFÈRE
+  // dans 18,5 %. Sur ces 18,5 %, prolonger la courbe à plat jusqu'à la date du
+  // catalogue affirmerait « il valait encore 7,98 » alors que le catalogue
+  // qu'on vient de lire dit 2,56. ⇒ Le désaccord n'est pas une observation :
+  // c'est un point que `price_history` (mode `append`) aurait dû écrire et
+  // n'a pas écrit. On se tait, et la courbe s'arrête au dernier changement.
+  // ⭐ *Deux sources qui se contredisent ne s'additionnent pas : la plus
+  //   fraîche ne devient une observation de l'autre que si elles concordent.*
+  //
+  // ⚠️ `null` EN HORS-LIGNE, jamais « maintenant » : un échantillon n'a pas
+  //    été observé aujourd'hui. `vuLe()` s'en charge, on ne remplace rien ici.
+  const CAT_VU = vuLe('catalogue');
+  const observations = new Map();
+  let obsReleve = 0, obsCatalogue = 0, obsDesaccord = 0;
+  // 🔬 LOT 223 — la MOITIÉ FINE du désaccord (≤ 5 % d'écart relatif). Voir le
+  //   § qui accompagne la ligne de journal, plus bas : sans elle, un seul
+  //   nombre porte deux phénomènes de nature différente.
+  let obsDesaccordFin = 0;
+
+  // --- Candidats ----------------------------------------------------------
+  const candidates = [];
+  let refusesSeuil = 0;
+  for (const c of cat) {
+    const uuid = c.uuid || c.veve_uuid;
+    if (!uuid) continue;
+    const a = agg.get(uuid);
+    if (!a || a.n < MIN_POINTS) { refusesSeuil++; continue; }   // <<< SEUIL : pas de page creuse
+    // 🕰️ LOT 217 — l'observation de CETTE pièce, avant que `agg` soit libéré.
+    // ⭐ `a.tail` porte les tout derniers points, quel que soit leur âge :
+    //   c'est exactement le « dernier changement » auquel le catalogue doit
+    //   être comparé. ⛔ Ne pas prendre `publicHist` : il est ÉCHANTILLONNÉ
+    //   par seaux et son dernier point peut ne pas être le dernier connu.
+    {
+      const relSec = rel.get(uuid)?.sec;
+      let vu = (Number.isFinite(relSec) && relSec > 0) ? relSec : 0;
+      if (CAT_VU && a.tail.length) {
+        const dernier = a.tail[a.tail.length - 1];
+        const fCat = num(c.floor);
+        if (fCat !== null && Math.abs(fCat - Number(dernier.floor)) < 1e-9) {
+          if (CAT_VU > vu) { vu = CAT_VU; obsCatalogue++; }
+        } else if (fCat !== null) {
+          obsDesaccord++;
+          // 🔬 LOT 223 — L'AMPLITUDE DU DÉSACCORD, PARCE QUE LE COMPTE SEUL A
+          //   FAIT CONCLURE FAUX PENDANT SIX LOTS. Voir le § du journal.
+          const fCourbe = Number(dernier.floor);
+          const ref = Math.max(Math.abs(fCat), Math.abs(fCourbe));
+          if (ref > 0 && Math.abs(fCat - fCourbe) / ref <= 0.05) obsDesaccordFin++;
+        }
+      }
+      if (vu > 0) {
+        observations.set(uuid, vu);
+        if (Number.isFinite(relSec) && relSec === vu) obsReleve++;
+      }
+    }
+    const byTs = (x, y) => String(x.ts).localeCompare(String(y.ts));
+    const spread = [...a.buckets.values()].sort(byTs);
+    const publicHist = spread.length >= 2 ? spread : [...a.tail].sort(byTs);
+    if (publicHist.length < 2) { refusesSeuil++; continue; }    // courbe illisible = pas de page
+    const b = bl.get(uuid) || {};
+    const item = {
+      uuid,
+      name: c.name || 'Sans nom',
+      kind: c.kind || 'collectible',
+      rarity: c.rarity || '',
+      // Le NUMERO du fascicule. Chez un comic, `edition_type` porte le
+      // `comicNumber` on-chain — c'est le niveau intermediaire de la hierarchie
+      // serie -> numero -> rarete (cf. ADRESSES plus bas). Present dans
+      // catalogue.csv.gz depuis toujours ; il n'etait simplement pas remonte.
+      edition_type: c.edition_type || '',
+      series: c.series || '',
+      // 🎯 LOT N — LA CLÉ DE SET DE VeVe. Colonne du catalogue depuis
+      // scrapeur-veve `b0aeedf` (08/09/2026) ; `exigerColonneSets()` a déjà
+      // refusé le build si elle manque. Une cellule vide reste vide : la
+      // pièce sera un « orphelin », compté par `construireSets()`.
+      seriesUuid: String(c.series_uuid || '').trim(),
+      brand: c.brand || '',
+      licensor: c.licensor || '',
+      releaseDate: c.release_date || '',
+      // 🔴 LOT 218 — LE MEME DEFAUT, PLUS DISCRET. Un tirage vide devenait
+      // « 0 exemplaire » et un prix boutique vide « 0 $ » : deux affirmations,
+      // la ou il n'y avait pas de mesure. Le market cap du panneau de la piece
+      // (floor x tirage) aurait multiplie par ce zero.
+      tirage: numRenseigne(c.tirage),
+      storePrice: numRenseigne(c.store_price),
+      // 🖼️ LE VISUEL. ⚠️ On ASSAINIT au lieu de faire confiance : une URL qui
+      // vient d'un Sheet est une donnee d'entree comme une autre. Sans ce
+      // filtre, une cellule contenant `javascript:` ou `data:text/html`
+      // atterrirait telle quelle dans un `src` — c'est une injection, servie
+      // par notre propre domaine.
+      // ⭐ On n'accepte QUE du https, et rien d'autre. Une liste blanche de
+      // protocoles ne se contourne pas ; une liste noire, si.
+      image: (() => {
+        const u = String(c.image || '').trim();
+        return u.startsWith('https://') ? u : '';
+      })(),
+      // 🔴🔴 LOT 73 — `veve_url` ÉTAIT DANS LE CATALOGUE ET LE MOTEUR LE JETAIT.
+      // ═══════════════════════════════════════════════════════════════════════
+      // Preda demande un bouton « voir sur VeVe » sur la fiche. Le Marché porte
+      // depuis des semaines le commentaire « ⛔ AUCUNE URL DANS LA DONNÉE, ni
+      // pour VeVe ni pour StackR, ET JE N'EN FABRIQUE PAS ».
+      // C'était FAUX pour VeVe : `catalogue.csv.gz` a 22 colonnes, la 12ᵉ
+      // s'appelle `veve_url` et vaut
+      // `https://www.veve.me/collectibles/en/collectibles/<uuid>`.
+      // ⭐⭐⭐ DIXIÈME FOIS : LA DONNÉE MANQUANTE ÉTAIT DÉJÀ COLLECTÉE PUIS JETÉE.
+      // Et cette fois le refus s'était CRISTALLISÉ EN RÈGLE — « on ne fabrique
+      // pas d'URL » est juste, mais il servait à ne pas aller regarder si on en
+      // avait une. Un principe correct devient un angle mort quand il dispense
+      // de vérifier. → [[regle-donnee-collectee-puis-jetee]]
+      // ⚠️ Même assainissement que `image` : https et rien d'autre. Une URL qui
+      // vient d'un Sheet est une donnée d'entrée comme une autre, et un
+      // `javascript:` dans un `href` est une injection servie par notre domaine.
+      // ⛔ StackR n'a toujours PAS d'URL — celle-là n'existe nulle part, et on
+      //    ne l'invente pas. Le bouton reste, désactivé et dit comme tel.
+      veveUrl: (() => {
+        const u = String(c.veve_url || '').trim();
+        return u.startsWith('https://') ? u : '';
+      })(),
+      // ═══════════════════════════════════════════════════════════════════════
+      // LOT 77 — L'ADRESSE DU MARCHÉ VEVE, ET POURQUOI ELLE NE VIOLE PAS LA RÈGLE
+      // ═══════════════════════════════════════════════════════════════════════
+      // `veve_url` mène à la fiche BOUTIQUE. Preda veut le MARCHÉ, et il a
+      // fourni lui-même les trois motifs, relevés dans son compte :
+      //   collectible          .../collectibles/en/market/collectibles/<id>
+      //   comic (une rareté)   .../collectibles/en/market/comics/<id>
+      //   variantes de couv.   .../collectibles/en/market/comic-covers/<id>
+      //
+      // ⛔ « ON NE FABRIQUE PAS D'URL » RESTE VRAI, et ceci n'en est pas une
+      // fabrication : le MOTIF vient de la source (trois exemples réels), et
+      // l'IDENTIFIANT vient de `veve_url`, qui prouve déjà que VeVe adresse
+      // cette pièce par cet uuid-là (`/collectibles/en/collectibles/<uuid>`
+      // résout et rend la bonne fiche — vérifié le 05/08).
+      // ⭐⭐ LA DIFFÉRENCE EST ENTIÈRE : deviner un motif produit un lien qui a
+      // l'air bon et rend 404 ; dériver un motif OBSERVÉ avec un identifiant
+      // PROUVÉ produit un lien qu'un seul clic suffit à valider. On ne prend
+      // pas moins de précautions, on en prend d'un autre genre.
+      // ⚠️ CE QUI RESTE NON VÉRIFIÉ, ET IL FAUT LE SAVOIR : les pages Marché de
+      // VeVe sont rendues en JavaScript, donc invérifiables depuis le bac à
+      // sable — un mauvais uuid rendrait une page vide, pas une erreur. C'est
+      // Preda qui tranche, en un clic.
+      // ⛔ `comic-covers` n'est PAS produit : il désigne une SÉRIE de variantes
+      //    de couverture, entité que le moteur ne porte pas. On ne devine pas
+      //    un identifiant qu'on n'a pas.
+      veveMarketUrl: (() => {
+        const u = String(c.veve_url || '').trim();
+        if (!u.startsWith('https://')) return '';
+        const id = u.split('/').filter(Boolean).pop();
+        if (!/^[0-9a-f-]{36}$/i.test(id)) return '';
+        const rayon = String(c.kind || '').toLowerCase() === 'comic' ? 'comics' : 'collectibles';
+        // 🔴🔴 REVENU À CETTE FORME LE 06/08/2026 — LE LOT 87 L'AVAIT CASSÉE.
+        // J'avais retiré le segment `/collectibles` en me fondant sur le
+        // paramètre `state` d'une redirection OAuth de VeVe, qui porte
+        // `/en/market/collectibles/<uuid>`. Preda a fourni deux adresses réelles,
+        // prises dans son propre marché : la forme ci-dessous est la BONNE, et
+        // c'est elle qui s'ouvre SANS demander de se connecter.
+        //   collectibles : /collectibles/en/market/collectibles/<uuid>
+        //   comics       : /collectibles/en/market/comics/<uuid>
+        // ⭐⭐⭐ CE QUE J'AI LU COMME UNE PANNE ÉTAIT LA PREUVE DU CONTRAIRE :
+        // `/en/market/…` REDIRIGE vers la connexion, `/collectibles/en/market/…`
+        // rend 200 sans rien demander. J'ai pris le 200 pour une coquille et la
+        // redirection pour la vraie page — l'inverse, exactement.
+        // ⭐⭐ UNE ADRESSE DÉDUITE D'UN PARAMÈTRE INTERNE N'EST PAS UNE ADRESSE
+        // OBSERVÉE. Une seule question à Preda valait mieux que ce raisonnement.
+        return `https://www.veve.me/collectibles/en/market/${rayon}/${id}`;
+      })(),
+      // 🔴 LOT 218 — `pos()` ET `numRenseigne()`, PAS `num()`. Voir le bloc de
+      // `numRenseigne` en tete de fichier : `num('')` rend 0, donc ces deux
+      // lignes ne repliaient jamais. ⭐ `publicHist` a AU MOINS DEUX POINTS ici
+      // (le `continue` du seuil est plus haut), donc l'index ne peut pas rendre
+      // `undefined` — le repli est sur, et il est bon 2 388 fois sur 2 392.
+      floor: pos(c.floor) ?? publicHist[publicHist.length - 1].floor,
+      listings: numRenseigne(c.listings) ?? publicHist[publicHist.length - 1].listings,
+      // Un catalogue qui renvoie 0 veut dire « je ne sais pas », pas « zero ».
+      // `??` ne rattrape PAS un 0 : la fiche affichait « plus haut historique : 0 »
+      // juste au-dessus d'un prix a 42 000 milliards.
+      ath: pos(c.ath) ?? pos(b.floor_max),
+      atl: pos(c.atl) ?? pos(b.floor_min),
+      // 📅 Les dates des extrêmes. ⭐ Sans elles, « plus haut : 1 750 » ne dit
+      // pas QUAND — et c'est la date qui transforme un nombre en information.
+      // ⚠️ Repli sur les bornes de la baseline si le catalogue ne les a pas :
+      // `first_ts`/`last_ts` ne sont PAS les dates des extrêmes, donc on ne s'y
+      // rabat pas. Mieux vaut pas de date qu'une date fausse.
+      // 📝 LA DESCRIPTION et 📕 LE VRAI TITRE DU COMIC — colonnes ajoutees a
+      // `catalogue.csv.gz` le 01/08/2026 (lot scrapeur-veve du meme jour).
+      // ⭐ LUES SANS ETRE EXIGEES, et c'est ce qui rend ce lot deposable AVANT
+      // que la chaine de collecte ait tourne : un catalogue qui ne les porte
+      // pas encore rend `null`, et les gabarits n'affichent rien. Aucune page
+      // ne casse, aucune erreur, et le jour ou la colonne arrive elle
+      // s'affiche sans redeploiement du site.
+      // ⛔ `nomAffiche` NE REMPLACE PAS `name` : `name` nourrit le slug, et
+      // les adresses sont gelees. On ajoute un champ d'AFFICHAGE a cote, on
+      // ne renomme pas l'identite.
+      description: String(c.description || '').trim() || null,
+      nomComic: String(c.veve_comic_name || '').trim() || null,
+      athDate: String(c.ath_date || '').trim() || null,
+      atlDate: String(c.atl_date || '').trim() || null,
+      // ═══════════════════════════════════════════════════════════════════════
+      // LOT 144 — LES DEUX HORLOGES, ET ELLES NE DISENT PAS LA MEME CHOSE
+      // ═══════════════════════════════════════════════════════════════════════
+      // ⭐⭐⭐ `releveLe` = QUAND ON A REGARDE.  `derniereVariation` = QUAND CA
+      // A BOUGE. Sur un fichier append-on-change, la seconde peut avoir six mois
+      // pendant que la premiere date de ce matin — et c'est alors la preuve
+      // d'une STABILITE, pas d'un abandon. Confondre les deux est exactement ce
+      // qui faisait afficher l'heure du DEPLOIEMENT sur 1 200 fiches.
+      // → [[regle-deux-horloges-changement-observation]]
+      //
+      // ⚠️ LE COMMENTAIRE DE LA JAUGE, QUELQUES LIGNES PLUS HAUT, N'EST PAS
+      // CONTREDIT : il refuse `last_ts` comme date d'un EXTREME, et il a raison
+      // — « plus haut historique atteint le <last_ts> » serait faux. Ici on ne
+      // dit rien d'un extreme, on dit la date du dernier CHANGEMENT. Le refus
+      // est etendu, pas leve : ⛔ `derniereVariation` ne doit JAMAIS servir de
+      // repli a `athDate`/`atlDate`.
+      //
+      // ⭐ `b.last_ts` etait DEJA CHARGE (`bl.get(uuid)`) et jete — quatorzieme
+      // occurrence dans ce dossier. → [[regle-donnee-collectee-puis-jetee]]
+      // 🔴 Il a fallu, pour le rendre mesurable hors ligne, corriger
+      // `engine/data/sample/prices_baselines.csv` : la production a 16 colonnes,
+      // l'echantillon en avait 13, et `first_ts`/`last_ts` en faisaient partie.
+      // Sans ce correctif, ce champ aurait ete `null` dans TOUS les bancs.
+      derniereVariation: String(b.last_ts || '').trim().slice(0, 10) || null,
+      // 🌐 PUBLICS, ET LA LIGNE DE PARTAGE EST ECRITE DANS `cote.mjs`. Une date
+      // de relevement ne DESIGNE aucun montant — contrairement a `athDate`,
+      // qui croisee a une courbe pointe un prix. Le montant, lui (`floorStackr`),
+      // part derriere le mur.
+      // ⭐ `releveLe` RESTE, et il garde exactement son sens : le plus frais
+      // des deux marches. C'est ce que le PIED DE PAGE doit dire — « la donnee
+      // de cette page a ete regardee le … » ne parle d'aucun marche en
+      // particulier. ⛔ Ce qu'il ne doit plus faire, c'est atterrir sous UN
+      // plancher : un mur porte la date de SON marche, ou rien.
+      // 🔴🔴🔴 LOT G — LE PIED PORTE LA DATE QUE LES MURS **AFFICHENT**.
+      // ⭐⭐⭐ ET C'EST MA DEUXIÈME ÉCRITURE : la première faisait entrer
+      // `vuStackrLe` dans le pied sans regarder ce que le mur montrait, et
+      // `test:fraicheur` a rougi dans l'AUTRE sens — 17 fiches où le PIED
+      // DÉPASSAIT les deux murs (pied 25/08, mur StackR 12/08). J'avais corrigé
+      // le mur, puis daté le pied avec une horloge que le mur n'affiche pas
+      // toujours. *Deux nœuds qui se contredisent ne se réconcilient pas en
+      // avançant l'un des deux : il faut nommer CE QUI EST MONTRÉ.*
+      //
+      // 🔑 LA DATE DU MUR StackR, DÉCIDÉE ICI ET UNE SEULE FOIS :
+      //   · des offres en cours ⇒ la date du PRIX (`stackrObsSec`) ;
+      //   · aucune offre        ⇒ la date du REGARD (`fst.sec`), car il n'y a
+      //     pas de prix à dater et « vérifié le … » est ce que la fiche dit.
+      // ⛔ Ce champ ne remplace pas `releveStackrLe`, qui garde son sens strict
+      //   (« on y a vu un prix ») et son banc (mutant M8 de `test:fraicheur`).
+      //   Il nomme ce que le GABARIT affiche, pour que le pied puisse s'aligner
+      //   dessus sans le recalculer — deux endroits qui décident d'une même
+      //   date, c'est la contradiction qu'on vient de payer.
+      // ═══════════════════════════════════════════════════════════════════════
+      // 🕐🔴🔴🔴 « AUCUNE OFFRE » EST UN FAIT **DATÉ** — CORRECTIF DU 06/09, 2ᵉ PASSE
+      // ═══════════════════════════════════════════════════════════════════════
+      // 🔴 CE QUI A CASSÉ LE DÉPLOIEMENT `6930559` : `test:fraicheur` a rougi sur
+      // **49 fiches où le pied dépassait ses deux murs**. Mon bac à sable était
+      // VERT — son échantillon de 90 fiches ne contient pas ce cas. La CI, elle,
+      // juge un `dist/` bâti EN LIGNE sur 9 354 fiches.
+      // ⭐⭐⭐ *L'échantillon hors ligne n'écrit pas la même forme que le réel* —
+      // → [[regle-echantillon-hors-ligne-angle-mort]], et cette fois il a coûté
+      // un déploiement.
+      //
+      // LA CAUSE, MESURÉE SUR LES DEUX SOURCES (exemple `6241489d`) :
+      //   · `releves.csv`      : source=stackr, **2026-09-05**, floor 635 593 OMI
+      //   · `fiches_stackr.csv`: **2026-09-04**, offres_en_cours = **0**
+      // Les deux sources se contredisent, et **la plus récente est celle qui voit
+      // un prix**. Ma règle « `offres === 0` ⇒ aucune offre » comparait deux faits
+      // SANS COMPARER LEURS DATES : la fiche annonçait « aucune offre en vente,
+      // vérifié le 04/09 » alors qu'un prix avait été relevé le 05/09.
+      // ⭐⭐ C'est exactement la faute des DEUX HORLOGES que le lot 146 a déjà
+      // payée un mur plus loin, et que ce lot croyait justement corriger.
+      //
+      // ⇒ « AUCUNE OFFRE » NE VAUT QUE SI LE REGARD EST AU MOINS AUSSI RÉCENT QUE
+      //   LE DERNIER PRIX VU. Sinon le prix, plus frais, a le dernier mot.
+      // 📏 MESURÉ SUR LES 9 354 FICHES PUBLIÉES : **127 fiches** avaient un prix
+      //   POSTÉRIEUR à leur « 0 offre ». 49 faisaient rougir le pied ; **les 78
+      //   autres mentaient en silence** — aucun banc ne les voyait.
+      // ⛔ Ne pas « assouplir » `test:fraicheur` : il disait vrai, et il a trouvé
+      //   un défaut plus large que celui qu'il signalait.
+      stackrSansOffre: (() => {
+        const offres = fst.get(uuid)?.offres;
+        if (offres !== 0) return false;
+        const prix = rel.get(uuid)?.stackrObsSec;
+        const regard = fst.get(uuid)?.sec;
+        // ⚠️ `>` ET NON `>=` : à égalité de date, le comptage d'offres est la
+        //   mesure la plus précise (il dit ZÉRO explicitement), le relevé de prix
+        //   ne dit que « il y en avait un ce jour-là ».
+        return !(Number.isFinite(prix) && Number.isFinite(regard) && prix > regard);
+      })(),
+      // ⭐ LA DATE QUE LE MUR AFFICHE — elle suit le prédicat ci-dessus, jamais
+      //   `offres === 0` en direct : deux endroits qui décident du même état
+      //   finissent par en décider deux.
+      releveStackrAffiche: (() => {
+        const offres = fst.get(uuid)?.offres;
+        const prix = rel.get(uuid)?.stackrObsSec;
+        const regard = fst.get(uuid)?.sec;
+        const sansOffre = offres === 0
+          && !(Number.isFinite(prix) && Number.isFinite(regard) && prix > regard);
+        const sec = sansOffre
+          ? (Number.isFinite(regard) ? regard : prix)
+          : (Number.isFinite(prix) ? prix : regard);
+        return Number.isFinite(sec) ? jourDeReleve(sec) : null;
+      })(),
+      // ⭐ LE PIED = LE PLUS FRAIS DES DEUX MURS, ET RIEN D'AUTRE. C'est ce que
+      //   `test:fraicheur` § ④ vérifie depuis le lot 146, et ce que la phrase
+      //   du pied promet : « la donnée de cette page a été regardée le … ».
+      releveLe: (() => {
+        const veve = rel.get(uuid)?.veveSec ?? -Infinity;
+        const offres = fst.get(uuid)?.offres;
+        const prix = rel.get(uuid)?.stackrObsSec ?? -Infinity;
+        const regard = fst.get(uuid)?.sec ?? -Infinity;
+        const sansOffre = offres === 0
+          && !(Number.isFinite(prix) && Number.isFinite(regard) && prix > regard);
+        const st = sansOffre ? (Number.isFinite(regard) ? regard : prix)
+                             : (Number.isFinite(prix) ? prix : regard);
+        const m = Math.max(veve, st, rel.has(uuid) ? rel.get(uuid).sec : -Infinity);
+        return Number.isFinite(m) ? jourDeReleve(m) : null;
+      })(),
+      releveSource: rel.has(uuid) ? (rel.get(uuid).source || null) : null,
+      // 🔴 LOT 146 — UNE DATE PAR MUR. `-Infinity` est le « jamais observe » de
+      // `indexerReleves` ; `Number.isFinite` est le seul test qui l'ecarte
+      // (⛔ `if (sec)` laisserait passer -Infinity, ⛔ `> 0` aussi).
+      releveVeveLe: Number.isFinite(rel.get(uuid)?.veveSec)
+        ? jourDeReleve(rel.get(uuid).veveSec) : null,
+      releveStackrLe: Number.isFinite(rel.get(uuid)?.stackrObsSec)
+        ? jourDeReleve(rel.get(uuid).stackrObsSec) : null,
+      // ═══════════════════════════════════════════════════════════════════════
+      // 🛰️🔴🔴🔴 LOT G — « ON A REGARDÉ » N'EST PAS « IL Y AVAIT UN PRIX »
+      // ═══════════════════════════════════════════════════════════════════════
+      // MESURÉ LE 06/09 SUR LES PAGES SERVIES, PAS SUR LE CATALOGUE :
+      // **3 646 fiches sur 9 354 (39,0 %)** affichaient « Not collected yet »
+      // alors que StackR les avait bien regardées. Dans 3 633 cas la vérité
+      // était « aucune offre en vente » ; dans 13 cas il y avait même des
+      // offres. Une SEULE fiche sur 9 354 n'a jamais été regardée — le libellé
+      // était donc faux dans 3 646 des 3 647 cas où il s'affichait.
+      //
+      // 🔑 LA CAUSE : `releveStackrLe` vient de `releves.csv`, qui n'enregistre
+      // une ligne QUE SI UN PRIX A ÉTÉ TROUVÉ (6 726 uuid). `fiches_stackr.csv`
+      // en porte 19 893 avec un `ts_releve` TOUJOURS rempli : c'est lui qui dit
+      // « on a regardé ». Les deux horloges répondent à deux questions, et le
+      // gabarit posait la seconde en lisant la première.
+      //
+      // ⭐⭐⭐ ET LA RÈGLE ÉTAIT DÉJÀ ÉCRITE VINGT LIGNES PLUS HAUT, dans le
+      // commentaire d'`indexerFichesStackr` : « `nombre` refuse la chaîne vide,
+      // sinon "aucune brûlée" serait indistinguable de "jamais visité" ». La
+      // couche du dessus la violait. *Une leçon apprise sur un champ ne se
+      // généralise pas toute seule au champ d'à côté.*
+      // → [[regle-lecon-non-generalisee]] · [[regle-donnee-collectee-puis-jetee]]
+      //
+      // ⛔ CE CHAMP NE REMPLACE PAS `releveStackrLe`, IL LE COMPLÈTE. Trois
+      // horloges distinctes cohabitent maintenant, et les confondre est la
+      // faute que le lot 146 a déjà payée un mur plus loin :
+      //   · `releveStackrLe` — le jour où NOUS avons vu un PRIX chez StackR ;
+      //   · `vuStackrLe`     — le jour où NOUS avons REGARDÉ la fiche StackR ;
+      //   · `floorMajStackr` — le jour où EUX datent leur propre plancher.
+      //
+      // 🌐 PUBLIC, et par la même ligne de partage que les deux autres dates
+      // (`cote.mjs`) : une date d'observation ne DÉSIGNE aucun montant. Il est
+      // ajouté à `CHAMPS_FRAICHEUR`, donc l'invariant de `cote.mjs` refusera de
+      // charger le module si quelqu'un le bascule un jour en réservé.
+      vuStackrLe: Number.isFinite(fst.get(uuid)?.sec)
+        ? jourDeReleve(fst.get(uuid).sec) : null,
+      // 🔒 UN PRIX. Il entre dans `CHAMPS_COTE` et n'atteint donc jamais le HTML
+      // public. ⛔ EN OMI, et ⛔⛔ AUCUNE conversion vers le dollar : `sfloors`
+      // et `vfloors` sont deux MARCHES (rapport median 4 423, p10 2 273,
+      // p90 8 520). Le taux OMI horodate n'est stocke nulle part.
+      floorStackr: rel.get(uuid)?.stackr ?? null,
+      // ═══════════════════════════════════════════════════════════════════════
+      // 📉📈 LOT H — LE PLUS-BAS ET LE PLUS-HAUT StackR
+      // ═══════════════════════════════════════════════════════════════════════
+      // 🔒 DEUX PRIX : ils sont dans `CHAMPS_COTE`, donc ils n'atteignent
+      // jamais le HTML public. 💵 EN DOLLARS, au cours du moment de
+      // l'observation — ⛔ contrairement à `floorStackr` juste au-dessus, qui
+      // est en OMI. Les deux unités cohabitent dans cet objet et il ne faut
+      // JAMAIS les additionner : c'est le collecteur qui a converti, à un
+      // cours qu'on ne connaît plus.
+      // ⚠️ `ath` SERA `null` PARTOUT PENDANT DES JOURS : la mémoire du
+      // plus-haut naît avec ce lot. Ce n'est pas une panne, et le gabarit doit
+      // le rendre comme un silence, pas comme un tiret « en attente » qui
+      // promettrait une collecte déjà faite.
+      atlStackr: extS.get(uuid)?.atl ?? null,
+      athStackr: extS.get(uuid)?.ath ?? null,
+      // ═══════════════════════════════════════════════════════════════════════
+      // 💱 LOT H ④ — LE PLANCHER StackR EN DOLLARS, ET L'ÉCART AVEC VeVe
+      // ═══════════════════════════════════════════════════════════════════════
+      // 🔒 DEUX PRIX (le second en est un aussi : un pourcentage d'écart plus
+      // UN des deux planchers redonne l'autre). Ils entrent dans `CHAMPS_COTE`
+      // et n'atteignent jamais le HTML public.
+      //
+      // ⭐⭐⭐ ET C'EST **LA** CONVERSION QUE `cote.mjs` INTERDIT, FAITE
+      // EXPRÈS — il faut donc dire pourquoi elle est permise ici. Son
+      // commentaire écrit : « ⛔ Il ne se convertit PAS en dollars : `sfloors`
+      // (OMI) et `vfloors` (USD) sont deux MARCHÉS, rapport non constant ».
+      // Il a raison sur ce qu'il vise : on ne DÉDUIT pas un plancher VeVe d'un
+      // plancher StackR. Mais convertir un montant OMI en dollars AU COURS DE
+      // L'OMI est une opération de DEVISE, qui ne traverse aucun marché — et
+      // c'est justement ce que mesure l'écart : *combien de dollars sépare les
+      // deux places*. Le rapport non constant n'est pas un obstacle, c'est
+      // l'OBJET du filtre.
+      // ⛔ En revanche on ne remplace RIEN : `floorStackr` reste en OMI, à côté.
+      //
+      // ⚠️ L'ÉCART EST POSITIF QUAND StackR EST MOINS CHER, parce que c'est le
+      // sens dans lequel la question se pose (« où puis-je payer moins ? »).
+      // Un signe choisi à l'envers rendrait « écart ≥ 20 % » incompréhensible.
+      floorStackrUsd: (() => {
+        const o = rel.get(uuid)?.stackr;
+        return omiUsd !== null && Number.isFinite(o) && o > 0 ? o * omiUsd : null;
+      })(),
+      ecartStackr: (() => {
+        const o = rel.get(uuid)?.stackr;
+        // ⚠️ LE MÊME PLANCHER QUE LA LIGNE `floor:` CINQUANTE LIGNES PLUS
+        // HAUT, ET IL EST RECALCULÉ ICI PARCE QUE L'OBJET N'EST PAS ENCORE
+        // CONSTRUIT — on ne peut pas lire `i.floor` depuis l'intérieur du
+        // littéral qui le crée. ⛔ Le RECOPIER serait deux vérités sur « quel
+        // est le plancher » ; on recopie donc l'EXPRESSION, dont le repli
+        // (`publicHist`) est celui du lot 218, `pos()` compris — un `num()`
+        // rendrait 0 et l'écart vaudrait 100 % sur toute fiche sans plancher.
+        const v = Number(pos(c.floor) ?? publicHist[publicHist.length - 1].floor);
+        if (omiUsd === null || !Number.isFinite(o) || o <= 0) return null;
+        if (!Number.isFinite(v) || v <= 0) return null;
+        return ((v - o * omiUsd) / v) * 100;
+      })(),
+      // 📅 LES DATES RESTENT PUBLIQUES — voir `CHAMPS_COTE` : « on a regardé le
+      // 3 septembre » ne dit aucun prix. Même ligne de partage que `vuStackrLe`.
+      atlStackrLe: Number.isFinite(extS.get(uuid)?.atlSec)
+        ? jourDeReleve(extS.get(uuid).atlSec) : null,
+      athStackrLe: Number.isFinite(extS.get(uuid)?.athSec)
+        ? jourDeReleve(extS.get(uuid).athSec) : null,
+      // ═══════════════════════════════════════════════════════════════════════
+      // 🛰️ LOT 190 — CE QUE STACKR SAIT ET QUE NOUS N'AVIONS PAS
+      // ═══════════════════════════════════════════════════════════════════════
+      // ⭐⭐⭐ TOUS CES CHAMPS SONT `null` QUAND LA ROTATION N'A PAS ENCORE VU LA
+      // PIÈCE, ET `null` N'EST PAS `0`. `?? null` et non `|| null` : `|| null`
+      // transformerait « aucune édition brûlée » (0, un fait mesuré) en « on ne
+      // sait pas » (null) — et la fiche afficherait « — » là où elle devrait
+      // afficher « 0 ». La distinction porte sur ~90 % du catalogue pendant
+      // toute la rotation, elle n'est donc pas théorique.
+      //
+      // 🌐 PUBLICS, ET LA LIGNE DE PARTAGE EST CELLE DE `cote.mjs` : un PRIX va
+      // derrière le mur, un FAIT reste public. `floorStackr` est un prix et y
+      // reste. Combien de pièces existent, combien ont été détruites, combien
+      // sont en vente : ce sont des faits de catalogue, du même ordre que
+      // `tirage` et `listings`, qui sont publics depuis toujours. ⛔ Les fermer
+      // « par prudence » fermerait ce que le site a vocation à dire.
+      circulationStackr: fst.get(uuid)?.circulation ?? null,
+      bruleesStackr: fst.get(uuid)?.brulees ?? null,
+      emisesStackr: fst.get(uuid)?.emises ?? null,
+      offresStackr: fst.get(uuid)?.offres ?? null,
+      // ⛔⛔ `market_fee` EST LU PAR L'INDEXEUR ET **N'EST PAS PROJETÉ**, ET CE
+      //    N'EST PAS UN OUBLI. La fiche affiche DÉJÀ des frais de marché
+      //    (`item.fraisMarche`, clé `item.marketFee`), qui viennent du
+      //    catalogue. Projeter celui de StackR donnerait au site DEUX vérités
+      //    sur la même question, dans deux unités différentes (fraction ici,
+      //    pourcentage là) — et c'est ainsi qu'on obtient « 200 % » un jour de
+      //    refactoring. ⭐ Le champ reste lu par `indexerFichesStackr` : si un
+      //    écart entre les deux sources devient intéressant, il est à un seul
+      //    `?.frais` d'ici. Tant que personne ne l'a demandé, il ne sort pas.
+      //    → *un champ qui porte deux sens ne casse rien : il fait dire au
+      //      gabarit une chose vraie sous une étiquette fausse.*
+      // 🕰️ LA DATE DE RELEVÉ DU FLOOR SELON STACKR — ce que le projet cherchait.
+      // ⚠️ VIDE SUR LES COLLECTIBLES (mesuré sur les 2 000 premières fiches du
+      //    25/08) : leur API ne porte pas ce champ. ⛔ Ne pas le remplacer par
+      //    `releveStackrLe` : celui-là date NOTRE observation, celui-ci date
+      //    LEUR prix. Deux horloges, encore — et les confondre est la faute que
+      //    le lot 146 a déjà payée un mur plus loin.
+      floorMajStackr: fst.get(uuid)?.floorMaj ?? null,
+      // ═══════════════════════════════════════════════════════════════════════
+      // LES SIX COLONNES QUE LE CATALOGUE PORTAIT ET QUE CE FICHIER JETAIT
+      // ═══════════════════════════════════════════════════════════════════════
+      // 🔴🔴 CE QU'IL FAUT AVOIR COMPRIS AVANT DE RELIRE CE BLOC.
+      // Le lot 78 (cote `scrapeur-veve`) a sorti `season` de `DROP_COLUMNS` et
+      // elargi `catalog_export.py`. Le message de passation en concluait que
+      // « la fiche se remplit SANS lot cote site ». C'etait faux, et le
+      // commentaire d'`Item.astro` l'affirmait aussi : « la fiche se remplira
+      // toute seule le jour ou l'export s'elargit — aucun gabarit a retoucher ».
+      // ⛔ CE FICHIER NE FAIT PAS PASSE-PLAT : il PROJETTE, champ par champ.
+      // Une colonne qui n'est pas nommee ici n'existe pas pour le moteur, quoi
+      // qu'en dise le CSV. Mesure du 05/08 sur le catalogue publie a 16h13 :
+      // 28 colonnes, `season` remplie sur 2 720 / 2 720 collectibles — et zero
+      // ligne du site l'affichait.
+      // ⭐⭐⭐ ONZIEME OCCURRENCE DE « COLLECTEE PUIS JETEE », et la premiere ou
+      // c'est un COMMENTAIRE RASSURANT qui a tenu lieu de verification. Les dix
+      // precedentes se lisaient dans le code ; celle-ci se lisait dans une
+      // phrase qui promettait que le code n'avait pas besoin d'etre lu.
+      //
+      // ⚠️ NOMS ET FORMATS RELEVES DANS LE CSV PUBLIE, PAS DEDUITS DU CODE
+      // AMONT — et l'ecart compte :
+      //   market_fee   '8.5%' (chaine, deja convertie) et NON 85 dixiemes de %.
+      //                Le commentaire de `catalog_export.py` decrit son ENTREE ;
+      //                appliquer /10 ici aurait divise une valeur deja divisee
+      //                et affiche « 0,85 % » partout, sans qu'aucun test crie.
+      //   drop_method  RESERVATION | WAITLIST | CRAFT | AUCTION (4 valeurs)
+      //   is_blindbox  'TRUE' / 'FALSE' — chaines, pas des booleens JSON
+      //   season       1..12, COLLECTIBLES SEULEMENT (`COMIC_QUERY` ne demande
+      //                pas `series`, donc la colonne restera vide sur 🟢C-COMICS
+      //                — ce n'est pas un trou a combler, c'est une frontiere)
+      //   start_year   COMICS seulement, 16 560 / 16 597
+      // ⭐ LUES SANS ETRE EXIGEES, comme `description` avant elles : un
+      // catalogue anterieur rend `null` et la fiche est exactement celle
+      // d'avant. Le lot est donc deposable meme si un export echoue.
+      saison: pos(c.season),
+      premiereEdition: pos(c.first_available_edition),
+      anneeDebut: pos(c.start_year),
+      // ⚠️ `%` RETIRE AVANT `num()` : `Number('8.5%')` rend NaN, donc `num()`
+      // aurait rendu `null` sur les 19 280 lignes — un echec TOTAL et MUET,
+      // impossible a distinguer d'une colonne absente.
+      fraisMarche: pos(String(c.market_fee || '').replace('%', '')),
+      // ⛔ BRUT, PAS TRADUIT ICI. Le moteur transporte la valeur de la source ;
+      // c'est le gabarit qui decide comment la dire, et dans quelle langue.
+      methodeDrop: String(c.drop_method || '').trim().toUpperCase() || null,
+      // ⚠️ TRANSPORTE MAIS PAS ENCORE AFFICHE : aucune cle i18n `item.blindbox`
+      // n'existe dans les 5 dictionnaires, et on n'invente pas un libelle dans
+      // cinq langues sans arbitrage. Il coute zero ligne et il est le vrai
+      // discriminant collectible/comic du catalogue (2 720 non vides).
+      blindbox: c.is_blindbox === 'TRUE' ? true : (c.is_blindbox === 'FALSE' ? false : null),
+      // ⚠️ NOMS REELS DES COLONNES (verifies dans scraper/price_baseline.py) :
+      // floor_min, floor_p5, floor_p25, floor_p50, floor_p75, floor_p95,
+      // floor_max, listings_p50... — les percentiles sont PREFIXES.
+      // J'avais ecrit `p50`/`p95` d'apres mon echantillon : silencieusement
+      // null en production, donc score et avertissement inoperants. Comme
+      // floor_min/floor_max, eux, coincidaient, l'ATH s'est reparé et le reste
+      // non — le defaut etait invisible. Les alias sont gardes par prudence.
+      // PAS DE REPLI SUR UN AUTRE PERCENTILE : se rabattre sur floor_p25
+      // reviendrait a classer sur une autre statistique sans le dire, et
+      // masquerait un changement de schema — la faute meme qu'on repare ici.
+      // Absence = null = le journal et le test le crient.
+      prixMedian: pos(b.floor_p50) ?? pos(b.p50) ?? null,
+      p95: pos(b.floor_p95) ?? pos(b.p95) ?? null,
+      offresMedianes: pos(b.listings_p50) ?? null,
+      history: publicHist,
+      points: publicHist.length,
+      totalPoints: a.n,
+      since: a.first,
+      change7d: pctChange(publicHist, 7, CHANGE),
+      change30d: pctChange(publicHist, 30, CHANGE),
+    };
+    item.type = typeDe(item);
+    item.racine = RACINE[item.type];
+    // PRIX NON REPRESENTATIF. On ne censure pas la donnee — elle est vraie — mais
+    // on refuse de la presenter comme un prix de marche. Le repere est le p95 de
+    // l'objet LUI-MEME : chaque piece est comparee a sa propre histoire, jamais a
+    // une echelle globale (un objet a 5 000 gems n'a rien d'anormal en soi).
+    const repere = item.p95 || item.prixMedian;
+    item.prixAberrant = !!(repere && item.floor && item.floor > repere * FACTEUR_ABERRANT);
+    // 🔴🔴 LOT 193 — LE PLANCHER ECARTE. ⛔ CE N'EST PAS `prixAberrant`, ET LES
+    // DEUX DOIVENT COEXISTER : `prixAberrant` compare au **p95** et SIGNALE sur
+    // la fiche (« ce prix n'est pas representatif ») — il ne retire rien.
+    // Celui-ci compare a la **mediane**, exige la solitude de l'offre, et
+    // RETIRE du classement. Reunir les deux, ce serait soit se mettre a cacher
+    // ce qu'on signalait, soit se mettre a signaler ce qu'on cache.
+    // ⚠️ MESURE DU CHOIX p95 CONTRE MEDIANE : sur les memes 13 630 pieces, le
+    //    critere `> 10 x p95` n'ecarte que 11 lignes, parce que le p95 est
+    //    LUI-MEME tire vers le haut par les farceurs qu'on cherche. La mediane
+    //    leur resiste. C'est pour ca qu'elle juge ici et le p95 la-bas.
+    // ⛔ `listings` peut valoir 0, et `0 <= 2` est vrai : c'est VOULU. Un
+    //    plancher a 9 999 999 $ que PLUS PERSONNE ne porte est le cas le plus
+    //    net de tous — mesure : 44 des 188. Un `if (listings)` les aurait tous
+    //    laisses passer, en silence.
+    // ⭐ POSE SEULEMENT QUAND IL EST VRAI, comme `ed` dans `maigrir()`. Un
+    //   `floorEcarte: false` recopie sur 8 750 lignes, c'est 175 Ko de JSON
+    //   pour dire « rien a signaler » — exactement les 124 Ko que le
+    //   commentaire de `maigrir()` refuse deux fichiers plus loin. La lecture
+    //   n'y perd rien : `undefined` et `false` sont tous deux faux, et aucun
+    //   des deux cotes n'a besoin de distinguer « non ecarte » de « pas dit ».
+    if (planchierEcarte(item, SEUILS_ECART)) item.floorEcarte = true;
+    // ⭐⭐ LOT 101 — L'AMPLITUDE EST CALCULEE ICI, ET C'EST DELIBERE.
+    // `ath / atl` est un RAPPORT : il ne porte aucune unite et ne permet pas
+    // de reconstituer un montant (« ce jouet a fait ×12 » ne dit pas s'il vaut
+    // 3 gems ou 3 000). Il reste donc public, et c'est ce qui permet a l'outil
+    // d'amplitude d'`/analytics/` de continuer a faire ce pour quoi il existe :
+    // montrer un VRAI outil sur de la VRAIE donnee a qui ne paie pas encore.
+    // ⛔ Il DOIT etre calcule avant `projeter()` — apres, `ath` et `atl` ont
+    // disparu et le rapport vaudrait `NaN`, sur toutes les lignes, en silence.
+    // ⚠️ On garde le filtre historique `atl <= ath` : une paire incoherente
+    // rend `null`, jamais un nombre qu'il faudrait ensuite ecarter a l'ecran.
+    item.amplitude = (item.atl > 0 && item.ath > 0 && item.atl <= item.ath)
+      ? item.ath / item.atl : null;
+    item.offreUnique = (item.listings ?? 0) <= 1;
+    item.score = scoreUtilite(item);
+    candidates.push(item);
+  }
+  // ⭐⭐ L'INSTRUMENT SE DÉCLARE, MÊME QUAND IL VA BIEN — comme `[entrepot]
+  //    releves`.
+  //
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🔴🔴🔴 LOT 223 — CE COMPTEUR A FAIT CONCLURE FAUX PENDANT SIX LOTS
+  // ═══════════════════════════════════════════════════════════════════════
+  // ⛔⛔ CE QUE CE COMMENTAIRE DISAIT, ET QUI ÉTAIT FAUX : « `desaccord` est le
+  //   SEUL endroit d'où l'on verra que `price_history` (mode `append`) prend du
+  //   retard sur le catalogue. Une hausse de ce chiffre est une panne de
+  //   collecte, pas un défaut du site. » Trois notes de reprise l'ont recopié,
+  //   et un chantier entier a été cadré dessus.
+  //
+  // 🔬 MESURÉ LE 04/09 SUR LES DEUX FICHIERS RÉELLEMENT PUBLIÉS :
+  //   · `catalogue.csv.gz` → `Last-Modified: 2026-09-03T11:41:24Z`
+  //   · `prices.csv.gz`    → `Last-Modified: 2026-09-03T11:42:08Z`
+  //   **Une minute d'écart.** `price-history.yml` TÉLÉCHARGE le catalogue pour
+  //   écrire ses points : les deux fichiers descendent de la même moisson.
+  //   ⇒ *Il n'y a aucun retard de l'un sur l'autre, et il ne peut pas y en
+  //     avoir.* Et le fichier de prix est trié : sur 14 090 items, ZÉRO où la
+  //     dernière ligne diffère du point le plus récent.
+  //
+  // ⇒ CE QUE LE CHIFFRE MESURE VRAIMENT : deux sources qui ont observé le
+  //   marché à deux INSTANTS différents et n'ont pas vu le même prix. C'est
+  //   normal sur un marché vivant, et la règle de trois lignes plus haut est
+  //   la bonne — *la plus fraîche ne devient une observation de l'autre que si
+  //   elles concordent* : **la COURBE fait foi sur la valeur, le catalogue ne
+  //   fait que prolonger la DATE quand il la confirme.** Rien à réparer là.
+  //
+  // ⭐⭐ CE QUI MANQUAIT, C'EST L'ÉCHELLE. Distribution mesurée le 04/09 sur
+  //   les 11 702 pièces comparables : 8 260 concordent · 69 à un centime ·
+  //   331 sous 5 % · **3 111 avec un écart réel** (médiane 3,50 $). Un compte
+  //   unique mélangeait « 7,98 contre 8,00 » et « 44 contre 9 999 999 ».
+  //   ⛔ Et il n'y a AUCUN bruit de représentation : rien entre 1e-9 et un
+  //     centime. La comparaison stricte est donc juste — j'ai failli poser une
+  //     tolérance d'arrondi contre un phénomène qui n'existe pas.
+  //     *Une classe nommée « arrondi » dans une note n'est pas un arrondi.*
+  console.log(`[entrepot] observations : ${observations.size} uuid daté(s)`
+    + ` — ${obsReleve} par releves.csv, ${obsCatalogue} par le catalogue`
+    + ` (vu le ${CAT_VU ? new Date(CAT_VU * 1000).toISOString() : '—'}),`
+    + ` ${obsDesaccord} sans date : les deux sources ne voient pas le meme prix`
+    + ` (dont ${obsDesaccordFin} a moins de 5 % d'ecart — le marche a bouge ;`
+    + ` ${obsDesaccord - obsDesaccordFin} au-dela). ⛔ Ce n'est PAS une panne de collecte.`);
+  agg.clear();                                           // on libere tout de suite
+
+  // ⭐ NOM D'AFFICHAGE. Chez les comics, le nom recopie tres souvent la serie
+  // en prefixe (« Return of the Jedi #1: Poster Series - Alex Ross Main Cover »).
+  // Comme le titre ajoute deja la serie et que le fil d'Ariane la porte, la
+  // garder donnait des titres de 111 a 128 caracteres, tronques par Google, et
+  // la meme suite de mots deux fois dans la meme balise. On ne conserve donc
+  // que ce qui distingue reellement l'objet. Chaine vide (= nom identique a la
+  // serie) -> on garde le nom, c'est Item.astro qui evitera la repetition.
+  for (const c of candidates) c.nomAffiche = sansPrefixeSerie(c.name, c.series) || c.name;
+
+  // Desambiguisation des noms : on ajoute la rarete UNIQUEMENT aux items
+  // dont le couple (nom, collection) est partage. Un titre doit etre unique.
+  // ⚠️ Les passes ci-dessous travaillent sur le nom D'AFFICHAGE : c'est lui qui
+  // finit dans la balise <title>, donc c'est SON unicite qu'il faut garantir.
+  const cles = new Map();
+  for (const c of candidates) {
+    const k = `${c.nomAffiche}|${c.series}`;
+    cles.set(k, (cles.get(k) || 0) + 1);
+  }
+  for (const c of candidates) {
+    const k = `${c.nomAffiche}|${c.series}`;
+    c.ambigu = cles.get(k) > 1;
+    c.qualifie = c.ambigu && c.rarity ? `${c.nomAffiche} · ${jolieRarete(c.rarity)}` : c.nomAffiche;
+  }
+  // Deuxieme passe : si le nom qualifie reste ambigu (meme nom, meme collection,
+  // meme rarete), on ajoute le tirage, puis en dernier recours un rang. On veut
+  // une garantie d'unicite PAR CONSTRUCTION, pas une esperance.
+  const cles2 = new Map();
+  for (const c of candidates) {
+    const k = `${c.qualifie}|${c.series}`;
+    cles2.set(k, (cles2.get(k) || 0) + 1);
+  }
+  const rangs = new Map();
+  for (const c of candidates) {
+    const k = `${c.qualifie}|${c.series}`;
+    if (cles2.get(k) <= 1) continue;
+    const r = (rangs.get(k) || 0) + 1;
+    rangs.set(k, r);
+    c.qualifie = c.tirage ? `${c.qualifie} · ${c.tirage}` : `${c.qualifie} · ${r}`;
+  }
+  // Le tirage peut lui aussi etre identique : on tranche definitivement.
+  const vus = new Set();
+  for (const c of candidates) {
+    let q = `${c.qualifie}|${c.series}`;
+    if (!vus.has(q)) { vus.add(q); continue; }
+    let i = 2;
+    while (vus.has(`${c.qualifie} (${i})|${c.series}`)) i += 1;
+    c.qualifie = `${c.qualifie} (${i})`;
+    vus.add(`${c.qualifie}|${c.series}`);
+  }
+
+  // ═══ CLASSEMENT ═══
+  // Departage entierement deterministe (score, puis releves, puis uuid) : deux
+  // builds successifs sur les memes donnees produisent le meme classement.
+  const parScore = (a, b) =>
+    b.score - a.score ||
+    b.totalPoints - a.totalPoints ||
+    String(a.uuid).localeCompare(String(b.uuid));
+  candidates.sort(parScore);
+
+  // ═══ SELECTION : QUOTA PAR TYPE ═══
+  // Un plafond global unique a produit un angle mort mesure en production :
+  // les comics sont 86 % du catalogue et representaient 0 % du site, parce que
+  // les collectibles (que le backfill densifie plus vite) raflaient les 400
+  // places. Chaque type recoit desormais sa part garantie.
+  // ⭐ Le quota est une TAILLE CIBLE, pas un debit : les fiches deja gelees le
+  // consomment. Sinon le site grossirait de 1 200 pages a chaque passage, sans
+  // que personne ne l'ait decide -- et c'est irreversible (ensemble collant).
+  const quotas = quotasDuManifeste(pub);
+  const dejaPublie = candidates.filter((c) => pinned[c.uuid]);
+  const nouvelles = candidates.filter((c) => !pinned[c.uuid]);
+  const compte = (l) => l.reduce((o, c) => (o[c.type]++, o), { collectible: 0, comic: 0 });
+  const acquis = compte(dejaPublie);
+  const places = {};
+  for (const t of TYPES) places[t] = Math.max(0, quotas[t] - acquis[t]);
+
+  // Plafond de diversite par serie, applique aux SEULS entrants.
+  // Motif propre aux comics : avec /comics/<serie>/<rarete>/, une seule serie
+  // peut produire des dizaines de pages qui ne different que par la rarete et
+  // le prix. Sans plafond, une serie tres tradee mange le quota entier et la
+  // vitrine devient un mur de quasi-doublons -- exactement le profil que
+  // Google qualifie de contenu produit a grande echelle.
+  const parSerie = new Map();
+  const retenues = { collectible: [], comic: [] };
+  let recalesSerie = 0;
+  const cleSerie = (c) => `${c.type}|${slugify(c.series)}`;
+  const prendre = (c) => {
+    const k = cleSerie(c);
+    parSerie.set(k, (parSerie.get(k) || 0) + 1);
+    retenues[c.type].push(c);
+  };
+  for (const c of nouvelles) {
+    if (retenues[c.type].length >= places[c.type]) continue;
+    if (MAX_SERIE > 0 && (parSerie.get(cleSerie(c)) || 0) >= MAX_SERIE) { recalesSerie++; continue; }
+    prendre(c);
+  }
+
+  // Report du quota inutilise. Si peu de comics passent le seuil de releves,
+  // on ne retrecit pas le site pour rien : les places libres retournent au
+  // classement general. L'inverse vaut aussi.
+  let reporte = 0;
+  if (SPILL) {
+    let libre = TYPES.reduce((n, t) => n + Math.max(0, places[t] - retenues[t].length), 0);
+    if (libre > 0) {
+      const pris = new Set([...retenues.collectible, ...retenues.comic].map((c) => c.uuid));
+      for (const c of nouvelles) {
+        if (libre <= 0) break;
+        if (pris.has(c.uuid)) continue;
+        if (MAX_SERIE > 0 && (parSerie.get(cleSerie(c)) || 0) >= MAX_SERIE) continue;
+        prendre(c);
+        pris.add(c.uuid);
+        libre--; reporte++;
+      }
+    }
+  }
+
+  const items = [...dejaPublie, ...retenues.collectible, ...retenues.comic].sort(parScore);
+
+  // ═══ ADRESSES ═══
+  // Hierarchie par type (decision Preda 18/07, racines au pluriel) :
+  //   collectibles : /collectibles/<serie>/<nom>/
+  //   comics       : /comics/<serie>/<rarete>/   <- chez les comics le nom
+  //                  recopie souvent la serie ; la rarete est le vrai
+  //                  discriminant (une serie = plusieurs couvertures).
+  //
+  // ⭐⭐ TROISIEME NIVEAU (28/07/2026, decision Preda) — `comic_leaf:
+  // issue-rarity` : /comics/<serie>/<numero>/<rarete>/. C'est la hierarchie de
+  // VeVe lui-meme, celle que CollectScan et StackR affichent : une SERIE
+  // contient des NUMEROS, un numero existe en plusieurs RARETES.
+  //
+  // Pourquoi il a fallu un 3e niveau, mesure sur les 16 536 comics reels une
+  // fois la vraie serie on-chain adoptee :
+  //
+  //   serie + rarete   (l'ancien defaut)   4 738 cles · 14 452 uuid en collision
+  //   nom seul         (comic_leaf: name)  4 253 cles · 16 142 en collision
+  //   serie + numero + rarete             16 119 cles ·    726 en collision
+  //
+  // Les deux modes a DEUX niveaux s'effondrent pour la meme raison : avec une
+  // vraie serie, une serie porte des dizaines de couvertures, et les 4 raretes
+  // d'une meme couverture portent le MEME nom (16 536 comics pour 4 253 noms
+  // distincts). Aucun des deux ne peut donc etre la feuille a lui seul.
+  // Les 726 restants sont les couvertures VARIANTES d'un meme numero : le
+  // repli `nomCourt` ci-dessous les nomme ("...-adi-granov-main-cover").
+  // L'attribution est DETERMINISTE et independante des donnees de prix : on
+  // parcourt par uuid (immuable), jamais par classement. Sinon l'adresse
+  // /item/batgirl/ change d'objet d'un jour a l'autre (constate en prod).
+  const seen = new Set();
+  const ordreStable = [...items].sort((a, b) => {
+    const pa = pinned[a.uuid] ? 0 : 1;
+    const pb = pinned[b.uuid] ? 0 : 1;
+    return pa - pb || String(a.uuid).localeCompare(String(b.uuid));
+  });
+  const suffixeUuid = (u) => String(u).replace(/[^a-z0-9]/gi, '').slice(-6).toLowerCase();
+  let comicsSansRarete = 0;
+  let collisionsComics = 0;
+  for (const i of ordreStable) {
+    i.serieSlug = slugify(i.series) || 'sans-collection';
+    i.legacySlug = slugify(i.name);
+    if (pinned[i.uuid]) { i.path = pinned[i.uuid]; seen.add(i.path); continue; }
+    const rareteSlug = i.rarity ? slugify(i.rarity) : '';
+    // Ce qui distingue vraiment cette couverture, une fois retire le prefixe
+    // qui recopie la serie (chaine vide si le nom EST la serie).
+    const distinctif = sansPrefixeSerie(i.name, i.series);
+    const nomCourt = distinctif ? slugify(distinctif) : '';
+    // Feuille des comics : reglable au manifeste (publication.comic_leaf).
+    //  'rarity' (defaut historique) -> /comics/alias-1-2001/secret-rare/
+    //  'name'                       -> /comics/<serie>/<nom de la couverture>/
+    //  'issue-rarity'               -> /comics/<serie>/<numero>/<rarete>/
+    // Sans rarete ET sans nom distinctif, l'identifiant court vaut mieux que
+    // /comics/zombie-hunter-spider-man-1/zombie-hunter-spider-man-1/ : repeter
+    // la serie n'apprend rien au lecteur et ressemble a du bourrage de mots-cles.
+    const mode = pub.comic_leaf || 'rarity';
+    const troisNiveaux = i.type === 'comic' && mode === 'issue-rarity';
+    const feuilleComic = mode === 'name' ? (nomCourt || i.legacySlug) : rareteSlug;
+    if (i.type === 'comic' && !rareteSlug) comicsSansRarete++;
+    const principal = i.type === 'comic'
+      ? (feuilleComic || nomCourt || suffixeUuid(i.uuid))
+      : i.legacySlug;
+    // Le NUMERO, niveau intermediaire. ⛔ Pas `slugify(x) || 'sans-numero'` :
+    // `slugify` rend deja 'item' pour une entree vide, donc le repli ne se
+    // declencherait JAMAIS et 76 comics sans numero atterriraient tous sur
+    // /<serie>/item/. Le defaut par repli, encore.
+    const numeroSlug = troisNiveaux
+      ? (String(i.edition_type || '').trim() ? slugify(i.edition_type) : 'sans-numero')
+      : '';
+    const prefixe = troisNiveaux
+      ? `/${i.racine}/${i.serieSlug}/${numeroSlug}`
+      : `/${i.racine}/${i.serieSlug}`;
+    // Repli en cas de collision. Chez un comic, deux couvertures peuvent
+    // partager la rarete dans la meme serie : on ajoute alors le NOM DE LA
+    // COUVERTURE ("...-adi-granov-main-cover"), qu'un humain comprend, plutot
+    // qu'un suffixe technique. L'identifiant court reste le dernier recours.
+    const secours = i.type === 'comic'
+      ? ((nomCourt && nomCourt !== principal) ? `${principal}-${nomCourt}` : `${principal}-${suffixeUuid(i.uuid)}`)
+      : `${i.legacySlug}-${rareteSlug || 'edition'}`;
+    let feuille = principal || 'sans-nom';
+    const libre = (f) => !seen.has(`${prefixe}/${f}/`);
+    if (!libre(feuille)) { feuille = secours; if (i.type === 'comic') collisionsComics++; }
+    if (!libre(feuille)) feuille = `${principal}-${suffixeUuid(i.uuid)}`;
+    i.path = `${prefixe}/${feuille}/`;
+    seen.add(i.path);
+  }
+
+  const bySlug = new Map(items.map((i) => [i.path, i]));
+  // ═════════════════════════════════════════════════════════════════════════
+  // LES SETS — 🔴 LOT 71 : UN SET DE COMICS EST UN NUMÉRO, PAS UNE SÉRIE
+  // ═════════════════════════════════════════════════════════════════════════
+  // Preda, 05/08/2026 : « il y a un problème avec les sets, ça doit être basé
+  // sur la série ; pour les comics ça ne devrait comporter que les 5 raretés
+  // tout au plus, là je vois des comics d'autres séries. »
+  //
+  // Ce qu'il voyait, mesuré : le set « The Amazing Spider-Man Vol. 1 » réunissait
+  // #1, #13, #252… — 12 fiches, 8 titres différents. Ce n'était pas un bug de
+  // rendu : le regroupement se faisait sur `series`, et chez un comic `series`
+  // désigne la COLLECTION ÉDITORIALE ENTIÈRE (des décennies de numéros), pas ce
+  // qu'un collectionneur appelle un set.
+  //
+  // ⭐⭐ LE MOT « SÉRIE » NE DÉSIGNE PAS LA MÊME CHOSE DES DEUX CÔTÉS, ET C'EST
+  // TOUTE LA CAUSE. Chez un collectible, `series` EST le set (« Bond 60th
+  // Anniversary »). Chez un comic, le set est le NUMÉRO et ses raretés — la
+  // série n'en est que le rayon. Un champ qui porte le même nom pour deux
+  // granularités différentes produit un regroupement qui a l'air correct sur la
+  // moitié du catalogue. → [[chantier-uniformisation-identite]]
+  //
+  // ⭐ `edition_type` porte le `comicNumber` on-chain (voir plus haut, l. 283) :
+  // c'est déjà la clé qui sert à la hiérarchie d'adresses série → numéro →
+  // rareté. On réemploie la découpe qui existe, on n'en invente pas une seconde.
+  //
+  // ⚠️ MESURÉ AVANT/APRÈS, pas supposé : 758 → 913 sets, plus AUCUN set de
+  // comics au-dessus de 5 fiches. Les deux seuls sets à plus de 5 restants sont
+  // des COLLECTIBLES (« Bond 60th Anniversary - Poster Series 2 » 7,
+  // « BLACKPINK Concert Finale » 10) — et c'est correct, un set de collectibles
+  // n'a pas de raison de tenir en cinq.
+  //
+  // ⛔ LES ADRESSES `/collection/<slug>/` CHANGENT POUR LES COMICS, et c'est
+  // assumé : elles ne sont PAS dans `slugs.json` (vérifié — le gel ne couvre
+  // que les 1 200 fiches). Rien ne casse ; Google devra ré-explorer.
+  // ⛔ Un comic SANS numéro retombe sur sa série seule plutôt que de fabriquer
+  //    un « #undefined » : on ne crée pas d'adresse à partir d'un trou.
+  // ═════════════════════════════════════════════════════════════════════════
+  // 🎯🔴🔴 LOT N — UN SET = UN `series_uuid`. LA CLÉ CI-DESSUS (lot 71) N'EST
+  // PLUS QUE L'HISTOIRE DES ADRESSES.
+  // ═════════════════════════════════════════════════════════════════════════
+  // Le lot 71 avait raison sur le SYMPTÔME (une série n'est pas un set) et
+  // faux sur la CLÉ : `<série> #<numéro>` réunit encore l'édition 2025 et la
+  // réimpression 2026 d'un même numéro. VeVe, lui, publie la clé — c'est
+  // `series_uuid`, et le catalogue la porte depuis le 08/09/2026.
+  // ⭐ TOUT LE DÉCOUPAGE VIT DANS `sets.mjs` : la clé, la continuité des
+  //   adresses (l'aîné du groupe garde l'ancien slug, les autres en reçoivent
+  //   un neuf), les alias, les homonymes. Ici on ne fait que l'appeler et
+  //   dériver marque + licence, comme avant.
+  // 🔴 `i.colSlug` reste posé PAR celui qui fabrique la page (leçon du lot
+  //   102) — c'est `construireSets()` qui le pose, pour la même raison.
+  // ═════════════════════════════════════════════════════════════════════════
+  // 🔴🔴 ET LE SET SE BÂTIT SUR LE CATALOGUE ENTIER, PAS SUR LES PAGES.
+  // ═════════════════════════════════════════════════════════════════════════
+  // 🔬 MESURÉ LE 08/09 SUR LE BUILD RÉEL, la clé `series_uuid` déjà posée :
+  //   127 des 200 premiers sets du classement MCP avaient une taille PUBLIÉE
+  //   plus petite que leur taille VeVe (« Bettie Page Vol. 1 #4 » : 1 page
+  //   pour 5 pièces). Le ratio se calculait sur 1 pièce sur 5 — c'était la
+  //   SECONDE moitié du « faux à 88 % » : la première était la clé, celle-ci
+  //   est la POPULATION. *Un classement se trompe toujours du côté où on a
+  //   le moins regardé* (refus ① de `sets_mcp.mjs`), et ici on ne regardait
+  //   que les pièces qui ont une page.
+  // ⇒ Les pièces SANS page entrent dans le set comme des objets légers (nom,
+  //   rareté, plancher du catalogue, plancher StackR converti) : elles n'ont
+  //   pas de `path`, donc pas de lien, mais elles comptent dans la TAILLE,
+  //   le COÛT et les POINTS. Le set garde deux listes : `pieces` (toutes) et
+  //   `items` (celles qui ont une page — c'est ce que la page liste).
+  // ⭐ Et les ADRESSES gagnent en stabilité : le slug d'un set ne dépend plus
+  //   de QUELLES pièces ont passé le seuil de relevés ce jour-là.
+  // 🔒 Les planchers des pièces sans page vont dans `.reserve/sets_mcp.json`
+  //   (route gardée), jamais dans le HTML — même ligne que `i.floor`.
+  const parUuidPublie = new Map(items.map((i) => [i.uuid, i]));
+  const pieces = [];
+  let piecesSansPage = 0;
+  for (const c of cat) {
+    const uuid = c.uuid || c.veve_uuid;
+    if (!uuid || !c.series) continue;
+    const publie = parUuidPublie.get(uuid);
+    if (publie) { pieces.push(publie); continue; }
+    piecesSansPage++;
+    const o = rel.get(uuid)?.stackr;
+    pieces.push({
+      uuid, type: typeDe(c), name: c.name || 'Sans nom', rarity: c.rarity || '',
+      edition_type: c.edition_type || '', series: c.series || '',
+      seriesUuid: String(c.series_uuid || '').trim(), releaseDate: c.release_date || '',
+      brand: c.brand || '', licensor: c.licensor || '',
+      // 🎯 LOT O — DEUX CHAMPS PUBLICS DE PLUS, ET ILS SONT LA MOITIÉ DE
+      //   L'ARBITRAGE G. Les pièces d'un set qui n'ont pas de page prennent
+      //   désormais une TUILE ÉTEINTE sur la page du set (Preda, 09/09 :
+      //   « des tuiles grisées, non cliquables »). Une tuile sans image ni
+      //   tirage serait un rectangle gris de plus — elle ne dirait pas QUELLE
+      //   pièce manque, et c'est tout ce qu'on lui demande.
+      //   ⛔ `tirage` et `image` sont déjà servis publiquement sur les fiches
+      //   et les cartes : on ne les OUVRE pas, on les transporte. Aucun champ
+      //   de `CHAMPS_COTE` n'entre ici — le plancher juste en dessous est
+      //   effacé pour ces pièces après `deposerSetsMcp()`, comme au lot N.
+      tirage: pos(c.tirage),
+      image: c.image || '',
+      floor: pos(c.floor),
+      floorStackrUsd: omiUsd !== null && Number.isFinite(o) && o > 0 ? o * omiUsd : null,
+      path: null,
+    });
+  }
+  const setsBatis = construireSets(pieces, { slugify, jourISO });
+  const statsSets = setsBatis.stats;
+  // `setsTous` : TOUS les sets (le classement MCP les veut tous) ;
+  // `collections` : ceux qui ont au moins une page (tout ce qui RENDU les lit).
+  const setsTous = setsBatis.collections;
+  const collections = new Map();
+  for (const [slug, c] of setsTous) {
+    c.pieces = c.items;
+    c.items = c.pieces.filter((x) => x.path);
+    c.taille = c.pieces.length;
+    if (c.items.length) collections.set(slug, c);
+  }
+  // 🔴 L'ANCIENNE ADRESSE RESTE SERVIE MÊME SI SON AÎNÉ N'A PAS DE PAGE.
+  // 🔬 Mesuré sur le build réel du 08/09 : 6 adresses servies la veille
+  //   n'avaient plus de page — l'aîné du groupe (qui garde le slug) n'avait
+  //   aucune pièce publiée, et le cadet, qui les a, vivait sous un slug neuf.
+  //   Hier cette adresse montrait les pièces du cadet ; elle continue : tant
+  //   que l'aîné n'a pas de page, son slug devient un ALIAS du plus ancien
+  //   set SERVI du même groupe (canonical vers lui). Le jour où l'aîné a une
+  //   page, il reprend son adresse — comme hier, où elle l'aurait inclus.
+  // ⭐ Même sort pour un alias posé sur un set sans page : il migre vers un
+  //   set servi du groupe, sinon il tombe (une adresse vers rien n'existe pas).
+  const parGroupe = new Map();
+  for (const c of setsTous.values()) {
+    if (!parGroupe.has(c.slugHerite)) parGroupe.set(c.slugHerite, []);
+    parGroupe.get(c.slugHerite).push(c);
+  }
+  let aliasMigres = 0, aliasTombes = 0;
+  for (const liste of parGroupe.values()) {
+    const servis = liste.filter((c) => c.items.length).sort((a, b) => a.rang - b.rang);
+    if (!servis.length) continue;
+    for (const c of liste) {
+      if (c.items.length) continue;
+      const cible = servis[0];
+      if (c.rang === 0) { cible.alias.push(c.slug); aliasMigres++; }
+      for (const a of c.alias) { cible.alias.push(a); aliasMigres++; }
+      c.alias = [];
+    }
+  }
+  for (const c of setsTous.values()) if (!c.items.length && c.alias.length) { aliasTombes += c.alias.length; c.alias = []; }
+  console.log(`[sets] ${pieces.length} pièce(s) du catalogue dans ${setsTous.size} set(s), dont ${piecesSansPage} sans page`
+    + ` · ${setsTous.size - collections.size} set(s) sans aucune page (classés, non servis)`
+    + ` · anciennes adresses gardées en alias parce que leur aîné n'a pas de page : ${aliasMigres} · alias tombés : ${aliasTombes}`);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🔴🔴 LOT 133 — LA MARQUE ET LA LICENCE D'UN SET, DÉRIVÉES DE SES PIÈCES
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ⭐⭐ UN SET NE DÉCLARE NI L'UNE NI L'AUTRE : il les hérite de ce qu'il
+  // contient. C'est déjà la règle de `anneeDe()` et `typeDe()` dans
+  // `Collections.astro` — « chaque axe est dérivé des pièces du set, jamais
+  // déclaré sur le set ». Ces deux-là descendent ici parce qu'elles servent
+  // maintenant à TROIS endroits (la carte, le filtre, le tri), et qu'un axe
+  // calculé dans trois gabarits diverge au premier lot qui n'en touche que deux.
+  //
+  // ⭐ MESURÉ AVANT DE CODER, sur le catalogue RÉEL du 10/08 (19 412 lignes) :
+  //     · `licensor` est rempli à **100 %** — aucun trou à gérer ;
+  //     · **96 licences** distinctes, contre **1 492 marques** : c'est la
+  //       licence qui est un axe de navigation utilisable, pas la marque ;
+  //     · **5 154 sets, dont 0 à licence multiple** et **2 à marque multiple**.
+  // ⛔ ET ON CODE QUAND MÊME LA MAJORITÉ, alors que 0 set en a besoin
+  //    aujourd'hui. Un `items[0].licensor` serait juste ce matin et faux en
+  //    silence le jour où VeVe publie un set co-licencié — sans erreur, sans
+  //    banc rouge, avec une carte parfaitement plausible. *Le pire échec n'est
+  //    pas celui qui plante, c'est celui qui a l'air de marcher.*
+  // ⭐⭐ ET LE NOMBRE S'AFFICHE À CHAQUE BUILD. Une phrase (« aucun set n'est
+  //    mixte ») se relit ; un compteur se vérifie. Le jour où il quitte zéro,
+  //    le journal de build le dit — c'est la leçon des cartes « À venir » du
+  //    lot 132, appliquée avant d'en avoir besoin.
+  const majoritaire = (liste, champ) => {
+    const c = new Map();
+    for (const x of liste) {
+      const v = String(x[champ] || '').trim();
+      if (!v) continue;
+      c.set(v, (c.get(v) || 0) + 1);
+    }
+    let gagnant = '', n = 0;
+    // ⚠️ `>` et non `>=` : à égalité on garde le PREMIER rencontré, donc un
+    //    résultat stable d'un build à l'autre. Un `>=` ferait dépendre l'axe de
+    //    l'ordre d'itération — c'est-à-dire d'un tri de prix, une couche plus
+    //    haut, qui change tous les jours.
+    for (const [v, k] of c) if (k > n) { gagnant = v; n = k; }
+    return { valeur: gagnant, distinctes: c.size };
+  };
+  let setsMarqueMixte = 0, setsLicenceMixte = 0, setsSansLicence = 0;
+  for (const c of setsTous.values()) {
+    const m = majoritaire(c.pieces, 'brand');
+    const l = majoritaire(c.pieces, 'licensor');
+    c.brand = m.valeur;
+    c.licensor = l.valeur;
+    if (m.distinctes > 1) setsMarqueMixte++;
+    if (l.distinctes > 1) setsLicenceMixte++;
+    if (!l.valeur) setsSansLicence++;
+  }
+  console.log(`[sets] ${collections.size} set(s) · marque mixte : ${setsMarqueMixte}`
+    + ` · licence mixte : ${setsLicenceMixte} · sans licence : ${setsSansLicence}`
+    + ` · groupes éclatés : ${statsSets.groupesEclates} · slugs hérités ${statsSets.slugsHerites}`
+    + ` / neufs ${statsSets.slugsNeufs} / uuid ${statsSets.slugsUuid} · alias : ${statsSets.alias}`
+    + ` · orphelins (sans series_uuid) : ${statsSets.orphelins} pièce(s) en ${statsSets.setsOrphelins} set(s)`
+    + ` · homonymes désambiguïsés : ${statsSets.nomsDesambigues}`);
+  const rarities = new Map();
+  for (const i of items) {
+    if (!i.rarity) continue;
+    const s = slugify(i.rarity);
+    if (!rarities.has(s)) rarities.set(s, { slug: s, name: i.rarity, items: [] });
+    rarities.get(s).items.push(i);
+  }
+
+  // ⭐⭐ LOT 101 — LES TRIS DESCENDENT ICI, ET C'EST OBLIGATOIRE.
+  // `Collections.astro` et `CollectionPage.astro` triaient eux-mêmes sur
+  // `i.floor`. Après `projeterCote()` ce champ n'existe plus côté public :
+  // le comparateur aurait rendu `0` pour toutes les paires et le tri serait
+  // devenu l'ordre d'insertion — SANS erreur, sans avertissement, et sur les
+  // 8 500 pages à la fois. ⛔ C'est la signature exacte des pannes que ce dépôt
+  // paie le plus cher : un calcul qui continue de tourner sur du vide.
+  // ⭐ On trie donc TANT QUE LE PRIX EXISTE, et l'ORDRE DU TABLEAU devient le
+  // porteur de l'information. Les gabarits ne trient plus, ils rendent.
+  const parFloorDesc = (a, b) => (b.floor ?? 0) - (a.floor ?? 0);
+  for (const c of collections.values()) c.items.sort(parFloorDesc);
+  for (const r of rarities.values()) r.items.sort(parFloorDesc);
+
+  const withChange = items.filter((i) => i.change7d !== null);
+  const movers = {
+    up: [...withChange].filter((i) => i.change7d > 0).sort((a, b) => b.change7d - a.change7d).slice(0, 20),
+    down: [...withChange].filter((i) => i.change7d < 0).sort((a, b) => a.change7d - b.change7d).slice(0, 20),
+  };
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // 🔴 LOT 104 — LA LISTE DU MARCHE, CALCULEE ICI ET PAS DANS LE GABARIT
+  // ═════════════════════════════════════════════════════════════════════════
+  // ⭐⭐⭐ C'EST EXACTEMENT LE PIEGE ANNONCE VINGT LIGNES PLUS BAS, ET IL
+  // ATTENDAIT. `Market.astro` (supprime au lot 101, restaure ici) faisait :
+  //     .filter((i) => i.floor !== null && i.floor !== undefined)
+  //     .sort((a, b) => (b.change7d ?? -Infinity) - (a.change7d ?? -Infinity))
+  // Apres `projeterCote()`, `i.floor` vaut `undefined` pour TOUT LE MONDE :
+  // le filtre aurait rendu une liste VIDE — une page de marche sans une seule
+  // ligne, sans erreur, sans avertissement, sur un build vert. Le tri, lui,
+  // aurait survecu (il porte sur `change7d`, qui reste public) : la panne
+  // n'aurait donc pas eu l'air d'une panne de prix.
+  // ⭐ On calcule TANT QUE LE PRIX EXISTE, et l'ORDRE DU TABLEAU porte
+  // l'information. Meme regle que `collections` et `rarities` au-dessus.
+  //
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🔴🔴🔴 LOT 155-C — LE PLAFOND TOMBE, ET L'ORDRE PAR DEFAUT CHANGE DE NATURE
+  // ═══════════════════════════════════════════════════════════════════════
+  // ⛔ `MARCHE_MAX = 200` a ete retire. Ce qu'il protegeait reste protege, mais
+  // AILLEURS : la page ne rend plus qu'une TRANCHE (`marche_selection.mjs`,
+  // `PAR_PAGE = 20`, plafond dur `RENDU_MAX = 500`). Le plafond a change de
+  // couche parce que la MESURE a change de reponse.
+  //
+  // CE QUI A ETE MESURE LE 17/08, sur la `.reserve/` d'un build reel :
+  //     `JSON.parse` de la projection de 16,3 Mo ........ 42,6 ms
+  //     `lireCotes()` sur 8 841 fichiers ................ 112 ms a froid
+  //     le `<tbody>` rendu .............................. 3 185 o par ligne
+  // ⇒ porter les 8 840 fiches jusqu'au serveur coute des MILLISECONDES ; les
+  // envoyer au navigateur couterait 28 Mo de HTML et ~80 000 noeuds. Le plafond
+  // utile n'est donc pas ici, il est au RENDU. Le garder ici en plus rendrait
+  // le filtre aveugle a 8 640 fiches — un filtre qui ne voit pas le catalogue
+  // est un filtre qui ment, et il ment en silence.
+  // 🔴 CE FICHIER PESE DESORMAIS ~16,3 Mo SUR LE DISQUE DU SERVEUR. C'est
+  // assume et c'est mesure : il est lu une fois par requete, en 43 ms, et il ne
+  // part JAMAIS dans `dist/client/` (cf. `deposerMarche`, sous `PORTE_PRIX`).
+  //
+  // ⭐⭐⭐ ET L'ORDRE PAR DEFAUT DEVIENT NEUTRE — arbitrage Preda du 17/08 :
+  // `/market/` devient LE CATALOGUE COTE. « Les plus fortes variations » cesse
+  // d'etre sa nature et devient UN TRI PARMI D'AUTRES (`ch-desc`).
+  // ⚠️ ET IL RESTE POSE ICI, PAS DANS LE GABARIT. C'est le seul endroit ou
+  // l'ordre est juste POUR TOUT LE MONDE : on trie AVANT `projeterCote()`,
+  // donc tant que les montants existent, et le gabarit — qui ne voit que des
+  // champs projetes — n'a plus qu'a rendre. C'est la regle des 20 lignes
+  // au-dessus, appliquee a une seconde liste.
+  // ⭐ `releaseDate` decroissante : un ordre STABLE, independant des prix, et
+  // comprehensible sans legende — « les plus recentes d'abord ».
+  // ⛔ LES FICHES SANS DATE NE SONT PAS JETEES, ELLES VONT AU BOUT. Une date
+  // absente n'est pas « 1970 » : la trier comme telle mettrait en tete du
+  // catalogue les fiches dont on ne sait rien.
+  // ⭐ Le nom en second critere : sans lui, deux sorties du meme jour
+  // s'ordonnent par hasard d'insertion, et la page 2 peut reafficher une ligne
+  // de la page 1 — une pagination qui saute des lignes sans rien signaler.
+  const jourDe = (i) => jourISO(i.releaseDate) || '';
+  const marche = items
+    .filter((i) => i.floor !== null && i.floor !== undefined)
+    .sort((a, b) => {
+      const da = jourDe(a), db = jourDe(b);
+      if (da !== db) {
+        if (!da) return 1;
+        if (!db) return -1;
+        return db < da ? -1 : 1;
+      }
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+  // ⭐ Le TOTAL avant plafond : la page annonce « 200 sur N », et N ne peut pas
+  // se recalculer apres coup — `items` aura perdu `floor`.
+  const marcheTotal = items.filter((i) => i.floor !== null && i.floor !== undefined).length;
+  // 🏷️🔴🔴 LOT J — LES OFFRES EN VENTE SE COMPTENT ICI, ET NULLE PART AILLEURS.
+  // ⭐ MÊME RAISON QUE `marcheTotal` DEUX LIGNES PLUS HAUT, ET C'EST TOUT
+  //   L'ARGUMENT : `listings` est un CHAMP DE COTE (`deposer()` le range dans
+  //   `.reserve/cote/<uuid>.json`), donc `projeterCote()` le retire des items.
+  //   Compté après, ce total vaudrait 0 — un zéro qui ressemble à une mesure,
+  //   sur la case d'un tableau de bord. C'est la faute que ce lot existe pour
+  //   ne pas commettre.
+  // ⛔ ET CE N'EST PAS UN MONTANT. On compte des ANNONCES, pas des prix : un
+  //   total d'offres ne permet de reconstituer le plancher d'aucune pièce, et
+  //   il ne descend jamais à l'unité. C'est ce qui l'autorise à voyager dans le
+  //   résumé — que `test:marche` §2 balaie sur `CHAMPS_COTE` — puis dans le
+  //   HTML servi du tableau de bord, là où la valeur des favoris, elle, ne peut
+  //   pas aller.
+  // ⚠️ `> 0` ET PAS `!= null` POUR LES PIÈCES : « 0 annonce est un FAIT, et le
+  //   fait le plus courant » (l. 98). Une pièce à zéro offre n'est pas une
+  //   pièce « en vente » — la compter gonflerait le dénominateur de la seule
+  //   phrase que la case porte : « N offres sur M pièces ».
+  const offresLignes = items.filter((i) => Number.isFinite(i.listings) && i.listings > 0);
+  const offres = offresLignes.reduce((n, i) => n + i.listings, 0);
+  const offresPieces = offresLignes.length;
+  // 📅 ET LA CASE PORTE SA PROPRE DATE, QUI N'EST PAS CELLE DES TRANSFERTS.
+  // ⭐ `releveLe` est le champ de FRAÎCHEUR de la fiche — « quand on a
+  //   regardé » — et il survit à `projeterCote()` (`CHAMPS_FRAICHEUR`, jamais
+  //   `CHAMPS_COTE`). Le plus frais des lignes qui portent une offre est donc
+  //   la date exacte de ce que la case annonce.
+  // ⛔ PAS `ds.updatedAt` : c'est l'heure du BUILD, et un build de 5 h du matin
+  //   daterait de ce matin des offres relevées il y a trois jours. C'est la
+  //   faute des DEUX HORLOGES du lot 146, refaite sur une case neuve.
+  const offresLe = offresLignes.reduce((m, i) =>
+    (typeof i.releveLe === 'string' && i.releveLe > m ? i.releveLe : m), '') || null;
+  console.log(`[marche] offres en vente : ${offres} annonce(s) sur ${offresPieces} piece(s)`
+    + (offresPieces === 0 ? ' 🔴 AUCUNE — la case « offres en vente » du tableau de bord dira « non collecté »' : ''));
+  // ⭐ LE JOURNAL DIT DESORMAIS « projetee(s) », PAS « rendue(s) ». Le mot
+  // comptait : depuis le lot 155-C ce nombre n'est plus ce que la page rend,
+  // c'est ce que le filtre du serveur peut voir. Un journal qui garde l'ancien
+  // mot ferait chercher une troncature qui n'existe plus.
+  // 🎯 LOT 219 — LA TENSION SE POSE ICI, ET L'ENDROIT EST LE SUJET.
+  // ⭐ SUR `items`, LA POPULATION PUBLIEE ENTIERE, et AVANT `projeterCote()` —
+  //   comme l'ordre par defaut vingt lignes plus haut, et pour la meme raison :
+  //   c'est le seul moment ou l'on voit tout le monde. Un rang calcule plus tard,
+  //   sur une tranche ou sur une selection, dirait « plus tendue que 87 % des 20
+  //   lignes affichees » — une phrase qui a l'air d'une mesure.
+  // ⛔ Elle ne lit AUCUN champ de cote : `tirage`, `circulationStackr` et
+  //   `bruleesStackr` survivent tous les trois a la projection. Elle serait donc
+  //   calculable apres — et ce serait quand meme faux, parce que `items` n'est
+  //   plus la population complete a ce moment-la. *Le bon moment n'est pas
+  //   dicte par ce qui est encore lisible, mais par ce qui est encore entier.*
+  const tension = poserTension(items);
+  // ⭐⭐ L'INSTRUMENT SE DECLARE, MEME QUAND IL VA BIEN. « 0 notee » ne peut
+  //   arriver que si `fiches_stackr` cesse de joindre — un fichier renomme, un
+  //   schema change — et cela ressemblerait sinon a un build normal avec une
+  //   colonne vide. Le chiffre le dit tout haut, dans le meme journal que le reste.
+  console.log(`[tension] ${tension.notees} fiche(s) notee(s) · ${tension.sansMesure} sans mesure `
+    + `(tirage ou circulation inconnus)`
+    + (tension.notees === 0 ? ' 🔴 AUCUNE — la colonne Tension sortira vide' : ''));
+  console.log(`[marche] ${marcheTotal} fiche(s) avec un plancher · ${marche.length} projetee(s) (aucun plafond depuis le lot 155-C)`);
+  if (marcheTotal === 0) {
+    console.log('[marche] ATTENTION AUCUNE fiche avec plancher : la page /market/ sortira vide. '
+      + 'Verifier que ce calcul est bien AVANT projeterCote().');
+  }
+
+  // ═══ DIAGNOSTIC EMBARQUE ═══
+  // Un seul deploiement doit suffire a comprendre ce que la vitrine a fait et
+  // pourquoi. C'est ce journal, pas une intuition, qui a revele que « kind »
+  // valait « Comic » avec une majuscule et que 0 comic etait publie.
+  const parTypeCat = {};
+  for (const c of cat) { const k = String(c.kind || '(vide)'); parTypeCat[k] = (parTypeCat[k] || 0) + 1; }
+  const eligibles = compte(candidates);
+  const publies = compte(items);
+  console.log(`[entrepot] valeurs du champ kind dans le catalogue : ${JSON.stringify(parTypeCat)}`);
+  console.log(`[vitrine] catalogue ${cat.length} · sous le seuil de ${MIN_POINTS} releves : ${refusesSeuil} · eligibles ${JSON.stringify(eligibles)}`);
+  console.log(`[vitrine] quotas ${JSON.stringify(quotas)} · deja geles ${JSON.stringify(acquis)} · places offertes ${JSON.stringify(places)}${SPILL ? ` · report ${reporte}` : ''}${MAX_SERIE ? ` · ecartes par le plafond de ${MAX_SERIE}/serie : ${recalesSerie}` : ''}`);
+  console.log(`[vitrine] PUBLIE ${items.length} fiches ${JSON.stringify(publies)} (${dejaPublie.length} deja gelees + ${items.length - dejaPublie.length} nouvelles)`);
+  const avecMediane = items.filter((i) => i.prixMedian).length;
+  console.log(`[vitrine] prix median disponible pour ${avecMediane}/${items.length} fiches (c'est lui qui pilote le classement)`);
+  if (items.length && !avecMediane) {
+    console.log('[vitrine] ATTENTION AUCUNE mediane trouvee : le classement retombe sur le dernier prix, donc les annonces farceuses remontent. Verifier les colonnes de prices_baselines ci-dessus.');
+  }
+  const aberrants = items.filter((i) => i.prixAberrant).length;
+  if (aberrants) console.log(`[vitrine] ${aberrants} fiches au prix non representatif (offre isolee au-dela de ${FACTEUR_ABERRANT}x leur p95) : signalees sur la fiche`);
+  // 🔴 LOT 193 — ET IL S'IMPRIME MEME A ZERO, CONTRAIREMENT A LA LIGNE
+  // AU-DESSUS. Un `if (ecartes)` ferait qu'une regle DEBRANCHEE et une regle
+  // qui NE MORD PLUS s'ecriraient toutes deux par un silence — et c'est
+  // precisement le jour ou la collecte se sera nettoyee qu'on voudra savoir
+  // laquelle des deux on regarde. Un zero annonce est une mesure ; une ligne
+  // absente n'est rien.
+  const ecartes = items.filter((i) => i.floorEcarte).length;
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🔬🔴🔴🔴 LOT 214 — COMBIEN DE PIECES ONT SEULEMENT ETE *EXAMINEES*
+  // ═══════════════════════════════════════════════════════════════════════
+  // MESURE DU 02/09 QUI A CAUSE CE COMPTEUR : `/api/sante` rendait
+  // `ecartes: 0` sur 8 840 lignes, contre 44 la veille. Le zero est
+  // INDECIDABLE tel quel, et le commentaire du lot 193 six lignes plus haut
+  // l'avait annonce mot pour mot : « c'est precisement le jour ou la collecte
+  // se sera nettoyee qu'on voudra savoir laquelle des deux on regarde ».
+  //   · `candidats: 0`   ⇒ plus AUCUNE piece ne franchit meme le seuil de
+  //                        prix. La collecte s'est nettoyee. La regle n'a
+  //                        rien a mordre, et c'est une bonne nouvelle.
+  //   · `candidats: 188` avec `ecartes: 0` ⇒ 188 pieces sont examinees et
+  //                        AUCUNE n'est retenue. La regle NE MORD PLUS, et
+  //                        c'est un defaut.
+  // ⭐⭐⭐ Un seul chiffre ne peut pas porter deux etats du monde. Il en
+  //   fallait un second, et un seul : la PREMIERE marche de la regle.
+  //
+  // ⛔ IL SE CALCULE **ICI**, ET PAS DANS LE TEMOIN. `floor` ne survit pas a
+  //   `projeterCote()` : le temoin relit `.reserve/marche.json`, ou le montant
+  //   a deja disparu (c'est tout l'interet du lot 101). Le compter en aval
+  //   serait impossible ; le compter ici est la seule facon.
+  // ⭐ LA POPULATION EST LA MEME QUE CELLE DES ECARTES, ET CE N'EST PAS UNE
+  //   COINCIDENCE : les deux exigent un `floor`, donc les deux vivent dans
+  //   `marche` aussi bien que dans `items`. Les deux comptes se comparent
+  //   sans precaution — ce qui est exactement ce qu'on attend d'eux.
+  // ⛔ CE N'EST PAS UN PRIX. C'est un NOMBRE DE FICHES au-dessus d'un seuil
+  //   qui est deja public dans `sites/*/manifest.yml`. La regle du lot 101
+  //   tient : aucun montant ne sort d'ici.
+  const candidatsEcart = items.filter((i) => Number(i.floor) > ECART_PRIX).length;
+  console.log(`[vitrine] planchers ecartes du marche : ${ecartes} sur ${items.length} `
+    + `(> ${ECART_PRIX} avec <= ${ECART_OFFRES} offre(s) SI son passe ne peut pas la defendre, `
+    + `ou plus de ${FACTEUR_ABERRANT}x sa mediane DANS TOUS LES CAS) — reaffichables par la case « ${'prix non retenus'} »`
+    + ` · ${candidatsEcart} piece(s) EXAMINEE(S) (plancher > ${ECART_PRIX})`
+    + `${candidatsEcart && !ecartes ? ' 🔴 EXAMINEES SANS AUCUNE RETENUE — la regle ne mord plus' : ''}`);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🔬🔴 LOT 223 — LES PIECES QUI PASSENT SONT **NOMMEES**, ET SEULEMENT ICI
+  // ═══════════════════════════════════════════════════════════════════════
+  // Le lot 214 avait donne un SECOND CHIFFRE (`candidats`) pour distinguer
+  // « la collecte s'est nettoyee » de « la regle ne mord plus ». Il a servi :
+  // le 04/09 il disait `47 / 75`, donc 28 pieces au-dessus du seuil ETAIENT
+  // SERVIES. Mais un compte ne dit pas SI ces 28 sont de vraies pieces cheres
+  // ou des valeurs-sentinelles — et c'est la seule question qui decide s'il
+  // faut toucher a la regle. *Un nombre dit qu'il se passe quelque chose ; il
+  // ne dit jamais quoi.*
+  //
+  // ⛔⛔ CETTE LISTE NE MONTE PAS AU TEMOIN, ET LA RAISON N'EST PAS TECHNIQUE.
+  // `/api/sante` est PUBLIC. Les COMPTES qui y vivent ne disent rien d'une
+  // piece en particulier — c'est ce que dit le § du lot 214 juste au-dessus,
+  // et c'est vrai. Une LISTE NOMMEE, elle, affirme « ces pieces-la valent plus
+  // de 5 000 $ » : c'est une cote, formulee par son seuil au lieu de son
+  // montant. Le mur du lot 101 ne connait pas cette nuance, et il a raison.
+  // ⇒ Le journal du build est le seul lecteur legitime.
+  // ⚠️ ET IL A UN DEFAUT CONNU, QU'ON ASSUME PLUTOT QUE DE LE TAIRE : le
+  //   journal Coolify se tronque (lot 196). Cette ligne est donc lisible dans
+  //   le bac a sable et incertaine en production. C'est acceptable ICI parce
+  //   qu'elle sert a AUDITER la regle, pas a surveiller la prod — la
+  //   surveillance, ce sont les deux compteurs de `/api/sante`, qui restent.
+  // ⛔ Ne pas la « reparer » en la deplacant vers le temoin : ce serait
+  //   echanger une fuite contre un confort de lecture.
+  if (candidatsEcart > ecartes) {
+    const passent = items
+      .filter((i) => Number(i.floor) > ECART_PRIX && !i.floorEcarte)
+      .sort((a, b) => Number(b.floor) - Number(a.floor));
+    console.log(`[vitrine] ${passent.length} piece(s) au-dessus du seuil SERVIE(S) — nommees pour audit :`);
+    for (const i of passent) {
+      const med = Number(i.prixMedian);
+      const x = Number.isFinite(med) && med > 0 ? `x${(Number(i.floor) / med).toFixed(1)}` : 'mediane inutilisable';
+      console.log(`  · ${i.name} [${i.rarity || '?'}] — ${i.listings ?? '?'} offre(s), ${i.totalPoints ?? '?'} releve(s), ${x} sa mediane`);
+    }
+  }
+  if (comicsSansRarete) console.log(`[adresses] ATTENTION ${comicsSansRarete} comics sans rarete : adresse basee sur le nom de couverture, ou l'identifiant court s'il n'y a rien de distinctif`);
+  if (collisionsComics) console.log(`[adresses] ${collisionsComics} comics en collision de rarete : nom de couverture ajoute a l'adresse`);
+  for (const t of TYPES) {
+    if (quotas[t] > 0 && publies[t] === 0) {
+      console.log(`[vitrine] ATTENTION AUCUN ${t} publie alors que le quota est de ${quotas[t]} — eligibles : ${eligibles[t]}`);
+    }
+  }
+
+  // ⭐ LA RÉSERVE SE FERME SUR LES UUID RÉELLEMENT PUBLIÉS, ET PAS AVANT.
+  // Un item du catalogue sans page ne peut être demandé par personne : garder
+  // sa réserve gonflerait l'image de ~15 fois (19 242 items du catalogue
+  // contre 1 200 fiches publiées) pour zéro requête servie.
+  // ⚠️ Cet appel doit rester APRÈS le calcul de `items` : plus haut, la liste
+  // des publiés n'existe pas encore, et un `fermer()` sans filtre garderait
+  // tout — sans qu'aucune erreur ne le dise.
+  // 🕰️ LOT 217 — LA DATE D'OBSERVATION PART AVEC LA RÉSERVE.
+  // `rel` porte, par uuid, le `ts_releve` le plus grand — c'est-à-dire QUAND
+  // ON A REGARDÉ, quel que soit le montant vu. C'est la seconde moitié de
+  // l'historique : `prices.csv.gz` dit quand le prix a CHANGÉ, `releves.csv`
+  // dit jusqu'à quand on sait qu'il n'a PAS changé.
+  // ⛔ ON NE PASSE PAS `rel` TEL QUEL. Il porte cinq horloges (`sec`,
+  // `stackrSec`, `stackrObsSec`, `veveSec`, plus un montant) et la réserve n'a
+  // besoin que d'une. Livrer l'objet entier laisserait un lot suivant choisir
+  // la mauvaise sans qu'aucun banc ne le voie — `stackrSec` n'avance QUE si un
+  // floor était fini, et daterait donc la VALEUR, pas l'observation.
+  reserve.fermer(new Set(items.map((i) => i.uuid)), observations);
+
+  // 💰 LOT 210 — LES VENTES SUIVENT LA MEME REGLE QUE LA RESERVE DE PRIX :
+  // elles s'ecrivent sur les uuid REELLEMENT PUBLIES, et pas avant. Garder
+  // les 3 015 pieces couvertes quand 8 840 fiches seulement existent
+  // gonflerait l'image pour des fichiers que personne ne peut demander.
+  // ⚠️ MEME `Set`, MEME MOMENT : si un jour l'un des deux appels bouge sans
+  // l'autre, les deux reserves cessent de decrire le meme site — et rien ne
+  // le dirait.
+  const nVentes = ventes.ecrire(lignesVentes, new Set(items.map((i) => i.uuid))).comptes;
+
+  // 📒 LOT 224 — LE CLASSEUR SUIT LA MEME REGLE, ET IL EST ICI POUR LA RAISON
+  // QUE LE COMMENTAIRE CI-DESSUS VIENT D'ECRIRE : **meme `Set`, meme moment**.
+  // Le poser dans une integration `astro:build:done` aurait marche — et aurait
+  // ouvert un SECOND canal pour la liste des uuid publies. Le jour ou l'un des
+  // deux bouge sans l'autre, les reserves cessent de decrire le meme site, et
+  // rien ne le dit. ⛔ Une integration ne peut d'ailleurs PAS rappeler
+  // `dataset()` pour l'obtenir : le Dockerfile documente la panne du lot 104,
+  // ou un banc l'a fait et a vide `.reserve/cote/` de 1 201 fichiers a 0.
+  //
+  // ⚠️ `comptesActifs()` ET PAS `RENDERING`. C'est le manifeste qui decide si
+  // un site a des membres — vevewiki n'en aura jamais (arbitrage du 03/08), et
+  // ses pages de classeur sont deja effacees par la zone `comptes` de
+  // `astro_features.mjs`. Ecrire l'index la-bas coûterait ~325 Mo d'image pour
+  // des fichiers que personne ne peut demander. Meme regle que
+  // `reserve.ouvrir()` vingt lignes plus haut : le manifeste decide, le code
+  // obeit.
+  //
+  // 🔴 IL EST `await`E, ET ÇA COÛTE ~46 s MESUREES (dont ~18 s de
+  // telechargement) sur un deploiement de 9 min 16, soit **+8,3 %**. Le chiffre
+  // est ici parce qu'il doit se relire : le jalon du 04/09 avait mesure la
+  // LECTURE seule (19,6 s, +3,6 %) et conclu que le lot tenait — l'ECRITURE
+  // coûte plus cher que la lecture, et personne ne l'avait mesuree.
+  // ⭐⭐ *Une mesure de debit ne dit rien d'un volume, ni d'un temps d'ecriture.*
+  if (comptesActifs()) {
+    await classeur.ecrire(new Set(items.map((i) => i.uuid)));
+  } else {
+    console.log('[classeur] site sans comptes (manifeste) — aucun index ecrit.');
+  }
+  // 🔢 LOT 211 — LE COMPTE REJOINT L'OBJET PUBLIC, ET IL EST LE SEUL A LE FAIRE.
+  // ⭐⭐⭐ SANS LUI, LA FICHE NE PEUT PAS SE TAIRE. Le gabarit n'a aucun moyen
+  // de savoir si une piece a des ventes : la donnee est dans `.reserve/`, et
+  // une reserve ne se lit pas au build d'une page. Il emettrait donc son bloc
+  // partout, et les ~68 % de fiches sans aucune vente porteraient un cadenas
+  // sur du VIDE. *Une absence deguisee en reserve est le defaut de famille de
+  // ce depot* — le meme que `data-attente` repare dans les murs.
+  // ⛔ ET SURTOUT : IL INTERDIT D'INVENTER. Le teaser du visiteur annonce un
+  // NOMBRE ; ce nombre doit etre mesure, jamais estime. C'est la seule valeur
+  // vraie que le HTML public peut porter sur ce sujet.
+  // ⚠️ ICI, ET PAS PLUS BAS. Sous `projeterCote()` la boucle tournerait encore
+  // — mais elle marcherait, et c'est le piege : on prendrait l'habitude de
+  // poser des champs apres la projection, jusqu'au jour ou l'un d'eux lit un
+  // prix efface. La regle tient parce qu'elle n'a pas d'exception.
+  for (const i of items) i.nVentes = nVentes.get(i.uuid) || 0;
+
+  // ═════════════════════════════════════════════════════════════════════════
+  //  🔴 LA PROJECTION PUBLIQUE — DERNIÈRE ÉTAPE, ET ELLE DOIT LE RESTER
+  // ═════════════════════════════════════════════════════════════════════════
+  // Tout ce qui dépend du prix est calculé au-dessus : le score de vitrine, le
+  // repère d'aberration, le tri des sets et des raretés, les mouvements. À
+  // partir d'ici le prix courant n'a plus aucun lecteur légitime côté public —
+  // il part dans `.reserve/cote/`, et les champs quittent les objets.
+  // ⛔ NE JAMAIS remonter cet appel : au-dessus, il casserait le classement de
+  // la vitrine en silence. ⛔ NE JAMAIS ajouter un calcul sur `i.floor`
+  // en dessous : il lirait `undefined`.
+  // ═══════════════════════════════════════════════════════════════════════
+  //  🔴🔴🔴 LOT 117 — L'EMPREINTE DES PRIX, PRISE PENDANT QU'ILS EXISTENT
+  // ═══════════════════════════════════════════════════════════════════════
+  //  LA PANNE QU'ELLE REPARE, ET QUI DURAIT DEPUIS LE LOT 101.
+  //  `engine/tools/lastmod-prix.mjs` compose, pour chaque fiche, une
+  //  « substance » de 18 champs dont elle prend l'empreinte : quand
+  //  l'empreinte bouge, la fiche gagne une nouvelle date au sitemap et
+  //  IndexNow la repropose. Or elle tourne APRES `dataset()`, donc APRES
+  //  `projeterCote()` : `floor`, `ath`, `atl`, `prixMedian` et `p95` y
+  //  valaient `undefined`. Mesure du 10/08 : 5 des 18 champs morts.
+  //  ⇒ UNE FICHE DONT SEUL LE PRIX BOUGEAIT NE CHANGEAIT PLUS DE DATE.
+  //  Aucune erreur, aucun banc rouge, un sitemap parfaitement valide qui
+  //  affirmait « rien n'a change » — c'est la signature de ce depot :
+  //  ⭐⭐⭐ UN CALCUL QUI CONTINUE DE TOURNER SUR DU VIDE.
+  //
+  //  ⛔ POURQUOI UNE EMPREINTE ET PAS LES VALEURS. Rendre les prix a
+  //  `lastmod-prix` par un canal detourne recreerait exactement le chemin que
+  //  `projeter()` ferme. Une empreinte ne dit AUCUN montant ; elle dit
+  //  seulement « ce n'est plus le meme ». C'est tout ce dont une date de
+  //  derniere modification a besoin.
+  //  ⛔ ELLE DOIT RESTER ICI, AU-DESSUS DE `projeterCote()`. Un cran plus bas
+  //  elle prendrait l'empreinte de cinq `undefined` : constante, donc muette,
+  //  donc pire que son absence — elle aurait l'air de marcher.
+  //  ⚠️ Elle n'est PAS posee sur les items : un champ sur un item finit un
+  //  jour dans un gabarit. Elle voyage a cote, dans une Map indexee par uuid.
+  //  🔴🔴🔴 ELLE NE SCELLE QUE LES CHAMPS **PROJETÉS**, ET C'EST CE DÉTAIL QUI
+  //  REND LE BANC CAPABLE DE ROUGIR. Première version : elle scellait aussi
+  //  `listings` et `offresMedianes`. Ces deux-là SURVIVENT à la projection —
+  //  donc, l'empreinte descendue par erreur sous `projeterCote()` restait
+  //  DIFFÉRENTE d'une fiche à l'autre, et le contrôle « des prix différents
+  //  donnent des empreintes différentes » restait VERT sur une empreinte qui
+  //  ne portait plus un seul prix. Mesuré en réinjectant la panne le 10/08.
+  //  ⭐⭐⭐ *Un instrument dont le signal a une seconde source de variation
+  //  mesure la seconde.* Un champ survivant suffisait à maquiller neuf champs
+  //  morts. Les deux publics restent dans la substance de `lastmod-prix`, où
+  //  ils sont lisibles pour ce qu'ils sont.
+  //  ⭐ `CHAMPS_COTE` est LU, jamais recopié : le jour où un champ y entre, il
+  //  entre ici aussi, sans que personne ait à y penser.
+  const sceller = (v) => createHash('sha1').update(JSON.stringify(v)).digest('hex').slice(0, 16);
+  const empreinteCote = new Map(items.map((i) => [i.uuid, sceller(CHAMPS_COTE.map((c) => i[c]))]));
+  // ⭐ `/market/` est un CLASSEMENT de variations : il change des que l'ordre
+  //   ou les valeurs changent. Meme raison, meme place — `change7d` part avec
+  //   la cote a la ligne suivante.
+  const empreinteMarche = sceller([...movers.up, ...movers.down].map((i) => [i.path, i.change7d]));
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🏆 LOT 228 — LE RENDEMENT MCP DES SETS, DÉPOSÉ **PENDANT QUE LES PRIX
+  //              EXISTENT** (demande `f` de Preda, 05/09/2026)
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🔴🔴 ICI, ET SURTOUT PAS PLUS BAS. Le coût d'un set est la SOMME des
+  // planchers de ses pièces ; sous `projeterCote()` cette somme vaudrait 0 sur
+  // les 5 154 sets, `cout` retomberait à `null` partout, et la page servirait
+  // un tableau vide sans qu'une seule ligne du journal ne rougisse.
+  // ⭐ Même place et même raison que `empreinteCote` juste au-dessus : les
+  // deux ont besoin du prix, les deux meurent en silence un cran plus bas.
+  // ⛔ Le fichier va à la RACINE de `.reserve/`, pas dans `analytics/` : ce
+  // dossier-là est supprimé à `astro:build:done`, donc APRÈS nous.
+  deposerSetsMcp(setsTous);           // 🎯 LOT N — TOUS les sets, pages ou non
+
+  const cote = projeterCote(items);
+  // 🔒 LOT N — LES PIÈCES SANS PAGE SUIVENT LE MÊME MUR. `projeterCote()` ne
+  // connaît que `items` ; les objets légers de `c.pieces` (catalogue entier,
+  // voir « le set se bâtit sur le catalogue entier ») portaient un plancher
+  // pour `deposerSetsMcp()`. Il a été lu, il ne traverse pas : on l'efface
+  // ICI, au même moment que les prix des fiches, pour la même raison.
+  let planchersEffaces = 0;
+  for (const c of setsTous.values()) {
+    for (const x of c.pieces) {
+      if (x.path) continue;                 // une fiche publiée : `projeterCote()` l'a déjà faite
+      if ('floor' in x) { delete x.floor; planchersEffaces++; }
+      delete x.floorStackrUsd;
+    }
+  }
+  memoire.jalon(`planchers des pièces sans page effacés (${planchersEffaces})`);
+  memoire.jalon(`projeterCote fait (${items.length} fiches publiees)`);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 💱 LOT 181 — LE COURS OMI EST DÉPOSÉ **APRÈS** `projeterCote()`
+  // ═══════════════════════════════════════════════════════════════════════
+  // 🔴🔴 ET L'ORDRE N'EST PAS UN DÉTAIL DE STYLE : `projeter()` (cote.mjs
+  // l. 318) fait `for (const f of readdirSync(COTE_DIR)) rmSync(f)` — il
+  // RECRÉE le dossier à neuf, exprès, pour qu'une cote de la veille ne soit
+  // jamais servie pour un prix du jour. Déposé une ligne plus haut, le cours
+  // serait effacé par ce ménage. Le mur StackR n'afficherait aucun équivalent,
+  // en production comme en local, sans une seule erreur nulle part.
+  // ⭐ Même raisonnement, mot pour mot, que `deposerVignettes()` : « déposé
+  //   APRÈS `projeterCote()` pour que ce soit vrai par construction ».
+  //
+  // ⛔ RIEN N'EST DÉPOSÉ SI LA PORTE `cote` EST INACTIVE. Sur vevewiki
+  // (`tiers: [visitor]`) `projeter()` sort avant de créer `COTE_DIR` : y
+  // écrire ferait naître un dossier de réserve sur un site qui n'en a pas,
+  // pour un fichier que personne ne lira jamais.
+  // ⛔ Et rien n'est déposé sans cours : `deposerTaux(null)` rend `false` sans
+  // écrire. Un fichier `{}` obligerait la route à distinguer « absent » de
+  // « vide » — deux formes pour une seule cause.
+  if (cote.actif) {
+    const taux = lireTauxCsv(tauxLignes);
+    if (deposerTaux(taux)) {
+      const age = Math.round((Date.now() / 1000 - taux.ts) / 60);
+      console.log(`[taux] cours OMI ${taux.omiUsd} $ (releve il y a ${age} min) depose dans .reserve/cote/`);
+    } else {
+      // ⚠️ Il DIT qu'il se tait, et il dit combien de lignes il a vues. Un
+      // silence muet ici se relirait « le mur StackR n'a jamais eu
+      // d'équivalent », alors que la cause peut être une release non encore
+      // posée, un CSV vide, ou un cours à zéro — trois choses différentes.
+      console.log(`[taux] aucun cours OMI exploitable (${(tauxLignes || []).length} ligne(s) lue(s)) — le mur StackR n'affichera pas d'equivalent en dollars.`);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  🔴🔴🔴 LOT 113 — LE RAYON : TOUT LE CATALOGUE, SANS UN SEUL PRIX
+  // ═══════════════════════════════════════════════════════════════════════
+  //  Arbitrage Preda du 10/08 : « lister tout le catalogue, cliquable seulement
+  //  quand il y a une fiche ». Le site PUBLIE 1 200 fiches sur 19 412 (6 %) —
+  //  deux filtres se cumulent, le seuil de MIN_POINTS relevés de prix puis le
+  //  quota gelé. Une LIGNE DE LISTE, elle, n'a pas besoin d'une page.
+  //
+  //  🔴🔴 ET C'EST ICI QUE SE JOUE LA FUITE LA PLUS GROSSE QU'ON PUISSE FAIRE.
+  //  `catalogue.csv` porte `floor`, `listings`, `ath`, `atl`, `ath_date`. Passer
+  //  une ligne de catalogue à un gabarit, c'est publier 19 412 prix en clair —
+  //  seize fois pire que la fuite que le lot 112 vient de fermer, et par un
+  //  chemin que `projeter()` NE VOIT PAS : `projeter()` mute `items`, pas `cat`.
+  //  ⭐⭐⭐ ON NE RETIRE DONC RIEN : ON N'AJOUTE QUE CE QU'ON NOMME. Une liste
+  //  blanche se relit ; une liste noire s'oublie le jour où la source gagne une
+  //  colonne. Le fichier amont a déjà gagné des colonnes sans prévenir.
+  //  ⛔ `store_price` (le prix de drop) est PUBLIC et reste sur la fiche — il
+  //  n'entre pas ici : une liste n'en a pas besoin, et chaque champ en plus est
+  //  un champ à surveiller.
+  const publiesParUuid = new Map(items.map((i) => [i.uuid, i.path]));
+  const rayonDe = (c) => ({
+    uuid: c.uuid || c.veve_uuid || '',
+    type: estComic(c.kind) ? 'comic' : 'collectible',
+    name: c.name || '',
+    rarity: c.rarity || '',
+    edition_type: c.edition_type || '',
+    // 🔴 LOT 170 — POINT `b`. La série entre NUE pour les comics, brute pour
+    //   les collectibles. Voir `serieNue()` en tête de fichier : la mesure, la
+    //   raison de la limiter aux comics, et ce que coûterait de l'élargir.
+    //   ⭐ ICI ET PAS DANS `aVenir` : la même colonne sert le groupement des
+    //   drops, la barre de filtres de `/comics/` et l'index de rayon. Corriger
+    //   dans `aVenir` seul aurait laissé le filtre par série montrer
+    //   « Aladdin #1 (2026) » et « Aladdin #2 (2026) » comme deux séries.
+    //   ⛔ ET SEULEMENT ICI : `items` (l. ~397) nourrit les ADRESSES des fiches
+    //   via `sansPrefixeSerie()`. Y toucher renommerait des URL en production
+    //   pour réparer 0,9 % des lignes. Le rayon, lui, ne fabrique aucune
+    //   adresse : son `path` vient de `publiesParUuid`, jamais de la série.
+    series: estComic(c.kind) ? serieNue(c.series) : (c.series || ''),
+    brand: c.brand || '',
+    // 🏷️ LOT 155 — LA LICENCE ENTRE DANS LA LISTE BLANCHE, ET C'ÉTAIT LA CAUSE
+    //   D'UN FILTRE QU'ON CROYAIT IMPOSSIBLE. Preda demande une barre de filtres
+    //   sur `/comics/` et `/collectibles/` ; l'axe par lequel un collectionneur
+    //   pense — « je cherche du Marvel » — n'existait pas sur une ligne de rayon.
+    //   ⭐⭐ La donnée était DÉJÀ COLLECTÉE, puis jetée ici : `licensor` est
+    //   rempli à 100 % au catalogue (mesuré au lot 133), et `Collections.astro`
+    //   s'en sert depuis. C'est `rayonDe()` qui ne le nommait pas.
+    //   🔴 MESURÉ le 17/08 avant de l'ajouter : en la reconstruisant depuis le
+    //   set qui porte la pièce, la licence ne couvrait que 6 306 comics sur
+    //   16 789 — une pièce hors set n'a pas de set d'où la déduire. Un filtre
+    //   « Marvel » aurait donc caché 62 % des comics Marvel, en RÉPONDANT.
+    //   ⛔ CE N'EST PAS UN PRIX : `test:rayon` §① tient la liste des champs
+    //   interdits (floor, listings, ath, atl, prixMedian, p95, store_price,
+    //   history, courbe) et `licensor` n'en fait pas partie. Vérifié, pas
+    //   supposé — c'est le geste que demande `image` trois lignes plus bas.
+    licensor: c.licensor || '',
+    tirage: Number(c.tirage) || null,
+    releaseDate: c.release_date || '',
+    // 🖼️ LOT 118 — L'IMAGE ENTRE DANS LA LISTE BLANCHE DU RAYON.
+    // Preda, 10/08 : « pas de visuel pour les sets, ni pour Coming up ». La
+    // cause n'était pas le gabarit : `rayonDe()` ne nommait pas `image`, donc
+    // les drops à venir n'en avaient aucune à rendre. ⭐ C'est la liste
+    // blanche qui fonctionne comme prévu — on n'ajoute que ce qu'on nomme, et
+    // il fallait le nommer.
+    // ⚠️ MÊME ASSAINISSEMENT QUE PARTOUT : https et rien d'autre. La colonne
+    // vient d'un Sheet ; un `javascript:` ou un `data:text/html` dans un `src`
+    // est une injection servie par notre propre domaine. Une liste blanche de
+    // protocoles ne se contourne pas, une liste noire si.
+    // ⛔ CE N'EST PAS UN PRIX et ça ne le devient pas : `test:rayon` tient la
+    // liste des champs INTERDITS ici (floor, listings, ath, atl…) et `image`
+    // n'en fait pas partie. Le vérifier avant d'ajouter est le geste, pas le
+    // fait de se le rappeler.
+    image: (() => {
+      const u = String(c.image || '').trim();
+      return u.startsWith('https://') ? u : '';
+    })(),
+    // ⭐ LE LIEN N'EXISTE QUE SI LA FICHE EXISTE. `bySlug` ne contient que les
+    //   1 200 publiées : `path` vaut null pour les 18 212 autres, et le gabarit
+    //   rend alors un <div>, pas un <a>. ⛔ Fabriquer l'adresse à la main
+    //   produirait 18 212 liens vers des 404 — invisibles au build, puisque ce
+    //   sont des liens et pas des routes. Ce dépôt l'a déjà payé trois fois.
+    path: (publiesParUuid.get(c.uuid || c.veve_uuid) || null),
+  });
+  const rayon = cat.map(rayonDe);
+
+  // ⏳ LES DROPS À VENIR — « ceux qui ont une date de drop supérieure au jour
+  //    actuel » (Preda, 10/08).
+  //    🔴🔴 `release_date` vaut « 06/10/2021 14:00:00 » ou « 30/12/2021 » :
+  //    JJ/MM/AAAA, heure optionnelle. `new Date("06/10/2021")` est interprété
+  //    en MM/JJ/AAAA par V8 — soit le 10 juin au lieu du 6 octobre. Le filtre
+  //    ne PLANTE pas : il rend un ensemble faux, ou vide, en silence.
+  //    ⇒ `jourISO()` et rien d'autre. Un banc le tient.
+  //    ⭐ MESURÉ le 10/08 sur les 19 412 lignes : 10 lignes à venir, qui sont
+  //    2 comics × 5 raretés. Lister les lignes montrerait cinq fois la même
+  //    couverture. ⇒ ON GROUPE, et on garde la rareté la plus basse comme
+  //    représentante (celle que tout le monde peut avoir).
+  const auj = new Date(); auj.setHours(0, 0, 0, 0);
+  const aVenirParDrop = new Map();
+  for (const r of rayon) {
+    const j = jourISO(r.releaseDate);
+    if (!j || new Date(j) <= auj) continue;
+    // 🔴🔴 LOT 139 — ON GROUPE PAR **SÉRIE**, PLUS PAR NOM DE PIÈCE.
+    //   Demande de Preda (11/08) : « À venir doit montrer les SÉRIES, pas les
+    //   items ». La clé était `jour|nom`, donc un drop de 5 pièces d'une même
+    //   série sortait 5 cartes qui se ressemblent — la répétition que le
+    //   groupement par rareté avait déjà supprimée UN cran plus bas, et pas
+    //   celui-ci. ⭐ `r.series || r.name` : une pièce sans série reste son
+    //   propre groupe, elle ne se fait pas absorber par un groupe « vide ».
+    const titre = r.series || r.name;
+    const cle = `${j}|${titre}`;
+    if (!aVenirParDrop.has(cle)) {
+      aVenirParDrop.set(cle, { ...r, jour: j, titre, raretes: 0, pieces: 0, noms: new Set() });
+    }
+    const g = aVenirParDrop.get(cle);
+    // ⭐ LE REPRÉSENTANT N'A PAS FORCÉMENT L'IMAGE. On groupe 5 raretés d'un
+    //   même comic ; la première rencontrée peut être celle dont la couverture
+    //   manque (6 609 comics sont sans `image_url` — `ARCHIVE_HEADER` en jette
+    //   14 champs sur 25). On garde donc LA PREMIÈRE IMAGE NON VIDE du groupe
+    //   plutôt que celle du premier élément. ⛔ Sans ça, un drop dont une seule
+    //   rareté est illustrée sortirait sans visuel, au hasard de l'ordre.
+    if (!g.image && r.image) g.image = r.image;
+    g.raretes++;
+    g.noms.add(r.name);
+  }
+  // 🔴🔴 ET LE LIEN NE SURVIT PAS AU GROUPEMENT — c'est le prix à payer, et il
+  //   se paie ici plutôt que dans le gabarit. Un groupe qui réunit 5 pièces
+  //   distinctes n'a pas d'adresse : garder le `path` du représentant enverrait
+  //   le visiteur sur UNE des cinq, choisie par l'ordre de lecture du
+  //   catalogue. ⭐ *Un lien qui mène quelque part de plausible est plus
+  //   difficile à détecter qu'un lien mort.* ⇒ le `path` ne survit que si le
+  //   groupe ne contient qu'un seul nom de pièce, auquel cas il la désigne
+  //   vraiment. ⛔ `aVenirCliquables` (déposé à chaque build par
+  //   `deposerMarche()`) mesurera la conséquence : c'est un NOMBRE, pas une
+  //   phrase, et il dira tout seul si ce groupement a éteint tous les liens.
+  for (const g of aVenirParDrop.values()) {
+    g.pieces = g.noms.size;
+    if (g.noms.size > 1) g.path = null;
+    delete g.noms;   // ⛔ un Set ne se sérialise pas : il partirait en `{}`.
+  }
+  const aVenir = [...aVenirParDrop.values()].sort((a, b) => a.jour.localeCompare(b.jour));
+  console.log(`[rayon] ${rayon.length} ligne(s) de catalogue · ${rayon.filter((r) => r.path).length} cliquable(s) · ${aVenir.length} drop(s) a venir`);
+
+  _ds = {
+    items, bySlug, collections, rarities, movers, cote,
+    // ⭐ LOT 117 — voir le bloc « L'EMPREINTE DES PRIX » ci-dessus. Seul
+    //   `engine/tools/lastmod-prix.mjs` les lit ; aucun gabarit n'y touche.
+    empreinteCote, empreinteMarche,
+    rayon, aVenir,
+    marche, marcheTotal,
+    // 🔬 LOT 214 — voir le § « COMBIEN DE PIECES ONT SEULEMENT ETE EXAMINEES ».
+    //   ⛔ Transporte, et pas recompte en aval : `floor` a disparu apres
+    //   `projeterCote()`. C'est la seule exception au principe du lot 196
+    //   (« compter sur le fichier RELU »), et elle est forcee par la donnee,
+    //   pas choisie — d'ou ce commentaire plutot qu'un silence.
+    marcheCandidats: candidatsEcart,
+    // 🏷️ LOT J — TRANSPORTÉS, PAS RECOMPTÉS, exactement comme `marcheCandidats`
+    //   juste au-dessus : `listings` n'existe plus après `projeterCote()`.
+    offres, offresPieces, offresLe,
+    catalogueSize: cat.length,
+    windowDays: WINDOW_DAYS,
+    maxPoints: MAX_POINTS,
+    quotas, eligibles, publies,
+    updatedAt: new Date().toISOString(),
+  };
+
+  // 🔴🔴🔴 LOT 125 — ON DEPOSE ICI CE QUE `/market/` LIRA A LA DEMANDE.
+  // ⭐ L'endroit n'est pas indifferent : `_ds` vient d'etre scelle, donc
+  // `marche` a DEJA traverse `projeterCote()` — les montants en sont sortis, et
+  // la projection deposee porte exactement ce que la page rendra, ni plus.
+  // ⛔ Un cran plus haut, on deposerait `floor`/`ath`/`atl` en clair dans un
+  // fichier — la fuite du lot 101, refaite par la porte d'a cote.
+  // ⚠️ Sous la porte « cote » inactive (vevewiki), il n'y a pas de page de
+  // marche : on ne depose rien, comme `reserve.ouvrir()` juste au-dessus.
+  if (PORTE_PRIX.actif) deposerMarche(_ds);
+  // 🖼️ LOT 154-A — MÊME ENDROIT, MÊME RAISON, ET UNE GARDE DIFFÉRENTE.
+  // ⭐ `deposerMarche()` est sous `PORTE_PRIX` parce qu'il dépose une
+  //   PROJECTION DE MARCHÉ : sans porte des prix, il n'y a pas de page de
+  //   marché. L'index des vignettes, lui, ne porte AUCUN prix — il porte des
+  //   couvertures et des noms. Le mettre sous la même garde reviendrait à dire
+  //   « pas de couverture sans plancher », ce qui n'a pas de sens, et casserait
+  //   le jour où une page publique voudrait le lire.
+  // ⚠️ Il est déposé quoi qu'il arrive, y compris sur vevewiki : le fichier y
+  //   pèsera ce que pèse son catalogue, et personne ne le lira. Un dépôt inutile
+  //   coûte un fichier ; une garde de trop coûte une page vide qu'on met trois
+  //   jours à expliquer.
+  deposerVignettes(_ds);
+  // 🔎 LOT 155 — LES TROIS INDEX DE RAYON, AU MÊME ENDROIT ET POUR LA MÊME
+  // RAISON QUE LES DEUX DÉPÔTS AU-DESSUS : `ds` est chaud ici, et il ne le sera
+  // plus jamais aussi bon marché.
+  // 🔴🔴 ET C'EST UN DÉPLOIEMENT ROUGE QUI L'A MIS LÀ. La première version les
+  // faisait construire par la route `/rayon-index/[corpus].json`, donc TROIS
+  // fois pendant la génération des pages — au moment où ce processus retient
+  // déjà 2,1 M de relevés et 40,6 Mo de réserve. Le build est mort à l'étape
+  // 31/55, à 187 s, après 4 189 pages sur 12 946, sans ERROR ni code de sortie.
+  // ⭐ Ici, les tableaux vivent le temps d'un tour de boucle et se libèrent.
+  // ⚠️ AUCUNE GARDE `PORTE_PRIX`, et c'est le raisonnement de `deposerVignettes`
+  // juste au-dessus : ces index ne portent AUCUN montant — des noms, des séries,
+  // des licences. Sous une porte des prix, ils diraient « pas de licence sans
+  // plancher », ce qui n'a pas de sens. Sur vevewiki le fichier pèsera ce que
+  // pèse son catalogue, et personne ne le lira.
+  for (const l of deposerRayonIndex(_ds)) console.log(l);
+
+  // 🔑🔑 LE DERNIER JALON AVANT LE PRERENDER — c'est CELUI-LA qu'il faudra
+  // lire dans le log de la prochaine mort. Les trois builds morts se sont
+  // arretes APRES ce point, en plein `prerendering static routes`.
+  // 🔴🔴 `clore()` ET NON `jalon()` — LOT 175. Le journal de cette étape
+  //   s'arrête AVANT ce point sur le VPS (mesuré sur deux déploiements : le
+  //   log meurt juste après le téléchargement des baselines, à 21 s puis 27 s,
+  //   sur une étape qui dure 3 min 49). ⇒ Ce jalon-ci part AUSSI dans un
+  //   fichier, que `/api/sante` sert ensuite. C'est le seul canal dont on
+  //   sache qu'il arrive.
+  memoire.clore('dataset pret — LE PRERENDER COMMENCE ICI');
+
+  return _ds;
+}

@@ -1,0 +1,194 @@
+---
+// ⚠️ Leonessa2/veve-sites — src/components/pages/Favoris.astro  (lot 116, EN TUILES au 154-A)
+//
+// ❤️ LA VUE DES FAVORIS — et elle est DERRIÈRE LE MUR depuis le lot 118.
+//
+// 🔴🔴 CET EN-TÊTE A MENTI PENDANT DEUX JOURS, ET C'EST LA 18ᵉ NOTE DÉMENTIE
+//    DU DOSSIER — LA PREMIÈRE QUI VIVAIT DANS LE DÉPÔT LUI-MÊME.
+//    Il affirmait en gros, et en trois étoiles, que cette page n'appartenait
+//    pas aux routes de compte, que c'était ce qui la rendait sûre, et que
+//    l'inscrire dans `ROUTES_COMPTE` aurait été le réflexe — et une erreur.
+//    Le lot 118 l'y a inscrite DEUX JOURS PLUS TARD
+//    (`astro_routes_compte.mjs` l. 128-129), et personne n'a touché au
+//    commentaire.
+//    ⭐⭐ LA PHRASE EST PARAPHRASÉE ICI, PAS RECOPIÉE, ET C'EST LE BANC QUI L'A
+//    IMPOSÉ : la première version de cet en-tête la citait mot pour mot pour
+//    la démentir, et `test_membre` §6 a rougi. Il avait raison. *Une
+//    affirmation fausse reproduite à l'identique reste lisible comme une
+//    affirmation.* ⭐ *Un commentaire faux est un banc à l'envers.*
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// 🖼️🔴🔴🔴 LOT 154-A — LES TUILES, ET LE MANQUE ÉTAIT DE SOURCE, PAS D'HABILLAGE
+// ═══════════════════════════════════════════════════════════════════════════
+// Preda, 14/08 : « Mes favoris : présentation en TUILES ». Mesuré AVANT
+// d'écrire : un favori ne retient que `uuid`, `chemin`, `nom`. Une tuile bâtie
+// depuis cette source n'a **aucune couverture à montrer**, et l'adresse de
+// l'image ne se devine pas (`…image.<uuid>.<SECOND-uuid>.full.jpeg`, mesuré en
+// production le 17/08). ⛔ Ajouter des `<span>` au gabarit n'aurait rien
+// produit — c'est la panne des tuiles de `/market/`, à l'identique.
+// ⇒ `engine/lib/vignettes.mjs` dépose au build « uuid → couverture, nom,
+//   rareté, mention d'édition », et cette page la rend AU SERVEUR. Elle est
+//   déjà rendue à la demande et déjà `no-store` : ça ne coûte pas un cache.
+//
+// ⭐⭐⭐ ET LE MOTIF S'INVERSE, DÉLIBÉRÉMENT. Jusqu'ici : page vide + script qui
+// remplit. Cette page-là ne PEUT plus fonctionner ainsi — le navigateur n'a pas
+// les couvertures, et il ne peut pas les fabriquer. Le serveur, lui, sait déjà
+// QUI regarde (elle est derrière `connecte()`) : il rend la liste finie.
+// ⭐ Bénéfice qui n'était pas cherché : plus de clignotement, plus d'écran
+//   blanc sans JavaScript, et un aller-retour réseau de moins par visite.
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// 💰🔴🔴 LOT J — CETTE PAGE PORTE DÉSORMAIS LE PLANCHER, LA VARIATION ET LES
+//    EXTRÊMES, ET LE PARAGRAPHE CI-DESSOUS N'EST PLUS VRAI TEL QUEL.
+// ═══════════════════════════════════════════════════════════════════════════
+// Preda / maquette v5 : « la tuile de favori est la tuile de rayon PLUS TROIS
+// CHOSES : le plancher, la variation 7 j et la jauge bas ↔ haut ». `<Carte>`
+// passe donc à `cote={true} variation={true}`.
+// ⭐⭐⭐ ET LE MUR N'EST PAS PERCÉ POUR AUTANT — c'est tout l'intérêt de ne
+// PAS avoir écrit un second balisage ici. Sous `coteFermee()` (le cas de
+// veveprice), `<Carte>` ne rend AUCUN montant : elle rend des hôtes `<Cote>`
+// (`[data-cote][data-champ]`) que `60-cote.js` remplit depuis `/api/cote/lot`,
+// derrière la porte `cote`. Le HTML servi ne porte pas un chiffre de plus
+// qu'avant ce lot ; c'est le NAVIGATEUR d'un membre qui a le palier qui en
+// reçoit. Sans palier : le cadenas, qui dit « je ne montre pas » — jamais
+// « je n'ai pas ».
+// ⛔ CE QUI RESTE INTERDIT, ET QUI N'A PAS BOUGÉ : `vignettes.mjs` garde sa
+//    liste FERMÉE de six champs sans aucun montant, et c'est toujours elle qui
+//    alimente le serveur. La page n'a pas gagné l'accès aux prix — elle a gagné
+//    des emplacements que la route remplit.
+// ⚠️ LE PARAGRAPHE HISTORIQUE EST GARDÉ CI-DESSOUS parce que ses trois gardes
+//    tiennent toujours pour ce que le SERVEUR écrit ; seule sa conclusion
+//    (« aucune cote sur cette page ») a changé, et elle est corrigée ici.
+//    ⛔ *Un commentaire faux est un banc à l'envers* — on le date, on ne le
+//    laisse pas contredire le fichier qu'il ouvre.
+//
+// ⛔⛔ [JUSQU'AU LOT J] AUCUN PRIX, AUCUNE COTE — LA PROPRIÉTÉ DU LOT 116 EST
+//    TENUE PAR TROIS CHOSES QUI SE GARDENT L'UNE L'AUTRE :
+//      ① `vignettes.mjs` a une liste FERMÉE de six champs, aucun n'est un
+//         montant, et il est déposé APRÈS `projeterCote()` ;
+////      ② `<Carte cote={false}>` ne rendait ni la ligne du plancher ni le bandeau
+//         ATL/ATH — retirer l'une sans l'autre aurait laissé passer par le
+//         bandeau ce qu'on ferme par la ligne. ⚠️ Au lot J la page demande les
+//         DEUX, et elle les demande ENSEMBLE : c'est la même symétrie, dans
+//         l'autre sens ;
+//      ③ `test:fuite` balaie le rendu.
+//    ⇒ C'est ce qui garde cette page hors du mur des ABONNÉS : elle est
+//      réservée aux COMPTES, pas aux paliers, et « qui es-tu » n'est pas « à
+//      quoi as-tu droit ».
+//
+// ⛔ ON NE RECOPIE PAS LE BALISAGE DE `Carte.astro` ICI. Une seconde fabrique
+//    de carte diverge au premier lot qui touche la première — c'est ce que le
+//    lot 140-3 a payé sur le pilote des favoris, et ce que le 155 doit
+//    refermer sur `/market/`. Une prop, pas un jumeau.
+import Base from '../../layouts/Base.astro';
+import Carte from '../Carte.astro';
+// 🎭 LOT H — l'état vide de Floora. ⛔ Une seule fabrique : voir son en-tête.
+import EtatVide from '../EtatVide.astro';
+import { moduleJs } from '../../../engine/lib/socle_js.mjs';
+const pilote = moduleJs('favoris');
+import { t, localize, numberLocale } from '../../../engine/lib/i18n.mjs';
+
+// ⚠️ `items` ARRIVE DE LA ROUTE, PAS D'UN APPEL FAIT ICI. `Astro.locals` et les
+// cookies n'existent que sur la ROUTE ; un composant qui irait chercher la
+// session lui-même rendrait « personne » sur toute page pré-générée, sans
+// erreur et sans banc rouge. C'est la leçon de `palierVisiteur()` au lot 131.
+// ⚠️ `indisponible` N'EST PAS `items: []`, ET LES DEUX NE SE DISENT PAS PAREIL.
+//    « Je ne sais pas » (base muette, veveid muet) n'emprunte jamais la sortie
+//    de « vous n'avez rien » : afficher « aucun favori » à quelqu'un qui en a
+//    trente est une affirmation fausse, et c'est la seule faute qu'on ne
+//    rattrape pas sur ce projet.
+const { lang, items = [], indisponible = false } = Astro.props;
+const nf = numberLocale[lang] || 'en-GB';
+---
+<Base sect="general" lang={lang} path="/favoris/" noindex={true}
+      title={t(lang, 'fav.title')} description={t(lang, 'fav.desc')}
+      crumbs={[{ name: t(lang, 'home.crumb'), url: localize(lang, '/') },
+               { name: t(lang, 'fav.title') }]}>
+
+  {/* ═══════════════════════════════════════════════════════════════════════
+      🎨 LOT M — LA TÊTE DE PAGE REJOINT CELLE DU RESTE DU SITE
+      ═══════════════════════════════════════════════════════════════════════
+      🗣️ PREDA, 08/09/2026 : « poursuis le redesign, il y a des pages qui n'ont
+      pas eu le redesign. »
+      🔬 MESURÉ sur les pages servies : `/blog/`, `/offre/`, `/`, `/dashboard/`,
+      `/compte/`, `/how-prices-work/` et les sujets d'`/analytics/` portent
+      TOUS les trois mêmes éléments — l'étiquette « // Titre », le `<h1
+      class="mono-t">`, puis une description en `.respire`. Les quatre pages
+      d'outil du membre portaient encore le vieux `sect-t sect-t--gd`, sans
+      étiquette, et leur description — quand elle était affichée — l'était en
+      `.etiq`, la classe des petites capitales, pas celle d'un texte courant.
+      ⭐⭐ ET LA DESCRIPTION EXISTAIT DÉJÀ, dans les cinq langues : elle servait
+      la balise `<meta description>` et rien d'autre. **Ce n'est pas une donnée
+      manquante, c'est une ligne manquante** — le même motif que `image`,
+      `ath_date`, `veve_url` et `series_uuid` avant elle, et c'est la septième
+      fois que ce dépôt le paie.
+      ⛔ ON RÉUTILISE `tete-p__st` / `mono-t` / `respire`, ON N'INVENTE RIEN :
+      inventer une variante ici, c'est refaire demain la divergence qu'on est
+      en train de refermer. 🧪 Borné par `test:pages` §M-tete. */}
+  <p class="etiq etiq--bleu tete-p__st">// {t(lang, 'fav.title')}{items.length > 0 ? ` — ${items.length}` : ''}</p>
+  <h1 class="mono-t">{t(lang, 'fav.title')}</h1>
+  {/* ⚠️ `fav.desc` DIT CE QU'EST LA PAGE, `fav.note` dit où les favoris sont
+      rangés. La seconde restait seule sous le titre : elle répond à une
+      question qu'on ne se pose qu'après. On sert les deux, dans cet ordre. */}
+  <p class="respire" style="max-width:52ch">{t(lang, 'fav.desc')}</p>
+  <p class="etiq">{t(lang, 'fav.note')}</p>
+
+  {indisponible
+    ? <p class="filtres-mur">{t(lang, 'fav.hs')}</p>
+    : items.length === 0
+      ? (
+        /* 🎭 LOT H — « favoris vides » : la pose `coeur`, assignée dans
+           `POSE_DE` et traduite dans les cinq langues depuis le 04/09, n'avait
+           jamais été posée. ⛔ `fav.empty` N'EST PAS PERDU pour autant : la
+           phrase du dictionnaire Floora dit la MÊME chose en deux temps (un
+           titre, une conduite à tenir), et c'est elle qui a été écrite POUR cet
+           écran-ci. La clé `fav.empty` reste employée par la copie masquée
+           ci-dessous, celle que le pilote révèle quand on retire le dernier
+           favori sans recharger. */
+        <EtatVide usage="favoris-vides" cleTitre="floora.vide.favoris.t"
+                  cleDesc="floora.vide.favoris.d" lang={lang} id="fav-vide" />
+      )
+      : (
+        <>
+        {/* ⭐ `.grille` ET `<Carte>`, LE MÊME COUPLE QUE L'ACCUEIL ET
+            `/collections/`. Aucune classe neuve : `.grille>*` porte déjà le
+            décalage d'apparition (`--i`), que `Carte.astro` pose sur son
+            enveloppe. ⛔ `cote={false}` — voir le ⓶ de l'en-tête.
+            ⚠️ `href={it.path}` SANS `localize()` : cette page est rendue à la
+            demande et lit sa langue dans le cookie ; `localize()` fabriquerait
+            `/fr/collectibles/…`, une adresse qui n'existe pas sur veveprice.
+            C'est le défaut du lot 128, et il a déjà été payé dans les deux sens. */}
+        <div class="grille" id="fav-l">
+          {items.map((it, k) => (
+            it.path
+              ? <Carte item={it} lang={lang} href={it.path} nf={nf} i={k} cote={true} variation={true} />
+              /* ⚠️ UN FAVORI SANS ADRESSE RESTE AFFICHÉ, ET IL N'EST PAS UN
+                 LIEN. Il en existe : un item sorti du catalogue n'a plus
+                 d'entrée dans l'index, et le chemin rangé dans la base peut
+                 dater. ⛔ Le retirer silencieusement de la liste de quelqu'un
+                 serait effacer sa donnée pour un défaut d'affichage. */
+              : <Carte item={it} lang={lang} href={undefined} nf={nf} i={k} cote={true} variation={true} />
+          ))}
+        </div>
+        {/* ⭐ LA MÊME CHOSE, MASQUÉE : c'est ce nœud que `favoris.js` révèle
+            quand on retire la dernière tuile sans recharger la page. Les deux
+            branches doivent dire la même chose — sinon vider sa liste d'un clic
+            n'affiche pas ce qu'affiche un rechargement, et personne ne
+            comprend pourquoi. ⛔ L'`id` est LOAD-BEARING : le pilote bascule
+            ce nœud par son identifiant (`favoris.js` l. 92). */}
+        <EtatVide usage="favoris-vides" cleTitre="floora.vide.favoris.t"
+                  cleDesc="floora.vide.favoris.d" lang={lang} id="fav-vide" hidden={true} />
+        </>
+      )}
+</Base>
+
+{/* ⭐⭐ LE PILOTE NE BÂTIT PLUS LA LISTE — LE SERVEUR LA REND. Il ne lui reste
+    qu'un travail, et il n'existait pas avant : faire DISPARAÎTRE la tuile dont
+    on vient d'éteindre le cœur. Sans lui, on décoche un favori et la tuile
+    reste là jusqu'au rechargement — sur une page dont c'est le seul sujet,
+    c'est l'impression que le clic n'a pas marché.
+    ⚠️ `defer` : il s'exécute après l'analyse du document, donc `#fav-l` existe.
+    Et il vient après le socle du `<head>`, donc le gestionnaire global des
+    cœurs (`40-favoris.js`) est déjà branché. Les deux garanties viennent de
+    l'ordre du document, pas d'un hasard de placement. */}
+<script defer src={pilote.href}></script>

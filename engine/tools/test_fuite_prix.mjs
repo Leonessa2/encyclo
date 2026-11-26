@@ -1,0 +1,520 @@
+// ⚠️ Leonessa2/veve-sites — engine/tools/test_fuite_prix.mjs
+// ═══════════════════════════════════════════════════════════════════════════
+// LE BANC ANTI-FUITE — il lit `dist/`, pas le code
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ⭐⭐⭐ POURQUOI IL REGARDE LE PRODUIT ET PAS LA SOURCE. Tous les autres bancs
+// du lot 101 prouvent des INTENTIONS : que `projeter()` retire les champs, que
+// la route refuse sans session, que `productLd` n'emet plus d'`offers`. Aucun
+// ne prouve le FAIT — « il n'y a pas un seul prix dans ce qu'on publie ». Or
+// c'est le seul enonce qui compte, et le seul qu'un lot suivant peut defaire
+// sans toucher a une ligne du lot 101 : il suffira que quelqu'un passe une
+// valeur a un gabarit, de bonne foi, pour une page neuve.
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴🔴🔴 REECRIT AU LOT 104 — CE BANC TUAIT LE DEPLOIEMENT DEPUIS LE LOT 101
+// ═══════════════════════════════════════════════════════════════════════════
+// MESURE DU 07/08/2026, sur le depot `7cf15462` **SANS** le lot 104, dans les
+// conditions exactes du Dockerfile (build REEL, puis `WAREHOUSE_OFFLINE=1
+// npm run test:fuite`) :
+//     KO  la couverture est suffisante (0 fiches)
+//     FATAL ERROR: Reached heap limit — JavaScript heap out of memory
+// ⭐ Le lot 104 n'en est pas la cause : il l'a rendu VISIBLE en faisant tourner
+// le banc sur un vrai catalogue. Sur les 445 pages de l'echantillon local, il
+// passe ; sur les 8 484 pages de la production, il abandonne.
+// ⭐⭐⭐ UN INSTRUMENT VALIDE SUR UN ECHANTILLON N'EST PAS VALIDE. C'est toute
+// la famille de pieges de ce depot, retournee contre le banc lui-meme.
+//
+// ── DEFAUT 1, ET C'EST LE PLUS GRAVE : IL DETRUISAIT LA RESERVE DU BUILD ───
+// Il importait `dataset()`. Sous `WAREHOUSE_OFFLINE=1`, `dataset()` RECALCULE
+// tout depuis `engine/data/sample/` — et `projeter()` comme `reserve.fermer()`
+// s'executent pour de bon. Mesure : `.reserve/cote/` passe de **1 201 fichiers
+// a 0**, et `_projection.json` est remplace par les 90 « sample-… ».
+//   · d'ou le `0 fiche(s) verifiees, 1200 sautee(s)` : le banc comparait le
+//     journal du build REEL (lu avant) a un dataset d'ECHANTILLON (calcule
+//     apres). Deux populations qui ne se rencontrent jamais ;
+//   · et l'image de production aurait embarque une reserve VIDE — un site
+//     parfaitement vert ou SEULS LES ABONNES ne voient plus aucun prix. Seul le
+//     garde-fou du Dockerfile (`COPY .reserve` + comptage separe) l'arretait.
+// ⭐⭐⭐ UN BANC QUI RECALCULE CE QU'IL DOIT JUGER NE LE JUGE PLUS, IL LE
+// REMPLACE. Ce banc n'a jamais eu besoin de `dataset()` : il compare `dist/` a
+// `.reserve/`, deux choses deja ECRITES sur le disque par le build.
+// ⛔ NE JAMAIS reimporter `dataset()` ici.
+//
+// ── DEFAUT 2 : LA MEMOIRE ─────────────────────────────────────────────────
+// Chaque page etait lue jusqu'a trois fois, et la liste complete des chemins
+// retenue. UN SEUL PARCOURS desormais, en flux : aucun contenu n'est garde, que
+// des compteurs et cinq exemples.
+//
+// ── DEFAUT 3 : LA DISTINCTIVITE ───────────────────────────────────────────
+// Le critere « >= 1000 ou non entier » suffisait tant qu'on ne cherchait que
+// dans LA page de la piece. En balayant 8 484 pages, « 10,000 » et « 5,000 » se
+// retrouvent dans `/analytics/` par pur hasard — trois faux positifs mesures en
+// production. ⭐ Le lot 101 l'avait pourtant ecrit : « un banc qui crie au
+// hasard finit desactive ». La portee avait ete elargie sans resserrer le
+// critere ; les deux vont ensemble.
+
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+const R = new URL('../..', import.meta.url).pathname;
+const DIST = process.env.DIST_DIR || join(R, 'dist');
+const RACINE = existsSync(join(DIST, 'client')) ? join(DIST, 'client') : DIST;
+const COTE = process.env.RESERVE_COTE_DIR || join(R, '.reserve', 'cote');
+
+let ko = 0;
+const dit = (bon, quoi, detail) => {
+  if (!bon) ko++;
+  console.log(`  ${bon ? 'ok ' : 'KO '} ${quoi}${detail ? ` — ${detail}` : ''}`);
+};
+
+console.log('\n═══ LOT 101/104 — aucune cote ne doit se trouver dans dist/ ═══');
+
+// ── 0. L'INSTRUMENT AVANT LA MESURE ───────────────────────────────────────
+// ⭐⭐ « Un banc se juge sur ce qu'il LAISSE PASSER. » Sur un `dist/` vide ou
+// une reserve absente, tout ce qui suit serait vert. On refuse d'abord de
+// mesurer avec un instrument debranche.
+if (!existsSync(RACINE)) {
+  console.log(`  KO  dist/ introuvable (${RACINE}) — ce banc ne peut RIEN prouver`);
+  process.exit(1);
+}
+const JOURNAL = join(COTE, '_projection.json');
+
+// ── 0 bis. LE BANC SORT SUR LE MANIFESTE, PAS SUR L'ABSENCE D'UN DOSSIER ──
+// 🔴 Une premiere version sortait si `.reserve/cote/` n'existait pas. Mesure du
+// 07/08 : sur vevewiki ce dossier EXISTE — laisse par le build precedent de
+// veveprice dans le meme arbre — et le banc partait verifier une reserve qui
+// n'etait pas la sienne, puis echouait trois fois sur un site parfaitement
+// sain. ⭐⭐⭐ UN CONTROLE QUI DEDUIT SA RAISON D'ETRE D'UN ARTEFACT SUR LE
+// DISQUE HERITE DE TOUT CE QUE LE DISQUE A GARDE. La question « ce site
+// ferme-t-il sa cote ? » a une reponse EXACTE, et elle est dans le manifeste.
+process.env.SITE = process.env.SITE || 'veveprice';
+const { coteFermee, uuidValide } = await import('../lib/cote.mjs');
+if (!coteFermee()) {
+  console.log(`  ..  la porte « cote » est INACTIVE sur ce site (${process.env.SITE}) : rien a verifier.`);
+  console.log('      ⚠️ Sur veveprice, ce message EST la panne — la porte devrait etre active.');
+  process.exit(0);
+}
+if (!existsSync(JOURNAL)) {
+  console.log(`  KO  la porte « cote » est active mais le journal de projection est absent (${JOURNAL})`);
+  console.log('      -> le build n\'a pas tourne, ou `projeter()` n\'a pas ete appele.');
+  process.exit(1);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LES MONTANTS TEMOINS — pris dans le journal, jamais recalcules
+// ═══════════════════════════════════════════════════════════════════════════
+// ⭐⭐⭐ ON LIT LE JOURNAL DE PROJECTION, PAS LES FICHIERS SERVIS. Hors reseau,
+// les uuid de l'echantillon valent « sample-0033-570553 » : la liste blanche
+// les refuse tous, `.reserve/cote/` sort VIDE de tout build local, et un banc
+// branche dessus n'aurait AUCUN montant a comparer. Il serait vert, en CI, pour
+// toujours, et pour la seule raison qui rend un banc inutile.
+const jrn = JSON.parse(readFileSync(JOURNAL, 'utf8'));
+const entrees = Object.entries(jrn.valeurs || {});
+dit(entrees.length > 0, `${entrees.length} cote(s) retiree(s) du public`,
+  entrees.length ? `${jrn.ecrits || 0} servie(s), ${jrn.refuses || 0} uuid refuse(s)`
+    : 'AUCUNE — soit la projection n\'a pas tourne, soit elle n\'ecrit rien');
+
+// ── LE CRITERE DE DISTINCTIVITE, RESSERRE AU LOT 104 ──────────────────────
+// ⭐ Un montant n'est retenu que s'il est difficilement INVENTABLE :
+//   · non entier — « 10 000 » et « 5 000 » sont partout, « 627.95 » non ;
+//   · au moins 100 — en dessous, deux decimales ne distinguent plus rien ;
+//   · deuxieme decimale non nulle — ecarte les .50, .25, .10 du langage courant.
+// ⛔ ON PERD DE LA COUVERTURE, ET ON L'ASSUME. Le nombre de temoins retenus est
+// affiche a chaque execution et garde par un plancher : mieux vaut prouver
+// moins et etre cru, que crier souvent et finir desactive.
+const distinctif = (v) => Number.isFinite(v) && !Number.isInteger(v)
+  && Math.abs(v) >= 100 && Math.round(Math.abs(v) * 100) % 10 !== 0;
+
+// ⚠️ ON CHERCHE LES QUATRE FORMES, PAS LE NOMBRE BRUT. `toLocaleString` rend
+// « 1 234,5 » en francais et « 1,234.5 » en anglais : chercher `1234.5` serait
+// vert sur une page qui affiche le montant en toutes lettres.
+const FORMATS = ['en-GB', 'fr-FR', 'es-ES', 'de-DE'];
+// 🔴🔴🔴 LOT 144 — LA DISTINCTIVITE ETAIT JUGEE SUR LA VALEUR ET CHERCHEE SUR
+// LA FORME, ET LES DEUX NE COINCIDENT PAS.
+// Mesure du 13/08 sur un build de PRODUCTION : `prixMedian = 1099.995` passe
+// `distinctif()` (non entier, >= 100, deuxieme decimale a 5). Mais
+// `toLocaleString('en-GB', { maximumFractionDigits: 2 })` l'ARRONDIT en
+// « 1,100 » — quatre chiffres ronds, qu'un TIRAGE de 1 100 pieces ecrit tel
+// quel (`<span class="rayon__t">1,100</span>`). Le banc annonçait une FUITE DE
+// PRIX sur trois pages qui n'en portaient aucune.
+// ⭐⭐⭐ C'EST LA MEME FAMILLE QUE LE DEFAUT 3 DU LOT 104, UNE COUCHE PLUS BAS :
+// le critere se resserrait sur le NOMBRE, la recherche se faisait sur la
+// CHAINE, et l'arrondi les separait. *Un instrument qui ne mesure pas ce qu'il
+// juge finit par nommer une cause qu'il ne departage pas.*
+// ⚠️ VERIFIE : l'ANCIEN instrument est rouge et le NOUVEAU vert sur le MEME
+// `dist/`, et la chaine trouvee est un tirage, pas un prix. Ce n'est pas un lot
+// qui l'a introduit — c'est la donnee du jour qui a fait apparaitre un temoin
+// dont l'arrondi tombe rond.
+// ⛔ ON NE RETIRE PAS LE TEMOIN, ON RETIRE LA FORME : la valeur reste comparee
+// sous ses autres ecritures (« 1.099,99 » en de-DE reste un temoin valable).
+// Et le plancher de 20 formes, plus bas, dit tout de suite si on a trop coupe.
+const formeDistinctive = (f) => /[.,]\d?[1-9]$/.test(f);
+const formes = (v) => {
+  const out = new Set();
+  for (const l of FORMATS) {
+    const f = Number(v).toLocaleString(l, { maximumFractionDigits: 2 });
+    if (formeDistinctive(f)) out.add(f);
+  }
+  return [...out];
+};
+
+// ⭐ 60 temoins : une fuite de page ne fuit jamais UN prix, elle en fuit deux
+// cents. Un seul retrouve suffit a la dire. Borner le nombre de temoins borne
+// le cout du produit croise (temoins x pages) sans rien couter a la detection.
+const ECHANTILLON = 60;
+const temoins = [];
+for (const [uuid, c] of entrees) {
+  if (temoins.length >= ECHANTILLON) break;
+  const v = ['floor', 'ath', 'atl', 'prixMedian', 'p95'].map((k) => c[k]).find(distinctif);
+  if (v !== undefined) {
+    for (const f of formes(v)) temoins.push([f, uuid, v]);
+  }
+}
+// ⭐ L'INSTRUMENT SE DECLARE. Sans temoins, tout ce qui suit serait vert pour la
+// seule raison qui rend un banc inutile : il n'a rien a mesurer. Et on le DIT.
+dit(temoins.length >= 20, `${temoins.length} forme(s) temoin(s) sur ${entrees.length} cote(s)`,
+  temoins.length >= 20 ? null
+    : 'TROP PEU de montants distinctifs — ce banc ne prouve presque rien');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LE PARCOURS UNIQUE — tout se mesure ici, rien ne se garde
+// ═══════════════════════════════════════════════════════════════════════════
+// ⭐⭐ UN SEUL `readFileSync` PAR FICHIER, ET SON CONTENU EST RELACHE AVANT LE
+// SUIVANT. La version precedente ouvrait chaque page jusqu'a trois fois et
+// retenait la liste complete : 3 Go de tas sur 8 484 pages, puis SIGABRT.
+let nbFichiers = 0;
+let nbOffre = 0;
+let nbMarqueurs = 0;
+let sousDist = 0;
+const exOffre = [];
+const exFuite = [];
+const exRempli = [];
+// 🔴 LOT 112 — la variation chiffree, ou qu'elle soit rendue. On vise la CLASSE
+// `.delta` et non « un pourcentage quelque part » : une page peut legitimement
+// ecrire « 30 % » dans une phrase. ⭐ Le selecteur est celui que `vitrine.mjs`
+// emet lui-meme (`delta()`), donc le banc et le rendu partagent une seule
+// verite — deux parseurs, c'est un qui ment.
+const RE_PCT = /class="delta[^"]*"[^>]*>(?:\s*<[^>]+>\s*)*[+-]?\d+[.,]\d+\s*%/g;
+let nbPct = 0;
+const exPct = [];
+// ⛔ Un plafond d'exemples, pas un plafond de PARCOURS : on visite toutes les
+// pages meme apres huit fuites. S'arreter tot rendrait le compte final faux, et
+// un compte faux se cite ensuite comme un fait.
+const MAX_EX = 5;
+
+(function marcher(d) {
+  for (const e of readdirSync(d, { withFileTypes: true })) {
+    const p = join(d, e.name);
+    if (e.isDirectory()) { marcher(p); continue; }
+    if (!/\.(html|json|xml)$/.test(e.name)) continue;
+    nbFichiers++;
+    if (p.includes('.reserve')) sousDist++;
+    const texte = readFileSync(p, 'utf8');
+
+    // 0. 🔴🔴🔴 LOT 112 — LES POURCENTAGES SONT DES PRIX, ET CE BANC NE LES
+    //    VOYAIT PAS. Mesure de production du 10/08 : les 84 emplacements de
+    //    prix de l'accueil affichaient « — », et la MEME page servait 44
+    //    variations exactes (+277.2 %, +192.9 %…). 2 par fiche, 1 par carte.
+    //    ⭐⭐⭐ ET CE BANC ETAIT VERT, A JUSTE TITRE SELON SA PROPRE
+    //    DEFINITION : il ne cherche que des MONTANTS « difficilement
+    //    inventables ». Un pourcentage n'est pas un montant — il ne figure
+    //    dans aucun temoin, il ne ressemble a aucun prix, il passe.
+    //    ⛔ Or `/market/` est reserve aux membres PRECISEMENT parce que « les
+    //    plus fortes variations » est le produit : on vendait derriere le mur
+    //    ce qu'on donnait devant. *Un banc anti-fuite qui ne connait qu'une
+    //    forme de fuite garantit surtout qu'on cherchera les autres ailleurs.*
+    //    ⚠️ IL EXISTE PARCE QUE `change7d` N'EST PAS ENCORE PROJETE HORS DES
+    //    OBJETS. Le lot 112 ferme la fuite dans les GABARITS ; or « on ne cache
+    //    pas un champ, on ne le projette pas » — une regle tenue par la
+    //    discipline seule se defait au lot suivant. C'est ce controle, et lui
+    //    seul, qui rend l'etat intermediaire tenable jusqu'au lot 114 (qui
+    //    projette le champ ET restitue la cle de tri du Market depuis la
+    //    reserve). ⛔ NE PAS LE SUPPRIMER ce jour-la : il deviendra le controle
+    //    qui PROUVE que la projection a bien eu lieu.
+    if (e.name.endsWith('.html')) {
+      const pc = texte.match(RE_PCT);
+      if (pc) {
+        nbPct += pc.length;
+        if (exPct.length < MAX_EX) exPct.push(`${p.slice(RACINE.length)} (${pc.length})`);
+      }
+    }
+
+    // 1. Aucune page n'annonce un prix en donnees structurees.
+    if (e.name.endsWith('.html') && /"@type"\s*:\s*"Offer"/.test(texte)) {
+      nbOffre++;
+      if (exOffre.length < MAX_EX) exOffre.push(p.slice(RACINE.length));
+    }
+
+    // 2. Les emplacements de cote sont VIDES. ⭐ Le controle qui attrape la
+    // faute la plus probable des lots suivants : quelqu'un passe une prop
+    // `valeur` a <Cote> « juste pour cette page-la ».
+    if (e.name.endsWith('.html')) {
+      // 🔴 LOT 112 — LE SELECTEUR ETAIT UN PREFIXE, ET IL S'EST MIS A MENTIR.
+      // `class="cote[^"]*"` attrape `cote`, mais aussi `cote__v` et — depuis ce
+      // lot — `cote__l`, le cadenas. Le cadenas ne contient pas « — » mais un
+      // <svg> : le banc a donc annonce 8 484 emplacements « remplis », c'est-a-
+      // dire une FUITE DE PRIX MASSIVE, sur un lot qui n'en introduit aucune.
+      // ⭐⭐⭐ IL ETAIT ROUGE POUR UNE MAUVAISE RAISON, et le reflexe naturel
+      // aurait ete de retirer le cadenas pour le faire taire. C'est
+      // l'instrument qu'on corrige, jamais le code pour lui plaire.
+      // ⭐ La faiblesse etait LATENTE depuis le lot 101 : toute classe
+      // commençant par « cote » l'aurait declenchee. Elle attendait qu'on en
+      // ajoute une. `(?: [^"]*)?` exige desormais soit la fin du nom, soit une
+      // ESPACE — c'est-a-dire une seconde classe, jamais un suffixe BEM.
+      const m = texte.match(/<span class="cote(?: [^"]*)?"[^>]*>.*?<\/span>/gs);
+      if (m) {
+        nbMarqueurs += m.length;
+        for (const bloc of m) {
+          if (!/>\s*—\s*</.test(bloc) && exRempli.length < MAX_EX) exRempli.push(p.slice(RACINE.length));
+        }
+      }
+    }
+
+    // 3. AUCUN MONTANT TEMOIN NULLE PART — le controle central du lot 104.
+    // ⭐⭐⭐ Il ne demande plus « la fiche de cette piece porte-t-elle son
+    // prix ? » mais « CE MONTANT EXISTE-T-IL QUELQUE PART DANS dist/ ? ».
+    // La premiere question etait suffisante au lot 101 — seules les fiches
+    // portaient un montant. Elle a cesse de l'etre quand `/market/` est
+    // revenue : une page de liste qui retomberait en pre-generee ecrirait 200
+    // montants d'un coup, et l'ancienne forme ne l'aurait jamais regarde.
+    // ⛔ « Un controle qui ne regarde que ce qui existe ne voit jamais ce qui
+    // manque » — et un oubli dans ROUTES_COMPTE ne produit AUCUN run rouge.
+    if (exFuite.length < MAX_EX) {
+      for (const [forme, uuid] of temoins) {
+        if (texte.includes(forme)) {
+          exFuite.push(`${p.slice(RACINE.length)} porte « ${forme} » (${uuid.slice(0, 8)})`);
+          break;
+        }
+      }
+    }
+  }
+})(RACINE);
+
+dit(nbFichiers > 50, `${nbFichiers} fichier(s) publie(s) inspecte(s)`,
+  nbFichiers > 50 ? null : 'TROP PEU — le banc serait vert par manque de matiere');
+dit(nbOffre === 0, 'aucune page n\'emet un `Offer` en donnees structurees',
+  nbOffre === 0 ? null : `${nbOffre} page(s), dont ${exOffre.join(' · ')}`);
+dit(nbMarqueurs > 0, `${nbMarqueurs} emplacement(s) de cote emis`,
+  nbMarqueurs ? null : 'AUCUN — le composant <Cote> n\'est rendu nulle part, verifier les gabarits');
+dit(exRempli.length === 0, 'aucun emplacement de cote ne porte de valeur',
+  exRempli.length === 0 ? null : `rempli(s), dont ${exRempli.join(' · ')}`);
+dit(nbPct === 0, `aucune variation chiffree dans les ${nbFichiers} page(s) publiee(s)`,
+  nbPct === 0 ? null
+    : `${nbPct} pourcentage(s) en clair, dont ${exPct.join(' · ')}`
+      + '\n     🔴 LE PRIX EST FERME ET LE MOUVEMENT EST OUVERT — c\'est le'
+      + '\n        classement que /market/ fait payer, donne devant le mur.');
+dit(exFuite.length === 0,
+  `aucun des ${temoins.length} montants temoins ne se retrouve dans les ${nbFichiers} page(s) publiee(s)`,
+  exFuite.length === 0 ? null : `FUITE(S) : ${exFuite.join(' · ')}`);
+if (exFuite.length) {
+  console.log('     🔴 UN MONTANT RESERVE EST DANS `dist/`, DONC SERVI EN CLAIR PAR NGINX.');
+  console.log('     ➡️  Verifier d\'abord `engine/lib/astro_routes_compte.mjs` : une page qui lit');
+  console.log('        la reserve et qui n\'y est PAS inscrite reste pre-generee, en silence.');
+  console.log('        C\'est la panne du lot 24, et elle ne produit aucun run rouge.');
+}
+
+// ── 4. LE JOURNAL N'EST PAS ATTEIGNABLE PAR LES ROUTES ────────────────────
+// ⭐ Il porte, en clair, TOUS les montants du site. Il vit hors de `dist/` — mais
+// les deux routes de cote composent un chemin depuis l'URL, donc la seule chose
+// qui l'en protege vraiment est la liste blanche des uuid. On le PROUVE, ici,
+// avec la meme fonction que celle des routes : « c'est hors de dist/ » et « on
+// ne peut pas le demander » sont deux proprietes differentes.
+dit(!uuidValide('_projection'), 'le journal ne passe pas la liste blanche des uuid',
+  'sinon /api/cote/_projection le servirait a tout abonne');
+dit(!uuidValide('_projection.json') && !uuidValide('../.reserve/cote/_projection'),
+  'aucune variante du nom du journal ne passe la liste blanche');
+
+// ── 5. LA RESERVE N'EST PAS SOUS dist/ ────────────────────────────────────
+// Meme garde que `test_reserve.mjs` pour l'historique : trois barrieres valent
+// mieux qu'une, et celle-ci couvre le dossier de cote.
+dit(sousDist === 0, '.reserve/ n\'apparait pas sous dist/',
+  sousDist === 0 ? null : `${sousDist} fichier(s) de reserve SERVIS EN CLAIR`);
+
+// ── 6. LOT 215-B — LE PANNEAU « SURVEILLER CE PRIX » NE PORTE AUCUN MONTANT ──
+// ═══════════════════════════════════════════════════════════════════════════
+// ⭐⭐⭐ CE CONTROLE FERME UN TROU CONNU DE CE BANC : jusqu'ici il ne couvrait
+// QUE les cinq champs de `.reserve/cote/`. Le lot 215-B pose sur CHAQUE fiche un
+// champ de seuil, et le geste le plus naturel du monde serait de le pre-remplir
+// avec le plancher du jour « pour aider ». Ce serait un montant reserve cuit
+// dans 8 484 fichiers publics — la fuite du lot 101, par une porte neuve.
+//
+// ⛔ ON CHERCHE UN ATTRIBUT `value`, PAS UN CHIFFRE. Chercher un nombre dans le
+// panneau ferait mordre sur le `0` de `min="0"` et sur le `0,00` du
+// `placeholder` — deux choses qui ne sont PAS des donnees. La question est
+// « le serveur a-t-il ecrit une valeur ? », et elle se lit sur l'attribut.
+//
+// ⭐ ET IL A UNE REPONSE DANS LES DEUX ETATS : s'il n'y a aucun panneau dans
+// `dist/`, on le DIT au lieu de sortir vert. Un banc muet quand sa condition
+// arrive est un interrupteur, pas un instrument.
+{
+  const fiches = [];
+  const empiler = (d) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const c = join(d, e.name);
+      if (e.isDirectory()) empiler(c);
+      else if (e.name.endsWith('.html')) fiches.push(c);
+    }
+  };
+  try { empiler(RACINE); } catch { /* dist absent : deja traite plus haut */ }
+
+  let avecPanneau = 0;
+  const fautifs = [];
+  for (const f of fiches) {
+    const html = readFileSync(f, 'utf8');
+    if (!html.includes('data-seuil')) continue;
+    avecPanneau++;
+    // le champ, tel qu'il est servi
+    const m = html.match(/<input[^>]*data-seuil[^>]*>/g) || [];
+    for (const balise of m) {
+      if (/\svalue\s*=/.test(balise)) fautifs.push(`${f.slice(RACINE.length)} : ${balise.slice(0, 90)}`);
+    }
+    // ⛔ Et la face « deja posee » doit etre VIDE : c'est le pilote qui y ecrit
+    //    le seuil, a l'execution, depuis une route qui lit la session.
+    const e = html.match(/<p[^>]*data-etat[^>]*>([\s\S]*?)<\/p>/);
+    if (e && e[1].trim() !== '') fautifs.push(`${f.slice(RACINE.length)} : data-etat non vide « ${e[1].trim().slice(0, 40)} »`);
+  }
+
+  if (!avecPanneau) {
+    // ⚠️ SANS OBJET, et on l'imprime — ce n'est pas un vert. vevewiki n'ouvre
+    //    aucun compte, donc `Item.astro` ne rend pas le bloc : c'est correct, et
+    //    ca ne se distingue d'un bloc disparu que si on le dit.
+    console.log(`  ..  aucun panneau de seuil dans dist/ (${process.env.SITE}) : `
+      + 'attendu sur un site sans comptes, ANORMAL sur veveprice.');
+  } else {
+    dit(fautifs.length === 0,
+      `les ${avecPanneau} panneau(x) de seuil servis ne portent AUCUN montant`,
+      fautifs.length ? `🔴 ${fautifs.slice(0, 3).join(' · ')}` : null);
+  }
+}
+
+// ── 7. LOT 218 — LE PANNEAU DE DETENTION EST SERVI VIDE ─────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴🔴🔴 CE BANC NE COUVRAIT QUE `.reserve/cote/`, ET IL SERAIT RESTE VERT.
+// Le lot 218 pose sur CHAQUE fiche un panneau de detention rempli par une route
+// gardee. Les cinq champs de la cote n'y apparaissent pas — le corner ne porte
+// aucun prix — donc les §1 a §5 n'ont rien a y voir : ils auraient dit « aucune
+// fuite » d'un bloc qu'ils ne regardent pas.
+// ⭐⭐⭐ *Un banc peut etre vert parce qu'il ne surveille rien.* Le §6 avait
+// ouvert la breche pour le panneau de seuil ; celle-ci la ferme pour le corner,
+// et par une forme qui vaudra pour le bloc suivant.
+//
+// ⛔ LISTE BLANCHE, JAMAIS NOIRE. On n'enumere pas les attributs interdits — on
+// enumere les DEUX seuls autorises (`data-corner`, qui porte un uuid public, et
+// `data-verrouille`, qui n'a pas de valeur), plus la famille `data-l-*` qui ne
+// porte que des mots traduits. Tout `data-` neuf fait donc rougir ce banc PAR
+// DEFAUT, y compris celui qu'un futur lot ajouterait de bonne foi pour
+// « eviter un aller-retour ». Une liste noire aurait laisse passer exactement
+// celui-la, parce qu'on ne le connait pas encore.
+//
+// ⭐ ET IL A UNE REPONSE DANS LES TROIS ETATS : rempli / vide / SANS OBJET.
+// Sur vevewiki il n'y a ni compte ni fiche a panneau : on l'imprime au lieu de
+// sortir vert. Un banc muet quand sa condition n'arrive pas est un instrument ;
+// un banc muet quand elle arrive est un interrupteur.
+{
+  const fiches = [];
+  const empiler = (d) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const c = join(d, e.name);
+      if (e.isDirectory()) empiler(c);
+      else if (e.name.endsWith('.html')) fiches.push(c);
+    }
+  };
+  try { empiler(RACINE); } catch { /* dist absent : deja traite plus haut */ }
+
+  const AUTORISES = new Set(['data-corner', 'data-verrouille']);
+  // 🔬 LOT 218 — CE BANC S'EST ATTRAPE LUI-MEME, ET LA LECON VAUT PLUS QUE LE
+  // CORRECTIF. Ecrit avec `data-corner` et `data-verrouille` pour seuls
+  // autorises, il etait VERT juste apres le build et ROUGE apres
+  // `npm run marquer:i18n` : l'etape de marquage pose `data-i18n-attr` sur
+  // l'hote, et la liste blanche ne la connaissait pas.
+  // ⭐⭐⭐ ROUGE POUR UNE BONNE RAISON DE FORME, FAUSSE SUR LE FOND — et il ne
+  // l'a montre qu'a l'etape suivante de la chaine. *Un banc juge ce qu'il
+  // observe AU MOMENT ou il l'observe* : celui-ci doit valoir avant ET apres
+  // le marquage, sinon son verdict depend de l'ordre des commandes.
+  // ⛔ ET LA PORTE RESTE ETROITE : `data-i18n-attr` ne porte qu'une carte
+  // « attribut:cle », c'est-a-dire des NOMS DE CLES, jamais des valeurs — le
+  // controle juste en dessous l'exige au lieu de le croire. Sans lui, on aurait
+  // ouvert une famille entiere d'attributs sur la foi de son prefixe.
+  // ⭐ Et sa presence est un SIGNE DE BON FONCTIONNEMENT : c'est elle qui rend
+  // le panneau traduisible cote client. Sans elle il resterait anglais dans les
+  // cinq langues — la panne P30 du lot 139, que `data-l-*` existe pour eviter.
+  const CARTE_I18N = /^([a-z0-9-]+:[a-z0-9_.]+)(\s+[a-z0-9-]+:[a-z0-9_.]+)*$/;
+  let avecPanneau = 0;
+  const fautifs = [];
+  for (const f of fiches) {
+    const html = readFileSync(f, 'utf8');
+    if (!html.includes('data-corner=')) continue;
+    avecPanneau++;
+    const nom = f.slice(RACINE.length);
+
+    // ① l'hote ne porte que des attributs de la liste blanche
+    const ouvrante = html.match(/<div[^>]*\sdata-corner=[^>]*>/);
+    if (ouvrante) {
+      const attrs = ouvrante[0].match(/\sdata-[a-z0-9-]+/g) || [];
+      for (const a of attrs) {
+        const n = a.trim();
+        if (AUTORISES.has(n) || n.startsWith('data-l-')) continue;
+        if (n.startsWith('data-i18n')) {
+          // On ne fait pas confiance au prefixe : on lit la valeur. Une carte
+          // de traduction ne contient que des paires « attribut:cle ». Un
+          // montant, une date ou un uuid n'y passeraient pas.
+          const v = (ouvrante[0].match(new RegExp(n + '="([^"]*)"')) || [])[1];
+          if (v === undefined || CARTE_I18N.test(v.trim())) continue;
+          fautifs.push(`${nom} : ${n} ne porte pas une carte de cles « ${v.slice(0, 40)} »`);
+          continue;
+        }
+        fautifs.push(`${nom} : attribut hors liste blanche « ${n} »`);
+      }
+    }
+
+    // ② le corps et l'etat partent VIDES — c'est le pilote qui y ecrit, a
+    //    l'execution, apres une route qui lit la session.
+    for (const [cle, motif] of [
+      ['data-corner-corps', /<div[^>]*data-corner-corps[^>]*>([\s\S]*?)<\/div>/],
+      ['data-corner-etat',  /<p[^>]*data-corner-etat[^>]*>([\s\S]*?)<\/p>/],
+    ]) {
+      const m = html.match(motif);
+      if (m && m[1].trim() !== '') {
+        fautifs.push(`${nom} : ${cle} non vide « ${m[1].trim().slice(0, 40)} »`);
+      }
+    }
+  }
+
+  if (!avecPanneau) {
+    console.log(`  ..  aucun panneau de detention dans dist/ (${process.env.SITE}) : `
+      + 'attendu sur vevewiki, ANORMAL sur veveprice.');
+  } else {
+    dit(fautifs.length === 0,
+      `les ${avecPanneau} panneau(x) de detention servis partent VIDES`,
+      fautifs.length ? `🔴 ${fautifs.slice(0, 3).join(' · ')}` : null);
+  }
+}
+
+console.log(ko === 0 ? '\n✅ aucune fuite de cote dans dist/\n' : `\n🔴 ${ko} controle(s) en echec\n`);
+// ═══════════════════════════════════════════════════════════════════════════
+//  🔴🔴🔴 LOT 112 — LES POURCENTAGES SONT DES PRIX, ET CE BANC NE LES VOYAIT PAS
+// ═══════════════════════════════════════════════════════════════════════════
+//  Mesuré en production le 10/08/2026 : les 84 emplacements de prix de
+//  l'accueil affichaient « — », et la même page servait 44 VARIATIONS EXACTES
+//  (+277.2 %, +192.9 %…). Chaque fiche en portait 2, chaque carte 1.
+//
+//  ⭐⭐⭐ ET CE BANC ÉTAIT VERT, À JUSTE TITRE SELON SA PROPRE DÉFINITION : il
+//  cherche des MONTANTS « difficilement inventables » (voir plus haut). Un
+//  pourcentage n'est pas un montant — il ne figure dans aucun témoin, il ne
+//  ressemble à aucun prix, il passe.
+//  ⛔ Or `/market/` est réservé aux membres PRÉCISÉMENT parce que « les plus
+//  fortes variations » est le produit. On vendait derrière le mur ce qu'on
+//  donnait devant. *Un banc anti-fuite qui ne connaît qu'une forme de fuite
+//  garantit surtout qu'on cherchera les autres ailleurs.*
+//
+//  ⚠️ IL EXISTE PARCE QUE `change7d` N'EST PAS ENCORE PROJETÉ HORS DES OBJETS.
+//  Le lot 112 ferme la fuite dans les GABARITS ; or « on ne cache pas un champ,
+//  on ne le projette pas » — une règle tenue par la discipline seule se défait
+//  au lot suivant. C'est ce contrôle, et lui seul, qui rend l'état intermédiaire
+//  tenable jusqu'au lot 114 (qui projette le champ ET restitue la clé de tri du
+//  Market depuis la réserve).
+//  ⛔ NE PAS LE SUPPRIMER quand le champ sera projeté : il deviendra alors le
+//  contrôle qui prouve que la projection a bien eu lieu.
+
+process.exit(ko === 0 ? 0 : 1);

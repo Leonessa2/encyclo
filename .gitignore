@@ -1,0 +1,7 @@
+# Fabriqué par la construction : jamais déposé
+node_modules/
+dist/
+.astro/
+.reserve/
+.chrono.json
+.rendering

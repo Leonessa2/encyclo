@@ -1,0 +1,651 @@
+---
+// ⚠️ Leonessa2/veve-sites — src/components/pages/Home.astro
+// ⛔ PROPRE À VEVEPRICE : vevewiki passe par EditorialHome.astro.
+//
+// ⭐⭐⭐ BALISAGE PORTÉ DE LA MAQUETTE, CLASSE PAR CLASSE.
+// `hero`, `hero__champ`, `hero__os`, `hero__ref`, `mono-t`, `respire`,
+// `ticker__piste`, `tick`, `sect-t sect-t--gd`, `carte`, `col-carte` : ce sont
+// les noms de `maquette-veveprice.html`, et le thème ne connaît qu'eux.
+// ⛔ Mes versions précédentes disaient `plaque__champ`, `titre-affiche`,
+// `piece` — des noms que le CSS porté ne visait pas. Le nom EST le contrat.
+//
+// ⭐⭐ LA LOGIQUE DE SÉLECTION N'A PAS BOUGÉ. Le classement par score avec
+// quota par type est un correctif payé cher : 100 % des comics avaient disparu
+// de l'accueil parce qu'on classait par nombre de relevés — qui mesure
+// l'avancée du backfill, pas l'intérêt de la fiche. ⛔ Ne pas y toucher.
+import Base from '../../layouts/Base.astro';
+import Carte from '../Carte.astro';
+// 🔴 LOT 139 — l'accueil cesse d'écrire sa propre carte de set : voir le
+//   commentaire au point d'appel, plus bas. Cinquième occurrence.
+import CarteSet from '../CarteSet.astro';
+import { dataset } from '../../../engine/lib/dataset.mjs';
+import { manifest } from '../../../engine/lib/manifest.mjs';
+import { t, pick, localize, numberLocale } from '../../../engine/lib/i18n.mjs';
+import { pli, delta, gemsM } from '../../../engine/lib/vitrine.mjs';
+import { coteFermee as coteEstFermee, lireMarche } from '../../../engine/lib/cote.mjs';
+import { priceEnabled } from '../../../engine/lib/features.mjs';   // 🔴 LOT 205 — le titre de la boîte 002
+import Cote from '../Cote.astro';
+import Gate from '../Gate.astro';   // 🔴 LOT 112 — le témoin du classement fermé
+import AVenir from '../AVenir.astro';   // ⏳ LOT 113 — les drops annoncés (Preda : « partout, y compris l'accueil »)
+// ⭐ AJOUT SEUL (lot 45). `serie` rend les articles d'une etiquette dans leur
+// ordre de lecture ; `dureeLecture` donne les minutes, dites ou calculees.
+import { serie, dureeLecture, SEUIL_PAGE_TAG } from '../../../engine/lib/blog.mjs';
+import { choisirDuJour } from '../../../engine/lib/jour_du_build.mjs';
+
+const { lang } = Astro.props;
+const m = manifest();
+const V = m.vitrine || {};
+const ds = await dataset();
+const nf = numberLocale[lang] || 'en-GB';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴🔴 LOT 205 — LE TITRE « fiches publiées » N'EST PLUS GRAVÉ DANS LE
+// MANIFESTE. Il disait « 1 200 » pendant que le site en publiait 8 840 : la
+// première promesse de l'accueil était fausse d'un facteur sept.
+// ⭐ Même remède que /connexion/ (lot 203, point o) : le nombre vient de la
+// projection déposée au build — la même source que /market/ — et le jour où
+// le catalogue grandit, le titre grandit avec lui.
+// 🔴 `lireMarche()` LÈVE quand la projection manque, et c'est délibéré de sa
+// part. Ici l'appelant est l'ACCUEIL : une exception y serait un 500 servi à
+// tout le monde. ⇒ on retombe sur `t0`, la variante SANS chiffre déclarée par
+// le manifeste, qui reste vraie. ⛔ Jamais « 0 fiche » : un zéro inventé est
+// un mensonge exact — la règle de `nb()` du tableau de bord, mot pour mot.
+const nFiches = (() => {
+  if (!priceEnabled()) return null;
+  try {
+    const n = lireMarche()?.resume?.publies;
+    return typeof n === 'number' && n > 0 ? n : null;
+  } catch { return null; }
+})();
+// ⭐ Le jeton est décrit sans être écrit ici : c'est le mot fiches entre
+// accolades. Une boîte qui ne le porte pas sort inchangée — le mécanisme est
+// donc inerte sur les trois autres boîtes, et sur tout manifeste qui n'en
+// veut pas.
+const JETON_FICHES = '{fiches}';
+const titreBoite = (b) => {
+  const brut = pick(b.t, lang);
+  if (!brut.includes(JETON_FICHES)) return brut;
+  if (nFiches === null) return pick(b.t0, lang) || brut.replace(JETON_FICHES, '').trim();
+  return brut.replace(JETON_FICHES, nFiches.toLocaleString(nf));
+};
+const money = (v) => (v === null || v === undefined ? '—' : v.toLocaleString(nf, { maximumFractionDigits: 2 }));
+const up = ds.movers.up.slice(0, 6);
+const down = ds.movers.down.slice(0, 6);
+
+const parScore = (a, b) => (b.score || 0) - (a.score || 0);
+const featured = (() => {
+  const N = 8;
+  const parT = { collectible: [], comic: [] };
+  for (const i of [...ds.items].sort(parScore)) parT[i.type]?.push(i);
+  const pris = [...parT.collectible.slice(0, N / 2), ...parT.comic.slice(0, N / 2)];
+  if (pris.length < N) {
+    const vus = new Set(pris.map((i) => i.uuid));
+    for (const i of [...ds.items].sort(parScore)) {
+      if (pris.length >= N) break;
+      if (!vus.has(i.uuid)) { pris.push(i); vus.add(i.uuid); }
+    }
+  }
+  return pris.sort(parScore).slice(0, N);
+})();
+const cols = [...ds.collections.values()].sort((a, b) => (b.taille ?? b.items.length) - (a.taille ?? a.items.length)).slice(0, 6);
+const tick = [...up, ...down];
+
+// 🔴 LOT 68 — « ON NE VOIT PAS LES COUVERTURES DANS LE MODULE SETS » (Preda).
+// ⭐⭐ EXACTEMENT LE MÊME DÉFAUT QUE `Collections.astro` LE 01/08 : la pile de
+// trois vignettes s'écrivait `{[0, 1, 2].map(() => (…))}` — une parenthèse
+// VIDE. La boucle rendait donc trois fois le même hexagone gris, alors que
+// `i.image` est dans la donnée depuis le lot qui l'a ajoutée au catalogue.
+// ⛔ Ni erreur, ni avertissement, ni page vide : une page PLAUSIBLE. Le
+// gabarit avait l'air de marcher. Corrigé là-bas, PAS ici — la copie a
+// survécu, comme le module en double du 05/08.
+// ⭐ La leçon n'est pas « attention aux parenthèses » : c'est qu'un correctif
+// se cherche AUSSI dans les gabarits voisins, par le motif et pas par le nom.
+// 🔴 LOT 101 — LE TRI A DESCENDU DANS `dataset.mjs`. `c.items` arrive DEJA
+// trie par plancher decroissant, tant que le prix existait encore. ⛔ Ne pas
+// re-trier ici : apres `projeter()`, `i.floor` vaut `undefined`, le
+// comparateur rendrait 0 pour toutes les paires et l'ordre deviendrait celui
+// de l'insertion — sans erreur, sans avertissement, sur toutes les pages.
+// ⛔ LOT 139 — `pile()` EST PARTIE AVEC SON SEUL APPELANT. Elle prenait les 3
+//   PREMIÈRES pièces d'un set ; `CarteSet.astro` prend les 3 premières QUI ONT
+//   UNE IMAGE (6 609 comics n'en ont pas, et une pile de trois hexagones gris
+//   a l'air cassée). ⭐ Une fonction laissée sans appelant fait croire au
+//   prochain lecteur qu'il existe deux façons de faire — et il en choisira une.
+// ═══════════════════════════════════════════════════════════════════════════
+// 🖼️ LOT 161 — L'IMAGE DU HÉROS CHANGE CHAQUE JOUR (demande `p` de Preda)
+// ═══════════════════════════════════════════════════════════════════════════
+// Elle valait `featured.find((i) => i.image)` : TOUJOURS la même pièce, celle
+// qui sortait première du classement. Le classement bouge lentement ; l'image
+// ne bougeait donc pas.
+//
+// ⭐⭐⭐ LE CHOIX EST FAIT AU BUILD, D'APRÈS LA DATE — PAS EN JAVASCRIPT.
+// L'accueil est un fichier servi depuis le bord : un script qui changerait
+// l'image côté navigateur coûterait un pilote, un scintillement, et il
+// arriverait APRÈS la première peinture — sur l'image LCP de la page, c'est le
+// pire endroit du site pour ça. La reconstruction quotidienne tourne deux fois
+// par jour : elle suffit, à condition que le choix dépende du JOUR et pas de
+// l'HEURE. Deux builds du même jour rendent la MÊME image ; demain, une autre.
+//
+// ⚠️ LE VIVIER N'EST PAS `featured` — huit pièces, donc un cycle d'une semaine,
+// et Preda reverrait la même image chaque mardi. On puise dans les
+// `VIVIER_HERO` mieux classées QUI ONT UNE IMAGE : plus de deux mois de
+// rotation, et ce sont toujours des pièces de premier plan.
+// ⛔ Ne pas tirer au hasard : un tirage ne se rejoue pas, donc il ne se mesure
+//    pas. `choisirDuJour()` est déterministe — `test:tuiles` peut demander
+//    « et le 25/08 ? » sans attendre demain.
+const VIVIER_HERO = 60;
+const piece = choisirDuJour(
+  [...ds.items].filter((i) => i.image).sort(parScore).slice(0, VIVIER_HERO),
+);
+const coteFermee = coteEstFermee();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴 LES VISUELS DES QUATRE BOÎTES — le défaut signalé par Preda le 03/08.
+// ═══════════════════════════════════════════════════════════════════════════
+// `.boite__viz` porte TROIS règles dans le thème `vitrine` (position, rotation,
+// grossissement au survol) et le gabarit ne l'émettait JAMAIS. Idem pour
+// `.boite__bas`, que la maquette émet pourtant (ligne 3348).
+// ⭐⭐ C'EST L'EXACT MIROIR DU CONTRAT GABARIT ↔ THÈME : d'habitude on traque
+// la classe émise sans règle ; ici c'est la règle sans classe. Elle ne casse
+// rien, elle ne crie pas, et la boîte a simplement l'air plate — c'est
+// pourquoi ça a survécu à tous les bancs.
+//
+// ⚠️ LES VISUELS VIENNENT DU CATALOGUE, PAS DU MANIFESTE. Une URL d'image
+// écrite dans le manifeste pourrit le jour où la pièce change de visuel, et
+// personne ne le voit. Le manifeste peut cependant en imposer une (`img:`) —
+// c'est un choix éditorial, il reste possible.
+// ⛔ ET ÇA DOIT SURVIVRE À L'ABSENCE : le jeu d'exemple n'a pas de colonne
+// `image`. Sans visuel, `viz` vaut `null`, le `<span>` n'est pas émis, et la
+// boîte est simplement plate — comme aujourd'hui, mais volontairement.
+// 🔴🔴 LOT 139 — « L'IMAGE DU 1ᵉʳ MODULE DE L'ACCUEIL CHANGE TOUS LES JOURS »
+// (Preda, 11/08). LA CAUSE N'ÉTAIT PAS UNE ROTATION, ET IL N'Y EN A JAMAIS EU.
+// Cette liste puisait dans `featured` — **le classement du jour**, trié par
+// `scoreUtilite`, qui bouge dès qu'un plancher bouge. Le visuel d'un bloc
+// décoratif héritait donc de la volatilité du marché : il changeait sans que
+// rien ne l'ait décidé, et deux visiteurs de deux jours voyaient deux sites.
+// ⭐⭐⭐ *Prendre le premier élément d'une liste triée, c'est hériter de son
+// critère de tri sans le vouloir* — la leçon du visuel de set (lot 118) et de
+// la pile de `CarteSet` (lot 131), troisième occurrence, sur l'accueil cette
+// fois. Elle se reconnaît à ce qu'elle ne casse rien : la page est juste
+// **instable**.
+// ⇒ ON CHANGE LA SOURCE, PAS LE MÉCANISME. Le pool vient désormais du
+//   catalogue publié, ordonné par une clé **stable** (`uuid`) : il ne bouge
+//   que si le catalogue bouge, jamais parce qu'un prix a bougé.
+// ⛔ ON NE FIGE PAS UNE URL DANS LE MANIFESTE pour autant : elle pourrirait le
+//   jour où la pièce change de visuel, et personne ne le verrait. ⭐ Le
+//   manifeste garde le dernier mot quand il le veut (`boites[].img`) — c'est
+//   un choix éditorial, il reste possible et il passe devant.
+// ⚠️ ET ÇA SURVIT TOUJOURS À L'ABSENCE : hors ligne, l'échantillon n'a pas de
+//   colonne `image` — `viz` vaut `null`, le `<span>` n'est pas émis, la boîte
+//   est plate. Comme avant, et volontairement.
+const vizBoites = (() => {
+  const avecImage = [...ds.items].filter((i) => i.image)
+    // ⭐ `uuid` et pas `name` : deux pièces peuvent porter le même nom (les
+    //   éditions FA/FE d'un comic), et `localeCompare` sur des noms égaux rend
+    //   0 — l'ordre retomberait sur celui du tableau, c'est-à-dire sur le
+    //   classement du jour qu'on vient justement de quitter.
+    .sort((a, b) => String(a.uuid).localeCompare(String(b.uuid)));
+  const vus = new Set();
+  const pool = [];
+  for (const i of avecImage) {
+    if (vus.has(i.image)) continue;      // deux boîtes avec le même visuel se lisent comme un bug
+    vus.add(i.image); pool.push(i.image);
+  }
+  return (V.boites || []).map((b, k) => b.img || pool[k % (pool.length || 1)] || null);
+})();
+// ═══════════════════════════════════════════════════════════════════════════
+// « DEBUTER SA COLLECTION » — une SERIE D'ARTICLES, pas une notion de donnee
+// ═══════════════════════════════════════════════════════════════════════════
+// ⭐⭐ VERIFIE DANS LA MAQUETTE, PAS DEDUIT. Ses lignes 2217 et 3294 : « une
+// SERIE d'articles, pas une categorie. Une serie a un ordre, un debut et une
+// fin — c'est ce qui fait revenir. » Le catalogue n'a effectivement aucune
+// notion de serie ordonnee ; le BLOG en a une depuis toujours (etiquettes +
+// onglet Sheet). La section ne demandait donc pas un collecteur, elle
+// demandait de brancher deux choses qui existaient deja.
+//
+// ⛔ RENDU CONDITIONNEL, ET C'EST LA REGLE DE LA MAISON. Zero article portant
+// l'etiquette = la section n'est pas emise. ⛔ Ni titre seul, ni cadres
+// factices : la maquette peut se permettre cinq episodes inventes, l'accueil
+// d'un site de cotes non. Un bloc vide sur la page la plus vue annonce un
+// contenu qu'on n'a pas.
+// ⚠️ Le jour ou l'etiquette n'existe pas encore dans le Sheet, cette page est
+// EXACTEMENT celle d'avant — c'est ce qui permet de deposer le lot sans
+// attendre que Preda ait ecrit les articles.
+const tagSerie = String(V.serie?.tag || '').trim();
+const episodes = tagSerie ? await serie(lang, tagSerie) : [];
+if (tagSerie && !episodes.length) {
+  console.log(`[accueil] serie « ${tagSerie} » : aucun article dans « ${lang} », `
+    + `section non emise. (vitrine.serie.tag du manifeste)`);
+}
+const maj = ds.updatedAt ? new Date(ds.updatedAt) : null;
+const horo = maj ? `${String(maj.getUTCDate()).padStart(2,'0')}.${String(maj.getUTCMonth()+1).padStart(2,'0')}.${maj.getUTCFullYear()} — ${String(maj.getUTCHours()).padStart(2,'0')}:${String(maj.getUTCMinutes()).padStart(2,'0')} UTC` : '';
+---
+<Base lang={lang} path="/" title={null} updatedAt={ds.updatedAt}>
+  {/* ⭐ `editorial` : la classe que la maquette pose sur l'accueil — elle
+      autorise les blocs à déborder de la colonne de texte. */}
+  <div class="editorial">
+
+  {/* ═══════════════════════════════════════════════════════════════════════
+      🔴🔴 LOT 134 — LA COQUILLE DU TABLEAU DE BORD EST PARTIE D'ICI
+      ═══════════════════════════════════════════════════════════════════════
+      Un `<div class="tableau-bord" data-membre hidden>` vivait à cet endroit
+      depuis le lot 104, quand l'accueil DEVENAIT le tableau de bord. Le lot
+      126 a donné au tableau de bord sa propre adresse, `/dashboard/`, et a
+      repointé le menu — **sans retirer ce bloc**. Le lot 131 l'a rempli de
+      vrais modules, toujours sans revenir ici.
+
+      ⭐⭐⭐ CE QU'IL COÛTAIT, ET IL NE CASSAIT RIEN. ~6 000 o sur la page la
+      plus vue du site, mais surtout :
+        · un SECOND `<h1>` — « My dashboard » — que Google lisait EN PREMIER,
+          à la place de la promesse commerciale du site ;
+        · un texte « the configurable widgets are not built yet » resté vrai
+          huit lots et **faux depuis le lot 131** ;
+        · `hidden` : lu par le robot, invisible pour l'humain. La page disait
+          une chose au robot et une autre aux gens, donc personne ne pouvait
+          le voir en regardant l'écran.
+      ⭐⭐ AUCUN DES 39 BANCS NE L'A VU, et l'un d'eux EXIGEAIT sa présence
+      (`test:entete`, lot 104). *Un banc qui réclame un bloc protège aussi sa
+      survie : le jour où le bloc devient faux, il devient l'obstacle.*
+      ⇒ `test:titres` (neuf) exige désormais **exactement un `<h1>` par page**
+      dans `dist/`. Il rougissait sur cet accueil avant ce lot ; c'est comme ça
+      qu'on sait qu'il sert.
+
+      ⛔ ET ON RETIRE LES QUATRE MORCEAUX EN MÊME TEMPS, pas seulement le HTML :
+      la règle en ligne de `Base.astro`, les deux règles de `themes/vitrine`,
+      et les clés `dash.empty` / `dash.empty.d` / `dash.meanwhile` des cinq
+      dictionnaires. Un seul des quatre laissé derrière serait une « règle sans
+      émetteur » ou une clé « posée et jamais lue » — les deux silences que ce
+      dépôt paie le plus souvent.
+      ⭐ `.hero[data-anonyme]` RESTE, lui, et reste inconditionnel : l'accroche
+      s'efface pour qui a un compte, sans quitter le DOM. La règle du lot 100
+      (« une page pré-générée n'a pas de visiteur ») est intacte — c'est le
+      SECOND bloc qui est parti, pas le mécanisme. */}
+
+  {/* ═══ LE PREMIER ÉCRAN ═══
+      ⭐ Trois surfaces GRANDES, DÉCALÉES, qui se chevauchent, et rien d'autre :
+      un champ noir qui déborde à droite, un panneau os décalé vers le bas qui
+      le chevauche, une pièce qui casse le bord haut. La force vient du
+      DÉCALAGE, pas de l'accumulation — il a fallu quatre essais pour l'admettre.
+      🔴 LOT 104 — `data-anonyme` : l'accroche commerciale disparaît pour qui a
+      déjà un compte. ⛔ Elle reste dans le DOM (c'est elle que Google lit, et
+      un membre au cookie expiré doit la retrouver) : seul son affichage bouge.
+      ⚠️⚠️ ELLE PORTE LE SEUL `<h1>` DE LA PAGE — ET CE COMMENTAIRE DISAIT LE
+      CONTRAIRE JUSQU'AU LOT 134. Il expliquait qu'un second `<h1>` (celui du
+      tableau de bord) était « voulu, puisqu'un seul des deux est visible à la
+      fois ». ⭐⭐⭐ C'ÉTAIT UN RAISONNEMENT SUR L'ÉCRAN APPLIQUÉ À UN LECTEUR
+      QUI N'EN A PAS : Google et les lecteurs d'écran lisent le DOM, pas le
+      rendu — ils voyaient les deux, et retenaient le premier, c'est-à-dire le
+      mauvais. Le bloc est parti au lot 134.
+      ⛔ Il n'y a plus qu'un `<h1>` sur cette page, et `test:titres` le tient :
+      en ajouter un second fait rougir la chaîne, quel que soit son `hidden`.
+      *Un commentaire qui justifie un défaut le rend intouchable — on le relit,
+      on le croit, et on ne mesure pas.* */}
+  <div class="hero" data-anonyme>
+    <span class="hero__champ" aria-hidden="true"></span>
+    {/* ⛔ LOT 72 — « THE RECORD » ET « RECORDED EVERY 30 MIN » SONT PARTIS DU
+        PREMIER ÉCRAN (demande de Preda, redite deux fois).
+        Le lot 71 avait changé l'accroche AU-DESSUS DU TITRE (`home.record`),
+        et laissé ces deux repères en coin — qui redisaient exactement la même
+        chose, en plus petit. ⭐ Remplacer un texte à un endroit ne le remplace
+        pas : il faut chercher qui d'autre le dit.
+        ⭐ CE QUI RESTE EST FACTUEL, PAS PROMOTIONNEL : le nombre de pièces
+        suivies à gauche, l'horodatage du dernier relevé à droite. Deux chiffres
+        vérifiables — c'est ce qu'un registre doit afficher en premier, et ça ne
+        répète plus la devise. `home.independent` et `home.every30` restent dans
+        les dictionnaires : le sceau et le pied de page s'en servent. */}
+    <span class="hero__ref ref--tg">{`// VEVE PRICE`}</span>
+    <span class="hero__ref ref--bd">{`// CH.VEVE\n${horo}`}</span>
+    {piece && (
+      <span class="hero__piece" aria-hidden="true">
+        <img class="ok" src={piece.image} alt="" width="520" height="650"
+             loading="eager" fetchpriority="high" decoding="async" />
+      </span>
+    )}
+    <div class="hero__os">
+      <span class="num-s">// 001 — {t(lang, 'home.record')}</span>
+      {/* ⭐ L'accroche porte un CHIFFRE, pas un adjectif : un adjectif se
+          conteste, un relevé se vérifie — et il se vérifie sur cette page. */}
+      {/* ⛔ LOT 77 — LE GRAND TITRE NE COMPTE PLUS RIEN (demande de Preda :
+          « ne précise pas combien on track d'infos ni à quelle fréquence »).
+          Il disait « 1 200 pièces / suivies ».
+          ⭐⭐ UN CHIFFRE DE PÉRIMÈTRE EST UNE PROMESSE QUI SE PÉRIME SEULE. 1 200
+          est le plafond du gel des adresses, pas une ambition : le jour où il
+          bouge, c'est le titre de la page la plus vue qui ment, et personne ne
+          relit un titre. Le nouveau dit le BÉNÉFICE, qui lui ne se périme pas.
+          ⚠️ `home.pieces` et `home.tracked` restent dans les dictionnaires : le
+          Marché et les fiches s'en servent encore. */}
+      {/* 🔴 LOT 134 — SEO‑3 : L'ESPACE AVANT LE `<br>`, ET ELLE N'EST PAS
+          COSMÉTIQUE. À l'écran, deux lignes, correct. Mais `<br>` ne produit
+          AUCUNE espace pour un extracteur de texte : Google et les lecteurs
+          d'écran lisaient **« Know what your collectionis worth »** — le titre
+          principal du site, collé, depuis qu'il existe.
+          ⭐⭐ L'espace est posée DANS LE GABARIT (`{' '}`), pas en fin de la clé
+          `home.h1a`. Une espace finale dans un dictionnaire survit mal : elle
+          se perd au `trim()` du premier outil qui relit le JSON, et elle ne se
+          voit pas en relisant la ligne. Ici elle est visible, et elle vaut pour
+          les cinq langues d'un coup.
+          ⛔ Et surtout PAS `&nbsp;` : une espace insécable empêcherait la
+          coupure de ligne qu'on veut justement obtenir. */}
+      <h1 class="mono-t">{t(lang, 'home.h1a')}{' '}<br /><em>{t(lang, 'home.h1b')}</em></h1>
+      <p class="respire" style="margin:var(--s5) 0 0;color:var(--carte-ink-2);max-width:38ch">{pick(m.site.description, lang)}</p>
+      {/* ⭐ UN LIEN, PAS UN BOUTON — et c'est le point, déjà tranché au lot 41.
+          Sans JavaScript il mène à l'accueil ; le script le promeut en palette.
+          Un <button> serait INERTE sans JS : la promesse du ⌘K affiché dessus
+          serait rompue, et c'est exactement ce que le champ retiré évitait.
+          ⚠️ `data-ouvrir-palette` est le crochet que `Base.astro` écoute — un
+          ATTRIBUT et pas un id, parce que l'en-tête en porte déjà un et que
+          deux id identiques sur une page, c'est du HTML invalide et un des
+          deux qui ne répond pas. Aucun script neuf ici. */}
+      <a class="h-rech hero__rech" data-ouvrir-palette href={localize(lang, '/')}>
+        <span style="font-size:var(--t-md)">{t(lang, 'search.placeholder')}</span><span class="kbd">⌘K</span>
+      </a>
+      <div class="marq" style="margin-top:var(--s5)">
+        <i></i><span style="color:var(--carte-ink-2)">GEMS / {t(lang, 'movers.floor')} / {t(lang, 'item.high')} / {t(lang, 'item.low')}</span>
+      </div>
+    </div>
+  </div>
+
+  {/* ⭐⭐ LE BANDEAU EST REMONTÉ ICI — demande de Preda, 05/08/2026.
+      Il était entre « Ce que fait ce site » et « À l'affiche », qui est la
+      position de `maquette-veveprice.html` (l. 2190). Ce n'était donc pas une
+      erreur de portage : c'est un ARBITRAGE qui change.
+      ⛔ NE PAS LE REMETTRE « comme la maquette » au prochain audit de fidélité.
+      La maquette est la référence du DESSIN, pas de l'ordre de lecture une fois
+      que Preda a tranché dessus. Un comparateur de fidélité signalera cet écart
+      et il aura tort : c'est écrit ici pour qu'on ne repaie pas la discussion.
+      ⭐ Sous le premier écran, le bandeau est la première chose qui BOUGE :
+      il dit « ce site est vivant » avant qu'on ait lu une ligne. Entre deux
+      blocs de contenu, il n'était plus qu'une frise.
+      ⛔ IL RESTE HORS DE `.wrap`, ET C'EST STRUCTUREL : `.wrap` borne la
+      largeur, le bandeau doit courir d'un bord à l'autre. ⛔ Il ne doit jamais
+      devenir deux. */}
+  <div class="ticker" tabindex="0" role="region" aria-label={t(lang, 'home.live')}>
+    <div class="ticker__piste">
+      {[0, 1].map(() => (
+        <>{tick.map((i) => (
+          <a class="tick" href={localize(lang, i.path)}>
+            <Fragment set:html={pli(i.rarity)} />
+            <b>{i.name.slice(0, 26)}</b>
+            <span class="num"><Fragment set:html={gemsM()} /> {coteFermee
+              ? <Cote lang={lang} uuid={i.uuid} champ="floor" />
+              : money(i.floor)}</span>
+            {/* 🔴 LOT 112 — la variation sort du bandeau : même mesure, même
+                raison que sur la fiche. Le prix était fermé, le mouvement
+                ouvert. */}
+            {!coteFermee && <Fragment set:html={delta(i.change7d)} />}
+          </a>
+        ))}</>
+      ))}
+    </div>
+  </div>
+
+  {/* ⭐⭐ L'ORDRE DE L'ACCUEIL — révisé le 05/08/2026 (lot 68), demande Preda.
+      premier écran → BANDEAU → compteurs → Ce que fait ce site → À l'affiche
+      → hausses ET baisses sur la MÊME ligne → Sets → Débuter sa collection.
+      ⭐ Le bandeau était en cinquième position (l'ordre de la maquette,
+      l. 2190) ; il est remonté en deuxième. Le reste ne bouge pas.
+      ⛔ La barre d'accès (« les fiches sont en accès libre… ») a QUITTÉ cette
+      page — voir le commentaire à sa place. */}
+  <div class="wrap">
+    {/* ⛔ LES TROIS COMPTEURS SONT RETIRÉS (lot 77). Ils disaient « Tracked
+        items 1 200 / Catalogue covered 19 256 / Sets 754 » — exactement les
+        chiffres de périmètre que Preda ne veut plus annoncer.
+        ⭐ Ils ne sont pas « cachés » : le bloc n'est plus émis. Une donnée
+        masquée reste une donnée livrée (elle part dans le HTML, elle se lit
+        dans la source) — ce site s'interdit ça ailleurs, il se l'interdit ici.
+        ⚠️ `stats.tracked`, `stats.catalogue` et `stats.collections` restent
+        dans les dictionnaires : les retirer ferait rougir `test:cles` sur les
+        cinq langues pour une économie de trois lignes. */}
+
+    {/* ⛔ LA BARRE DE RECHERCHE DE L'ACCUEIL EST RETIRÉE — demande Preda, 03/08.
+        ⭐⭐ ET ELLE SE RETIRE TOUTE SEULE, SANS TOUCHER À `Base.astro`.
+        Le garde de la palette globale s'écrit `if (document.getElementById('q'))
+        return;` — il porte sur la PRÉSENCE DU CHAMP, pas sur la route. En
+        supprimant `#q`, l'accueil récupère donc ⌘K et la palette modale, comme
+        les 442 autres pages. C'était écrit au lot 41 « sauf sur l'accueil, qui
+        a son propre champ » : la condition disparaît avec le champ.
+        ⭐ Une condition exprimée sur le FAIT plutôt que sur le LIEU se répare
+        d'elle-même. Écrite `if (location.pathname === '/') return;`, il aurait
+        fallu y penser aujourd'hui — et on ne l'aurait pas fait. */}
+
+    {V.boites?.length > 0 && (
+      <>
+        <div class="sect-t sect-t--gd"><h2 class="mono-t">{t(lang, 'home.what')}</h2></div>
+        {/* 🔴 LOT 101 — LES QUATRE BOITES NE MENENT PLUS AU MARCHE : il n'existe
+            plus (Preda, 06/08 : « le market ne doit pas être visible en public »).
+            Elles menent aux SETS, qui restent publics et qui sont la vraie porte
+            d'entree du catalogue.
+            ⛔ Ne pas les laisser pointer vers `/market/` « le temps de voir » : un
+            lien vers une page non emise est un 404 INVISIBLE AU BUILD — c'est un
+            lien, pas une route, donc rien ne le verifie. Le defaut a deja ete paye
+            deux fois sur ce depot.
+            ⚠️ ET LE COMMENTAIRE EST ICI, PAS DANS LE `.map()` : un commentaire JSX
+            place en tete d'un retour entre parentheses n'est pas un commentaire,
+            c'est un objet — « Expected `,` or `)` », build casse. */}
+        <div class="boites">
+          {V.boites.map((b, i) => (
+            <a href={localize(lang, '/collections/')}
+               style={`grid-column:span ${b.span || 6};grid-row:span ${b.rang || 1}`}
+               class:list={['boite', 'revele', b.n === '001' ? 'boite--sect' : b.n === '002' ? 'boite--os' : b.n === '004' ? 'boite--damier damier' : '']}>
+              <span class="boite__n">{b.n}</span>
+              {vizBoites[i] && (
+                /* ⚠️ `aria-hidden` : c'est un DÉCOR. Il n'illustre pas le texte
+                   de la boîte — la pièce montrée n'a aucun rapport avec « le
+                   plancher toutes les 30 min ». Un `alt` descriptif mentirait
+                   au lecteur d'écran ; un `alt` vide suffit et se tait.
+                   ⚠️ `onerror` retire l'image : une URL cassée doit laisser une
+                   boîte plate, jamais un cadre vide au coin replié. */
+                <span class="boite__viz" aria-hidden="true">
+                  <img src={vizBoites[i]} alt="" loading="lazy" decoding="async"
+                       width="400" height="600" onerror="this.closest('.boite__viz').remove()" />
+                </span>
+              )}
+              {/* ⭐ `.boite__bas` GROUPE le titre et la description et les borne
+                  à 58 % de la largeur — c'est lui qui empêche le texte de
+                  passer sous le visuel. Le thème le prévoyait, la maquette
+                  l'émet ; seul le moteur l'avait perdu. */}
+              <span class="boite__bas">
+                <span class="boite__t" set:html={titreBoite(b)} />
+                <span class="boite__d">{pick(b.d, lang)}</span>
+              </span>
+            </a>
+          ))}
+        </div>
+      </>
+    )}
+
+  </div>
+
+  <div class="wrap">
+    {/* ⛔ LA BARRE D'ACCÈS A ÉTÉ RETIRÉE DE L'ACCUEIL — demande de Preda,
+        05/08/2026. C'est elle qui affichait « Les fiches sont en accès libre
+        pour que vous jugiez sur pièce. L'historique complet et les alertes
+        demandent un compte. »
+        ⭐ ELLE N'EST PAS SUPPRIMÉE DU SITE : `BarreAcces.astro` reste, et le
+        Marché et la fiche continuent de la porter. C'est là qu'elle travaille
+        — au moment où quelqu'un bute sur une donnée réservée. Sur l'accueil,
+        elle annonçait une limite avant d'avoir montré la moindre valeur.
+        ⛔ Ne pas la remettre « pour la cohérence » : trois écrans sur quatre,
+        c'est le bon dosage ; quatre sur quatre, c'est un péage. */}
+
+    {/* ⭐ « A L'AFFICHE » — le titre de la maquette (l. 2200). Il remplace
+        « Historiques les plus fournis », qui decrivait le CRITERE DE TRI au
+        lieu de dire ce qu'on regarde. ⛔ LA SELECTION NE BOUGE PAS D'UNE
+        LIGNE : c'est toujours `featured`, classe par score avec quota par
+        type — le correctif qui a rendu leurs 8 fiches aux comics. On renomme
+        un titre, on ne retouche pas un tri paye cher.
+        ⚠️ La maquette fait alterner « A l'affiche » (membre) et « Les fiches
+        libres » (visiteur). ⛔ Pas ici : l'accueil est PRE-GENERE, donc il n'a
+        pas de visiteur (cf. `context.isPrerendered` du middleware) — le titre
+        conditionnel sortirait fige pour tout le monde, y compris Google. Un
+        seul titre vrai vaut mieux que deux dont un ne s'affiche jamais. */}
+    <div class="sect-t sect-t--gd"><h2 class="mono-t">{t(lang, 'home.featured')}</h2></div>
+    <div class="grille">{featured.map((i, k) => <Carte item={i} lang={lang} href={localize(lang, i.path)} nf={nf} i={k} ed />)}</div>
+
+
+    {/* ═══ HAUSSES ET BAISSES SUR LA MEME LIGNE — lot 45, demande Preda ═══
+        ⭐⭐ `.deux-col` EXISTAIT DEJA, HABILLEE, ET PERSONNE NE L'EMETTAIT.
+        `themes/vitrine/theme.css` l. 825 : `grid-template-columns:1fr 1fr`,
+        plus sa reponse mobile l. 1014. Zero gabarit du depot ne l'ecrivait —
+        exactement le defaut du lot 43 (`data-sect`, `.boite__viz`) : le theme
+        est complet, c'est le gabarit qui est muet, et rien ne crie.
+        ⛔ AUCUNE REGLE CSS N'EST AJOUTEE ICI. On emet la classe qui attendait.
+        ⭐ Les deux moities gardent leur `.grille` : elle vaut
+        `repeat(auto-fill,minmax(196px,1fr))`, donc elle se replie toute seule
+        a l'interieur d'une demi-largeur. En dessous de 840 px `.deux-col`
+        repasse a une colonne — les deux blocs se remettent l'un sous l'autre
+        sans qu'une regle de plus soit ecrite.
+        ⚠️ Le titre des baisses passe en `sect-t--gd` comme celui des hausses :
+        cote a cote, deux titres de tailles differentes se lisent comme une
+        hierarchie qui n'existe pas. */}
+    {/* 🔴🔴🔴 LOT 112 — LE CLASSEMENT DES MOUVEMENTS PASSE ENTIÈREMENT
+        DERRIÈRE LE MUR (arbitrage Preda du 10/08 : « tout fermer »).
+        ⭐⭐⭐ ET CACHER LE SEUL POURCENTAGE N'AURAIT PAS SUFFI. Ces deux
+        colonnes sont `movers.up` et `movers.down` : elles sont TRIÉES par
+        variation. Même sans un chiffre, l'ORDRE des vingt cartes dit qui a le
+        plus bougé — c'est-à-dire exactement le produit que `/market/` fait
+        payer. *Un classement est une donnée, même quand on efface ses
+        nombres.*
+        ⛔ On ne peut pas non plus servir le vrai bloc aux membres et le
+        témoin aux autres : cette page est PRÉ-GÉNÉRÉE, elle n'a pas de
+        visiteur. Les deux versions seraient dans le même HTML, donc lisibles
+        par tout le monde — la règle du lot 100, celle qui revient à chaque
+        fois qu'on croit pouvoir décider au build ce qui dépend de la session.
+        ➡️ Le classement vit sur `/market/`, rendu À LA DEMANDE et fermé côté
+        serveur. Ici, un témoin, et le chemin pour y accéder. */}
+    {/* ⏳ LOT 113 — « À venir », sur l'accueil aussi (Preda, 10/08).
+        ⛔ IL SE TAIT QUAND IL N'A RIEN : mesuré le 10/08, 7 drops annoncés.
+        VeVe ne prévient qu'à quelques jours — l'accueil ne doit pas porter un
+        cadre vide la moitié du temps. */}
+    <AVenir lang={lang} />
+
+    <div class="deux-col">
+      <section>
+        <div class="sect-t sect-t--gd" style="margin-top:0"><h2 class="mono-t">{t(lang, 'home.up')}</h2></div>
+        {coteFermee
+          ? <Gate lang={lang} gate="movers" />
+          : <div class="grille">{up.map((i, k) => <Carte item={i} lang={lang} href={localize(lang, i.path)} nf={nf} i={k} />)}</div>}
+      </section>
+      <section>
+        <div class="sect-t sect-t--gd" style="margin-top:0"><h2 class="mono-t">{t(lang, 'home.down')}</h2></div>
+        {coteFermee
+          ? <Gate lang={lang} gate="movers" />
+          : <div class="grille">{down.map((i, k) => <Carte item={i} lang={lang} href={localize(lang, i.path)} nf={nf} i={k} />)}</div>}
+      </section>
+    </div>
+
+
+    {/* ⭐ LA PILE de trois pièces décalées dit « ENSEMBLE » sans écrire le mot,
+        et distingue d'un coup d'œil une collection d'une pièce.
+        🔴 LOT 68 — LE TITRE ÉTAIT LE SEUL DE L'ACCUEIL À NE PAS ÊTRE UN
+        `sect-t--gd mono-t` (signalé par Preda). Il sortait donc deux fois plus
+        petit que « À l'affiche » et « Plus fortes hausses », au milieu d'eux.
+        ⭐ Ce n'est pas un réglage de taille, c'est une classe oubliée : le
+        thème n'a qu'un seul titre de section, et il faut le demander. */}
+    <div class="sect-t sect-t--gd"><h2 class="mono-t">{t(lang, 'home.collections')}</h2><a href={localize(lang, '/collections/')}>{t(lang, 'home.allSeries')} →</a></div>
+    <div class="grille grille--series">
+      {/* 🔴🔴🔴 LOT 139 — CETTE PAGE ÉCRIVAIT SA PROPRE CARTE DE SET, ET C'EST
+          LA **CINQUIÈME** OCCURRENCE DE LA MÊME FAUTE (lots 127, 131, 132, et
+          `Rayon.astro` dans ce lot-ci). ⭐⭐⭐ ET PERSONNE NE L'AVAIT VUE : le
+          lot 131 a écrit `CarteSet.astro` précisément pour que `/sets/` et
+          `/collections/` cessent de diverger, il a recâblé ces deux pages…
+          et il a laissé l'accueil, qui rendait le même objet en dur juste ici.
+          C'est le banc de mesure de CE lot qui l'a trouvé, en comptant les
+          longueurs de noms : un nom de 39 caractères sortait d'une page où le
+          budget était censé être de 30.
+          ⭐⭐ *Un composant partagé ne referme la divergence que chez ceux qui
+          l'appellent — et rien ne dit qui ne l'appelle pas.* C'est exactement
+          « un contrôle qui ne regarde que ce qui existe ne voit jamais ce qui
+          manque » : on cherchait les pages qui rendent mal une carte de set,
+          il fallait chercher les pages qui en rendent une SANS le composant.
+          ⚠️ CE QUI CHANGE À L'ÉCRAN, ET C'EST VOULU : la cartouche gagne
+          l'étiquette de marque et le compte passe en `etiq--bleu`, comme sur
+          `/sets/` et `/collections/`. L'accueil montrait la forme PAUVRE.
+          ⛔ `axes` reste absent : l'accueil n'a pas de filtres, et poser des
+          attributs `data-*` que personne ne lit est le « paramètre posé et
+          jamais lu » du lot 126. */}
+      {cols.map((c) => (<CarteSet lang={lang} col={c} />))}
+    </div>
+
+    {episodes.length > 0 && (
+      <>
+        {/* ═══ « DEBUTER SA COLLECTION » — la porte d'entree d'un nouveau venu ═══
+            ⭐ Le compte des episodes est CALCULE (`episodes.length`), jamais
+            ecrit : « les 5 episodes » fige un chiffre qui se perime au sixieme
+            article, en silence, sur la page la plus vue du site. */}
+        {/* ⛔⛔ LE LIEN N'EST EMIS QUE SI LA PAGE D'ETIQUETTE EXISTE. Le moteur
+            ne construit `/blog/tag/<x>/` qu'a partir de `SEUIL_PAGE_TAG`
+            articles (2 aujourd'hui) : avec un seul episode publie, ce lien
+            serait un 404 sur la page la plus vue du site — et aucun banc ne le
+            verrait, `test:routes` ne controlant que les routes du manifeste.
+            ⭐ LE SEUIL EST IMPORTE, PAS RECOPIE. Il y avait deja eu TROIS
+            regles pour une seule decision sur ces pages (blog.mjs / BlogTag /
+            sitemap) ; en ecrire « 2 » ici en ferait une quatrieme. */}
+        <div class="sect-t sect-t--gd"><h2 class="mono-t">{t(lang, 'home.serie')}</h2>
+          {episodes.length >= SEUIL_PAGE_TAG && (
+            <a href={localize(lang, `/blog/tag/${tagSerie}/`)}>{episodes.length} {t(lang, 'home.episodes')} →</a>
+          )}</div>
+        <div class="grille">
+          {episodes.map((e, k) => (
+            <a class="carte revele" href={localize(lang, `/blog/${e.slug}/`)} style={`--i:${k}`}>
+              <div class="socle">
+                {e.cover ? (
+                  <>
+                    {/* ⛔ LA CLASSE `ok` EST OBLIGATOIRE. Le theme ecrit
+                        `.socle__net{opacity:0}` et `.socle__net.ok{opacity:1}` :
+                        sans elle l'image est chargee, dans le DOM, et invisible.
+                        Ce piege a deja coute deux fois (fiche 31/07, cartes). */}
+                    <img class="socle__fond ok" src={e.cover} alt="" aria-hidden="true"
+                         width="400" height="500" loading="lazy" decoding="async" />
+                    <span class="socle__voile"></span>
+                    <img class="socle__net ok" src={e.cover} alt={e.data.title}
+                         width="400" height="500" loading="lazy" decoding="async"
+                         onerror="this.closest('.socle').classList.add('socle--casse')" />
+                  </>
+                ) : (
+                  <>
+                    <span class="socle__voile"></span>
+                    <span style="position:absolute;inset:0;display:grid;place-items:center;z-index:3">
+                      <span class="forme forme--xl" style="--c-a:var(--rule-2)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+                          <path d="M12 2.9 19.9 7.5v9L12 21.1 4.1 16.5v-9Z" />
+                        </svg>
+                      </span>
+                    </span>
+                  </>
+                )}
+                <span class="socle__coin etiq">{String(e.rang).padStart(2, '0')}</span>
+              </div>
+              <div class="cartouche">
+                <div class="cartouche__n">{e.data.title}</div>
+                <div class="cartouche__l">
+                  <span class="cartouche__s">{t(lang, 'home.episode')} {String(e.rang).padStart(2, '0')}</span>
+                  {/* ⚠️ `dureeLecture` peut rendre `null` (corps vide) : on
+                      n'emet alors PAS l'etiquette, plutot que « — min ». */}
+                  {dureeLecture(e) && <span class="cartouche__s">{dureeLecture(e)} {t(lang, 'home.minutes')}</span>}
+                </div>
+              </div>
+            </a>
+          ))}
+        </div>
+      </>
+    )}
+
+    {V.faq?.length > 0 && (
+      <>
+        <div class="sect-t sect-t--gd"><h2 class="mono-t">{t(lang, 'home.faq')}</h2></div>
+        {/* ⭐ `<details>` natif : zéro JS. Une FAQ pilotée par JavaScript est une
+            FAQ qui disparaît au moment où on en a le plus besoin. */}
+        <div class="faq">
+          {V.faq.map((f, k) => (
+            <details>
+              <summary><span class="faq__n">{String(k + 1).padStart(3, '0')}</span>{pick(f.q, lang)}</summary>
+              <div class="faq__c">{pick(f.r, lang)}</div>
+            </details>
+          ))}
+        </div>
+      </>
+    )}
+  </div>
+  </div>
+
+</Base>

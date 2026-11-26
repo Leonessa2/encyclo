@@ -1,0 +1,59 @@
+---
+// ⚠️ Leonessa2/veve-sites — src/components/Figures.astro
+// Le style des figures + le bouton « télécharger cette figure ». Inclus UNE
+// SEULE FOIS par page (depuis src/layouts/Base.astro), quoi qu'il arrive :
+// le script est délégué, il ne coûte rien tant qu'aucune figure n'est présente.
+//
+// ⭐ POURQUOI UN TÉLÉCHARGEMENT
+// Une figure de données se partage — sur X, dans un Discord, dans un article
+// tiers. Partagée, elle voyage SANS sa page : c'est pour ça que le cartouche
+// (marque, domaine, date de collecte, source) est tracé DANS le SVG et pas en
+// légende HTML. L'image doit rester attribuable une fois seule.
+//
+// ⚠️ PIÈGES PAYÉS À LA RASTÉRISATION
+//  1. le SVG doit porter `width`/`height` en plus du `viewBox`, sinon plusieurs
+//     navigateurs dessinent une image de 0 pixel ;
+//  2. il doit être AUTONOME (couleurs et police en dur) : le rendu rastérisé ne
+//     voit ni la feuille de style de la page, ni ses `@font-face` ;
+//  3. on passe par un Blob et non par `encodeURIComponent`, qui casse dès qu'un
+//     accent traîne dans un libellé ;
+//  4. ×2 : une capture à la taille d'affichage est illisible une fois repartagée.
+//
+// Sans JavaScript : la figure reste affichée et lisible (c'est du SVG dans le
+// HTML) ; seul le bouton reste masqué, puisqu'il ne ferait rien.
+---
+<style is:global>
+  .fig { margin: 26px 0; }
+  .fig .fig-svg svg { width: 100%; height: auto; display: block; border-radius: 8px; }
+  .fig figcaption {
+    display: flex; gap: 12px; align-items: baseline; justify-content: space-between;
+    margin-top: 8px; font-size: 13px; color: var(--muted);
+  }
+  /* ⚠️ Le bouton est masqué PAR DÉFAUT et révélé par une CLASSE sur <html>,
+     pas par du JavaScript qui irait le chercher dans le DOM. Raison : ce script
+     est servi dans le <head> ; une recherche de boutons au moment de son
+     exécution ne trouve RIEN, le <body> n'existe pas encore. Le bouton ne
+     s'affichait donc jamais — et rien n'échouait. Une classe sur
+     documentElement, elle, n'a pas de « moment » : elle marche dans le <head>,
+     et le CSS fait le reste. Sans JavaScript, le bouton reste masqué : on ne
+     montre pas une commande qui ne ferait rien. */
+  .fig .fig-dl {
+    display: none;
+    flex: none; background: none; border: 1px solid var(--surface); color: var(--muted);
+    border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 12px; cursor: pointer;
+    /* ⭐ 24 px est le plancher de WCAG 2.5.8. Mesuré le 27/07, ce bouton
+       tombait à ~22 px : assez pour paraître correct, pas assez pour être
+       visé au pouce. La police reste à 12 px — c'est la ZONE qui compte. */
+    min-height: 24px; align-items: center;
+  }
+  .js .fig .fig-dl { display: inline-flex; }
+  .fig .fig-dl:hover { border-color: var(--primary); color: var(--primary); }
+  .fig .fig-dl[aria-busy="true"] { opacity: .6; cursor: progress; }
+  @media print { .fig .fig-dl { display: none; } }
+</style>
+
+{/* ⚡ LOT 137 (A2 / OPT‑3) — le pilote du bouton « télécharger cette figure »
+    vit désormais dans `src/socle/70-figures.js`, servi avec le socle.
+    ⭐ Il posait déjà une CLASSE sur `<html>` plutôt que de chercher des
+    boutons dans le DOM : c'est ce qui le rend indifférent au moment de son
+    exécution, et donc transposable tel quel dans un script `defer`. */}

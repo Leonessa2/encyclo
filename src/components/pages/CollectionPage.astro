@@ -1,0 +1,173 @@
+---
+// ⚠️ Leonessa2/veve-sites — src/components/pages/CollectionPage.astro
+import Base from '../../layouts/Base.astro';
+import Carte from '../Carte.astro';
+import { itemListLd, couperMilieu, TITLE_BUDGET } from '../../../engine/lib/seo.mjs';
+import { siteUrl } from '../../../engine/lib/manifest.mjs';
+import { t, localize, numberLocale, nu } from '../../../engine/lib/i18n.mjs';
+import { rar, gemsM } from '../../../engine/lib/vitrine.mjs';
+import { coteFermee as coteEstFermee } from '../../../engine/lib/cote.mjs';
+import Cote from '../Cote.astro';
+import BandeauOutil from '../BandeauOutil.astro';
+
+const { lang, col, updatedAt } = Astro.props;
+const root = siteUrl();
+const nf = numberLocale[lang] || 'en-GB';
+// 🔴 LOT 101 — `col.items` arrive DEJA trie par plancher decroissant depuis
+// `dataset.mjs`, ou le prix existe encore. ⛔ Ne pas re-trier ici.
+const items = col.items;
+const coteFermee = coteEstFermee();
+// ⭐ Deux agregats PUBLICS remplacent le plancher et le plus-haut du set.
+// ⛔ Un min de planchers EST un plancher : il ne pouvait pas rester, et il ne
+// pouvait pas non plus devenir un <Cote> — celui-ci sert une piece, pas une
+// somme, et il n'existe pas d'uuid pour un ensemble.
+// ⭐⭐ ON NE LAISSE PAS DEUX TROUS : le tirage total et le nombre d'offres
+// sont vrais, publics, et disent quelque chose du set — sa rarete et son
+// activite. Une case vide aurait juste eu l'air casse.
+const tirageTotal = items.reduce((n, i) => n + (i.tirage || 0), 0);
+const offresTotal = items.reduce((n, i) => n + (i.listings || 0), 0);
+const money = (v) => (v === null || v === undefined ? '—' : v.toLocaleString(nf, { maximumFractionDigits: 2 }));
+const path = `/collection/${col.slug}/`;
+const ld = [itemListLd(items.map((i) => ({ name: i.name, url: `${root}${localize(lang, i.path)}` })), `${root}${localize(lang, path)}`)];
+
+// ⭐⭐ LE TITRE PORTE SON ÉTIQUETTE — CORRIGÉ LE 29/07/2026, 344 pages.
+// Le titre valait `col.name`, le nom BRUT de la série. Or une fiche dont le nom
+// ÉGALE sa série lâche la série dans son propre titre et retombe sur le même
+// texte : deux pages différentes, un seul titre, et Google n'en retient qu'une.
+// MESURE (catalogue complet, 5 068 séries) :
+//   avant           fiche<->collection 2 309   collection<->collection  3
+//   avec étiquette  fiche<->collection     0   collection<->collection 16
+// ⛔ Une variante « si ça dépasse 60, on lâche l'étiquette » a été écrite,
+//    mesurée et REJETÉE : elle remonte à 123 collisions. Plus élégante, deux
+//    fois pire. On garde la version simple.
+// 🔴🔴 LOT 134b — LE TITRE DE SET SE COUPE AU MILIEU, ET **SEULEMENT** LUI.
+// Mesure du build Docker sur le catalogue reel (3 097 pages) : trois sets
+// Disney partagent **50 caracteres de prefixe** et ne different que par leur
+// fin — « … Series 1 », « … Series 2 », « … Studios Series ». Le budget vaut
+// 60 : une coupe par la fin tombe donc FORCEMENT dans le prefixe commun, et les
+// trois rendaient le meme `<title>`. Google n'en indexe qu'un.
+// ⭐⭐⭐ ET LA CORRECTION N'A PAS SA PLACE DANS `pageTitle()`. Je l'y ai mise
+// d'abord, globalement : le banc a rendu **4 nouvelles collisions** sur des
+// fiches de comics, ou le discriminant vit AU DEBUT (« Alex Ross Main Cover ·
+// Common · 3 — <serie partagee> »). *Deux familles de titres, deux endroits ou
+// vit l'information — aucune position de coupe unique ne sert les deux.*
+// ⇒ La coupe intelligente appartient a l'EMETTEUR, seul a savoir ou est son
+//   discriminant. Ici : au bout du nom, donc on elide le milieu.
+// ⛔ ET LA VARIANTE « LACHER L'ETIQUETTE QUAND CA DEPASSE » RESTE REJETEE (voir
+//    juste au-dessus) : 123 collisions, mesurees. On ne la reessaie pas.
+// ⚠️ `nu()` avant de mesurer ET de couper : sous `I18N_MARQUAGE=1`, `t()` ajoute
+//    des marqueurs invisibles — compter sans lui coupe un titre conforme,
+//    couper sans lui tranche au milieu d'un marqueur (64 `<head>` avales au 129).
+const etiqCol = t(lang, 'item.collection');
+const brutCollection = `${etiqCol} : ${col.name}`;
+// 🎯 LOT O — les pièces du set qui n'ont pas de page (arbitrage G du 09/09).
+// ⭐ `col.pieces` est le set ENTIER (lot N) ; `col.items` en est le sous-ensemble
+//   publié. La différence, c'est exactement ce que la page taisait.
+// ⛔ `?? []` et pas un `if` : un set bâti avant le lot N n'a pas de `pieces`, et
+//   une page qui explose sur un champ absent est pire que la page d'avant.
+const sansPage = (col.pieces || []).filter((x) => !x.path);
+const titreCollection = [...nu(brutCollection)].length <= TITLE_BUDGET
+  ? brutCollection
+  : `${nu(etiqCol)} : ${couperMilieu(nu(col.name), TITLE_BUDGET - [...nu(etiqCol)].length - 3)}`;
+---
+<Base sect="sets" lang={lang} path={path} title={titreCollection}
+      description={t(lang, 'desc.collection', { name: col.name, n: col.taille ?? col.items.length })} ld={ld} updatedAt={updatedAt}
+      crumbs={[{ name: t(lang, 'home.crumb'), url: localize(lang, '/') }, { name: t(lang, 'collections.title'), url: localize(lang, '/collections/') }, { name: col.name }]}>
+  <div class="h-page">
+    <BandeauOutil titre={col.name}
+                  compte={(col.taille ?? items.length) > items.length
+                    ? `${col.taille} ${t(lang, 'collections.items')} · ${items.length} ${t(lang, 'collection.tracked')}`
+                    : `${items.length} ${t(lang, 'collection.tracked')}`}
+                perche="collections" lang={lang} />
+  </div>
+  {/* ⭐ Les trois chiffres de la série, au format `stats` de la maquette. */}
+  <div class="stats">
+    {/* 🎯 LOT N — la taille du SET (toutes ses pièces chez VeVe) ; le bandeau dit combien sont suivies ici. */}
+    <div class="stat stat--bleu"><div class="etiq">{t(lang, 'collections.items')}</div><div class="stat__v">{col.taille ?? items.length}</div></div>
+    {coteFermee ? (
+      <>
+        <div class="stat"><div class="etiq">{t(lang, 'item.supply')}</div><div class="stat__v">{tirageTotal ? tirageTotal.toLocaleString(nf) : '—'}</div></div>
+        <div class="stat"><div class="etiq">{t(lang, 'item.listings')}</div><div class="stat__v">{offresTotal ? offresTotal.toLocaleString(nf) : '—'}</div></div>
+      </>
+    ) : (
+      <>
+        <div class="stat"><div class="etiq">{t(lang, 'movers.floor')}</div><div class="stat__v">{money(Math.min(...items.map((i) => i.floor ?? Infinity)))}</div></div>
+        <div class="stat"><div class="etiq">{t(lang, 'item.high')}</div><div class="stat__v">{money(Math.max(...items.map((i) => i.ath ?? 0)))}</div></div>
+      </>
+    )}
+  </div>
+
+  {/* ⭐ LA SÉRIE SE REGARDE AVANT DE SE LIRE. Un tableau compare des chiffres ;
+      une grille montre un ENSEMBLE. Sur une page dont le sujet EST l'ensemble,
+      la grille passe donc en premier, et le tableau reste dessous pour qui veut
+      comparer ligne à ligne. */}
+  {/* 🔴 LOT 115b — L'ESPACE MANQUANT (demande Preda). Le bloc `.stats`
+      (« items / tirage / offres ») touchait la grille de cartes : deux blocs
+      de nature différente collés se lisent comme un seul.
+      ⛔ L'espacement est posé sur le CONTENEUR de la grille, pas sur `.stats` :
+      `.stats` sert aussi ailleurs (la fiche), et lui ajouter une marge la
+      déplacerait sur des pages qui n'ont rien demandé. *Une règle élargie peut
+      emporter ce qu'elle étendait.* */}
+  <div class="grille grille--apres-stats">{items.slice(0, 24).map((i, k) => (
+    <Carte item={i} lang={lang} href={localize(lang, i.path)} nf={nf} i={k} />
+  ))}{/* ═══════════════════════════════════════════════════════════════════
+      🎯 LOT O — LE SET ENTIER, Y COMPRIS CE QUI N'A PAS DE PAGE
+      ═══════════════════════════════════════════════════════════════════
+      Arbitrage de Preda, 09/09 : « des tuiles grisées, non cliquables ».
+      MESURÉ AVANT de le lui demander, sur la prod : **1 511 pages de set sur
+      3 256 (46,4 %)** annonçaient plus de pièces qu'elles n'en montraient —
+      **3 249 pièces** n'étaient listées NULLE PART. Le bandeau disait déjà la
+      vérité depuis le lot N (« 5 items · 1 collectibles tracked ») ; il disait
+      COMBIEN il en manquait, jamais LESQUELLES.
+      ⭐⭐ La donnée était là depuis le lot N et n'était pas lue : `col.pieces`
+      porte le set ENTIER (catalogue), `col.items` seulement ce qui a une page.
+      C'est le même motif que le chargeur d'index du même lot — *une ligne
+      manquante, pas une donnée manquante*, 8ᵉ fois.
+      ⛔ ELLES NE VONT PAS DANS LE TABLEAU du dessous : ses colonnes sont
+      `plancher` et `offres`, et ces pièces n'ont ni l'un ni l'autre. Une ligne
+      de tableau à deux tirets se lit « prix inconnu » ; une tuile éteinte dit
+      « pièce non suivie », ce qui est la vérité.
+      ⛔ AUCUN PLAFOND À 24 ICI : `items.slice(0, 24)` protège une grille de
+      910 cartes, or le plus gros set du catalogue en compte 16. Un plafond qui
+      ne mord jamais est un plafond qui ment sur son utilité — et celui-ci
+      rendrait le compte du bandeau faux le jour où il mordrait. */}
+  {sansPage.map((x, k) => (
+    <Carte item={x} lang={lang} nf={nf} i={items.slice(0, 24).length + k} eteinte />
+  ))}</div>
+
+  {items.length > 24 && (
+    <>
+      <h2>{t(lang, 'movers.item')}</h2>
+      <div class="tbl-hote"><table>
+        <thead><tr>
+          <th scope="col" class="tri">{t(lang, 'movers.item')}</th>
+          <th scope="col" class="c-2">{t(lang, 'item.rarity')}</th>
+          <th scope="col" class="n">{t(lang, 'movers.floor')}</th>
+          <th scope="col" class="n c-4">{t(lang, 'item.listings')}</th>
+        </tr></thead>
+        <tbody>{items.slice(24).map((i) => (
+          <tr>
+            <td><a class="tbl-obj" href={localize(lang, i.path)}>
+              {/* 📏 LOT 203, POINT `ag` — même coupe et même infobulle qu'au
+                  marché, et c'est le point : `.tbl-obj__s` est la MÊME classe,
+                  donc la même borne (34 caractères, 19 sur téléphone). Deux
+                  pages qui montrent la même chose la coupent pareil, sinon il
+                  faudrait se souvenir de corriger les deux le jour où la borne
+                  bouge. ⛔ Le texte n'est pas tronqué au serveur : il reste
+                  entier dans le document, c'est ce qui permet l'infobulle. */}
+              <span><span class="tbl-obj__n" title={i.name}>{i.name}</span><span
+                class="tbl-obj__s" title={i.series}>{i.series}</span></span>
+            </a></td>
+            <td class="c-2"><span class="puce puce--rar">
+              {i.rarity && <Fragment set:html={rar(i.rarity)} />}
+            </span></td>
+            <td class="n c-5"><span class="prix"><Fragment set:html={gemsM()} /><b>{coteFermee
+              ? <Cote lang={lang} uuid={i.uuid} champ="floor" />
+              : money(i.floor)}</b>{i.prixAberrant && <span class="alerte" title={t(lang, 'item.outlier')}>!</span>}</span></td>
+            <td class="n c-4">{i.listings ?? '—'}</td>
+          </tr>
+        ))}</tbody>
+      </table></div>
+    </>
+  )}
+</Base>

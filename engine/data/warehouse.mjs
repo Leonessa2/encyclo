@@ -1,0 +1,857 @@
+// ⚠️ DEPOT : Leonessa2/veve-sites  ·  CHEMIN : engine/data/warehouse.mjs
+//
+// Accès à l'entrepôt de données jetonveve.
+// Lit les releases publiques (CSV.gz par URL). Repli automatique sur la
+// release N-1 (`-prev`), puis sur un échantillon local (build hors-ligne).
+import { gunzipSync } from 'node:zlib';
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+const ROOT = process.env.PROJECT_ROOT || process.cwd();
+const SAMPLE_DIR = join(ROOT, 'engine', 'data', 'sample');
+const REPO = process.env.WAREHOUSE_REPO || 'Leonessa2/jetonveve';
+const OFFLINE = process.env.WAREHOUSE_OFFLINE === '1';
+const base = (tag, file) => `https://github.com/${REPO}/releases/download/${tag}/${file}`;
+
+const SOURCES = {
+  catalogue: {
+    url: process.env.CATALOGUE_URL || base('catalogue', 'catalogue.csv.gz'),
+    prev: base('catalogue-prev', 'catalogue.csv.gz'),
+    sample: 'catalogue.csv',
+  },
+  prices: {
+    url: process.env.PRICES_URL || base('prices-full', 'prices.csv.gz'),
+    prev: base('prices-full-prev', 'prices.csv.gz'),
+    sample: 'prices.csv',
+  },
+  baselines: {
+    url: process.env.BASELINES_URL || base('prices-full', 'prices_baselines.csv.gz'),
+    prev: base('prices-full-prev', 'prices_baselines.csv.gz'),
+    sample: 'prices_baselines.csv',
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LES RELEVES HORODATES — lot 144, 13/08/2026
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ⭐ « QUAND CE PRIX A-T-IL ETE OBSERVE ? » — la seule question a laquelle
+  // aucun autre fichier de l'entrepot ne repond. `prices.csv.gz` est
+  // append-on-change : sa derniere ligne date le CHANGEMENT, jamais
+  // l'OBSERVATION. Une piece stable depuis six mois y a un `last_ts` de six
+  // mois, et elle a pourtant ete relevee ce matin. Les deux horloges ne sont
+  // pas la meme, et les confondre est ce qui a produit ce lot.
+  //
+  // Schema, releve dans `floor-watch.yml` (144-A, en prod depuis 09:15 UTC) :
+  //     veve_uuid, ts_releve, source, floor, unite
+  // · `ts_releve` : EPOCH EN SECONDES, entier (`"%.0f" % v[4]`).
+  // · `source`    : `stackr` (floor OMI) ou `veve` (floor USD).
+  // · `floor`     : ⚠️ `repr` de flottant Python — `900000.0`. Le `"%.0f"` du
+  //   workflow s'applique au TS, pas au floor. ⇒ `Number()` cote lecteur,
+  //   ⛔ jamais `parseInt`, ⛔ jamais la chaine brute a l'ecran.
+  // · `unite`     : OMI ou USD. ⛔⛔ DEUX MARCHES, PAS DEUX UNITES — rapport
+  //   non constant (mediane 4 423, p10 2 273, p90 8 520 sur 1 306 items
+  //   communs). AUCUNE conversion, ici ni ailleurs.
+  //
+  // 🔴 PLUSIEURS LIGNES PAR PIECE, ET LA PREMIERE EST LA PLUS ANCIENNE.
+  // Mesure du 13/08 sur le fichier PUBLIE : 3 470 uuid sur 7 416 (47 %) portent
+  // deux lignes, et le writer trie sur `(uuid, ts)` — donc la premiere ligne
+  // d'un uuid est sa plus VIEILLE, 3 470 fois sur 3 470, sans exception. Un
+  // lecteur qui garde la premiere publierait une date perimee de 2,9 j en
+  // mediane, 23,8 j au maximum, EN SORTANT VERT. ⇒ le lecteur retient `MAX(ts)`.
+  //
+  // ⛔ PAS DE `prev` — ET C'EST MESURE, PAS OMIS. La release
+  // `etat-floor-watch-prev` N'EXISTE PAS (404 sur l'API le 13/08). Une entree
+  // `prev` fantome ferait deux choses, toutes deux mauvaises : une requete
+  // perdue a chaque build, et surtout un `noterRepli()` joignable — donc, sous
+  // `WAREHOUSE_REFUSE_PREV=1`, un `throw` que `chargerFacultatif()` avalerait.
+  // Un secours qui n'existe pas ne se declare pas.
+  releves: {
+    url: process.env.RELEVES_URL || base('etat-floor-watch', 'releves.csv'),
+    sample: 'releves.csv',
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 📉📈 LES EXTRÊMES StackR — lot H, 06/09/2026
+  // ═══════════════════════════════════════════════════════════════════════════
+  // `veve_uuid, atl, atl_ts, ath, ath_ts, unite` — le plus-bas et le plus-haut
+  // prix StackR OBSERVÉS EN DIRECT, en DOLLARS, chacun avec sa date.
+  //
+  // 🔴🔴 CE N'ÉTAIT PAS UNE COLLECTE À LANCER, C'ÉTAIT UN PONT À POSER.
+  // `floor_watch.py` mémorise `atl_stackr` depuis des mois — 7 059 pièces
+  // mesurées dans `floor_state.json` le 06/09 — parce que `detect_atl_stackr`
+  // écrit le plus-bas AVANT de regarder si le canal d'alerte est allumé. Rien
+  // ne le publiait. ⭐⭐⭐ Deuxième fois en deux jours qu'un « il manque une
+  // collecte » se révèle être « il manque un pont » (cf. le pouls 24 h).
+  //
+  // ⚠️ LES DEUX COLONNES N'ONT PAS LE MÊME ÂGE. `atl` arrive plein dès le
+  // premier run ; `ath` naît avec ce lot et sera VIDE pendant des jours. Le
+  // gabarit doit donc traiter « pas encore observé » comme un état normal — et
+  // c'est pour ça que le CSV porte une date PAR extrême et pas une seule.
+  //
+  // 💵 EN DOLLARS, au cours DU MOMENT DE L'OBSERVATION (`usd = pr * omi` chez
+  // le collecteur). ⛔ Ce n'est pas une traversée de marché : on ne déduit
+  // aucun plancher VeVe de ces chiffres, et on ne les compare pas à `floor`.
+  extremesStackr: {
+    url: process.env.EXTREMES_STACKR_URL
+      || base('etat-floor-watch', 'extremes_stackr.csv'),
+    sample: 'extremes_stackr.csv',
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 💱 LE COURS OMI → USD — lot 181, 24/08/2026
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Deux lignes, ~40 octets : `omi_usd, ts_utc`. Écrit par `floor-watch.yml`
+  // (Leonessa2/jetonveve) dans la MÊME étape que `releves.csv`, depuis la
+  // MÊME source — le cours que `floor_watch.py` relève déjà à chaque tour pour
+  // ses alertes, et qu'il jetait.
+  //
+  // ⛔ IL N'AUTORISE PAS LA CONVERSION QUE LE BLOC CI-DESSUS INTERDIT. Le
+  // commentaire de `releves` dit ⛔ ne jamais convertir `sfloors` (OMI) en
+  // `vfloors` (USD) : deux MARCHÉS, rapport non constant. Cela reste vrai et
+  // ce fichier n'y change rien. Ce cours-ci convertit un montant DANS SA
+  // PROPRE DEVISE — le prix du jeton, coté sur uniswap. La règle complète et
+  // le seuil de péremption vivent dans `engine/lib/taux_omi.mjs`.
+  //
+  // ⛔ PAS DE `prev`, POUR LA RAISON DE `releves` : `etat-floor-watch-prev`
+  // n'existe pas. Un secours qui n'existe pas ne se déclare pas.
+  // ⚠️ `sample` EST DÉCLARÉ ET LE FICHIER N'EXISTE PAS — C'EST DÉLIBÉRÉ, ET
+  // CE N'EST PAS LA MÊME CHOSE QUE DE L'OMETTRE. `readSample()` (l. 211) fait
+  // `join(SAMPLE_DIR, file)` : avec `undefined`, Node lève un TypeError
+  // « Path must be a string », que `chargerFacultatif()` attraperait — la
+  // bonne conséquence (pas de cours) obtenue par une exception, donc un
+  // journal qui accuse le chargeur d'un défaut qui n'existe pas. Déclaré, le
+  // chemin est valide, `existsSync` rend faux, et la fonction rend `[]`
+  // proprement. ⭐ Le résultat est le même ; ce qui change, c'est ce que lira
+  // la personne qui débogue.
+  // ⛔ NE PAS CRÉER `engine/data/sample/omi_usd.csv`. Hors-ligne, il n'y a pas
+  // de cours à inventer : le build CI (`WAREHOUSE_OFFLINE=1`) doit rendre une
+  // fiche SANS équivalent dollar. Un échantillon ferait juger aux 46 bancs une
+  // condition qui n'existe pas en production.
+  omiUsd: {
+    url: process.env.OMI_USD_URL || base('etat-floor-watch', 'omi_usd.csv'),
+    sample: 'omi_usd.csv',
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🛰️ LES FICHES StackR — lot 190, 25/08/2026
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Écrit par `scraper/stackr_fiches.py` (Leonessa2/jetonveve), publié dans
+  // la release `etat-fiches-stackr`. Schéma relevé sur le fichier PUBLIÉ le
+  // 25/08 (2 000 lignes, en-tête compris) :
+  //     veve_uuid, famille, ts_releve, floor_veve_usd, floor_stackr_omi,
+  //     in_circulation, editions_burnt, issued, offres_en_cours, market_fee,
+  //     floor_maj
+  //
+  // ⭐⭐ CE QU'IL APPORTE ET QUE PERSONNE N'AVAIT : les éditions BRÛLÉES et la
+  // circulation réelle. `issued` dit combien de pièces ont été frappées ;
+  // `in_circulation` combien en restent. L'écart est le nombre de pièces
+  // détruites — un chiffre qu'aucune autre source du projet ne porte.
+  //
+  // 🔴🔴 ROTATION, PAS BALAYAGE : LA COUVERTURE EST PARTIELLE ET LE RESTERA
+  // DIX JOURS. Le collecteur prend 2 000 items par run sur 19 774 ; au
+  // 25/08 le curseur était à 2 000, soit ~10 % du catalogue. ⛔ UNE COLONNE
+  // VIDE DOIT SE DIRE, JAMAIS S'INVENTER : un item non encore visité n'a pas
+  // « zéro brûlée », il n'a RIEN. Les gabarits affichent « — », et c'est la
+  // seule chose vraie qu'ils puissent afficher.
+  //
+  // ⛔ PAS DE `prev` : `etat-fiches-stackr-prev` n'existe pas. Un secours qui
+  // n'existe pas ne se déclare pas (même raison que `releves` et `omiUsd`).
+  //
+  // ⚠️⚠️ ET L'ÉCHANTILLON EST **PARTIEL**, DÉLIBÉRÉMENT — ⛔ NE PAS LE COMPLÉTER.
+  // C'est l'inverse du choix fait pour `omi_usd.csv` (pas d'échantillon du
+  // tout), et la raison est la même règle prise dans l'autre sens : *un chemin
+  // de code jamais emprunté n'est pas sûr, il est non mesuré.* Ici DEUX chemins
+  // doivent vivre en même temps — « la fiche a ses chiffres StackR » et « elle
+  // ne les a pas encore » — parce que c'est exactement l'état de la production
+  // pendant toute la rotation. Un échantillon complet rendrait la branche
+  // « — » invisible aux 46 bancs ; un échantillon vide rendrait l'autre
+  // invisible. Il couvre donc une PARTIE des uuid de `catalogue.csv`.
+  ventes: {
+    // ═══════════════════════════════════════════════════════════════════════
+    // 💰 LES VENTES StackR + VeVe — lot 210, 29/08/2026
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🔴🔴 SEULE SOURCE DU DEPOT `Leonessa2/scrapeur-veve` — PAS jetonveve.
+    // `base()` est cloue sur `WAREHOUSE_REPO` ; cette release vit dans le depot
+    // qui PRODUIT le fichier (`scraper/ventes_agregat.py`, publie par
+    // `daily.yml`). L'URL est donc en dur, et c'est l'ECART qu'il fallait
+    // commenter, pas cacher. Le depot est PUBLIC (verifie par l'API le 28/08).
+    //
+    // Schema, releve sur le fichier PRODUIT le 29/08 (8 429 lignes + en-tete) :
+    //     element_id, ts_utc, marche, edition, price_usd, price_omi,
+    //     vendeur, acheteur
+    // · `element_id` EST notre `veve_uuid` — jointure directe, pas de `guid`.
+    // · `marche` : `veve` (gems) ou `stackr` (OMI), MELANGES dans l'ordre
+    //   chronologique : la fiche montre « les 10 dernieres ventes », pas « les
+    //   10 dernieres de chaque cote ».
+    // · `price_usd` : DEJA CALCULE EN AMONT. ⛔⛔ NE RIEN RECONVERTIR ICI.
+    //   StackR = `price_omi` x le cours du JOUR DE LA VENTE (gate.io, 120 j) ;
+    //   VeVe = le prix en gems (1 gem ~ 1 $). ⚠️ VIDE quand le jour n'a pas de
+    //   cours — la fiche affiche alors l'OMI, et c'est voulu.
+    //   ⛔ Surtout pas « boucher » avec `omiUsd` : c'est le cours d'AUJOURD'HUI,
+    //   il ecraserait un prix date par un prix qui ne l'est pas.
+    // · `price_omi` : VIDE sur tout le marche VeVe. Une colonne vide n'est pas
+    //   une lacune, c'est une unite qui ne s'applique pas.
+    // · `vendeur`/`acheteur` : PSEUDO quand on l'a, sinon adresse TRONQUEE a la
+    //   source. ⚠️ Couverture mesuree : StackR 100 %/100 %, VeVe 18 %/9 %.
+    //
+    // 🔴 COUVERTURE PARTIELLE MAIS QUI MONTE VITE : 3 015 pieces sur 8 840
+    // fiches (34 %) au 29/08 ; le marche VeVe apporte ~416 pieces PAR JOUR.
+    // ⛔ « Pas de vente » reste l'etat NORMAL d'une majorite de fiches.
+    //
+    // ⛔ PAS DE `prev` : `etat-ventes-stackr-prev` n'existe pas. Un secours qui
+    // n'existe pas ne se declare pas (meme raison que `releves` et `omiUsd`).
+    url: process.env.VENTES_URL
+      || 'https://github.com/Leonessa2/scrapeur-veve/releases/download/etat-ventes-stackr/ventes_stackr.csv',
+    sample: 'ventes.csv',
+  },
+
+  fichesStackr: {
+    url: process.env.FICHES_STACKR_URL || base('etat-fiches-stackr', 'fiches_stackr.csv'),
+    sample: 'fiches_stackr.csv',
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 🔥 LES BRÛLAGES QUOTIDIENS — lot L, 08/09/2026 · LE PONT DU POULS 24 H
+  // ══════════════════════════════════════════════════════════════════════════
+  // ⭐⭐⭐ IL N'Y A RIEN À COLLECTER — ET C'EST LE POINT. J'avais écrit quatre
+  // fois que « le pouls 24 h demande une collecte ». Faux : la donnée est
+  // publiée, quotidienne, et elle était à une URL de distance. Ce qui manquait
+  // n'était pas un collecteur, c'était CETTE DÉCLARATION. ⛔ Une note qui nomme
+  // une solution (« il faut collecter ») fait sauter la question du besoin.
+  //
+  // 🔴 CE SONT DES FICHIERS DU DÉPÔT, PAS DES RELEASES. `base()` fabrique des
+  // URL de release ; ces deux-là vivent dans `data/` de `Leonessa2/jetonveve`
+  // et se lisent en RAW. L'URL est donc en dur — même écart, et même raison,
+  // que `ventes` plus haut : on le commente, on ne le cache pas.
+  //
+  // Schéma MESURÉ le 08/09/2026 sur les fichiers servis (HTTP 200) :
+  //   burns_daily.csv        date, source, transactions, omi_burned, cumulative
+  //   burns_split_daily.csv  date, nft_sales, omi_nft, omi_volume, gem_buys, omi_gem
+  // · `date` : jour PACIFIQUE, comme `transfers_daily_<J>` — la même horloge que
+  //   le reste du pouls, et c'est ce qui autorise à les afficher côte à côte.
+  //   ⛔ Ne JAMAIS l'étiqueter comme un jour UTC : c'est la faute déjà payée.
+  // · `omi_burned` : des OMI, ⛔ PAS des dollars. Aucune conversion, ici ni
+  //   ailleurs — le rapport OMI/USD n'est pas constant (médiane 4 423, p10
+  //   2 273, p90 8 520). L'écran dit « OMI » ou ne dit rien.
+  // · dernières lignes lues le 08/09 : 2026-09-07 · 584 609,28 OMI brûlés ·
+  //   29 815 073,28 OMI de volume. La veille : 851 416,32 et 43 422 232,32.
+  //
+  // ⛔ PAS DE `prev` : un fichier de dépôt n'a pas de release N-1. Un secours
+  // qui n'existe pas ne se déclare pas (même raison que `releves` et `omiUsd`).
+  // ⇒ Ces deux sources se lisent par `chargerFacultatif` : injoignables, la
+  // case du pouls redit « pas encore branché » et le build reste vert.
+  burns: {
+    url: process.env.BURNS_URL
+      || 'https://raw.githubusercontent.com/Leonessa2/jetonveve/main/data/burns_daily.csv',
+    sample: 'burns_daily.csv',
+  },
+  burnsSplit: {
+    url: process.env.BURNS_SPLIT_URL
+      || 'https://raw.githubusercontent.com/Leonessa2/jetonveve/main/data/burns_split_daily.csv',
+    sample: 'burns_split_daily.csv',
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LES DÉRIVÉS DU GRAND LIVRE — lot 44, 03/08/2026
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ⭐⭐ RIEN À CALCULER, RIEN À PUBLIER : CES FICHIERS EXISTENT DÉJÀ.
+  // `scraper/ledger_derived.py` (jetonveve) les produit dans `derived/`, et
+  // `analytics.yml` fait `gh release upload analytics-derived derived/*` — un
+  // GLOB, donc tout y passe. La release `analytics-derived-prev` porte le N-1,
+  // exactement comme `prices-full-prev`.
+  //
+  // ⚠️ J'AVAIS CONCLU L'INVERSE. Cherchant `pulse.csv` dans les workflows, je
+  // n'avais rien trouvé et j'en avais déduit que le fichier n'était pas publié.
+  // ⭐⭐⭐ **Une recherche par NOM DE FICHIER ne trouve jamais un glob.**
+  // L'absence de mention n'est pas l'absence de publication : il faut lire ce
+  // que la commande ENVOIE, pas chercher le nom qu'on attend.
+  //
+  // ⛔ CES DONNÉES SONT INTÉGRALEMENT RÉSERVÉES (arbitrage Preda du 03/08 :
+  // « tout derrière le mur »). Elles ne doivent JAMAIS entrer dans `dist/` —
+  // elles s'écrivent dans `.reserve/` et ne sortent que par `/api/analytics/`.
+  // C'est l'architecture qui protège, pas le contrôle d'accès : la panne du
+  // lot 34 n'a rien laissé fuiter POUR CETTE RAISON, pas grâce à `franchit()`.
+  pulse: {
+    url: base('analytics-derived', 'pulse.csv'),
+    prev: base('analytics-derived-prev', 'pulse.csv'),
+    sample: 'pulse.csv',
+  },
+  walletSize: {
+    url: base('analytics-derived', 'wallet_size.csv'),
+    prev: base('analytics-derived-prev', 'wallet_size.csv'),
+    sample: 'wallet_size.csv',
+  },
+  whales: {
+    url: base('analytics-derived', 'whales.csv'),
+    prev: base('analytics-derived-prev', 'whales.csv'),
+    sample: 'whales.csv',
+  },
+  corner: {
+    url: base('analytics-derived', 'corner_full.csv.gz'),
+    prev: base('analytics-derived-prev', 'corner_full.csv.gz'),
+    sample: 'corner_full.csv',
+  },
+  // ⭐ LOT 166 — LES AGRÉGATS DE PROFIL, COMPTÉS EN AMONT ET NON ICI.
+  // 708 492 wallets se comptent dans `ledger_derived.py` (jetonveve) en 0,1 s,
+  // et arrivent ici en 249 lignes. 🔴 C'est un CHIFFRE qui a décidé ça, pas un
+  // goût : agréger la table complète côté site coûtait **480 Mo de RSS** sur un
+  // VPS de 7,8 Go dont le build meurt déjà en silence à l'étape 31/55.
+  // ⛔ Ne jamais « simplifier » en relisant `profiles_full.csv.gz` (24 Mo gzip).
+  profilsAgregats: {
+    url: base('analytics-derived', 'profils_agregats.csv'),
+    prev: base('analytics-derived-prev', 'profils_agregats.csv'),
+    sample: 'profils_agregats.csv',
+  },
+  metaLedger: {
+    url: base('analytics-derived', 'meta_ledger.csv'),
+    prev: base('analytics-derived-prev', 'meta_ledger.csv'),
+    sample: 'meta_ledger.csv',
+  },
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // 📒 LE GRAND LIVRE COMPLET — lot 224, 04/09/2026
+  // ════════════════════════════════════════════════════════════════════════════
+  // Écrit par `step_ledger()` de `scraper/ledger_derived.py` (jetonveve) et
+  // publié par le GLOB `gh release upload analytics-derived derived/*` — il n'y
+  // a donc AUCUN workflow à ajouter en amont, et c'est mesuré, pas supposé.
+  //
+  // Schéma relevé sur le fichier PUBLIÉ le 04/09, sur les 12 466 996 lignes,
+  // pas sur un échantillon : `veve_uuid,edition,holder,listed`, 4 colonnes sur
+  // 100 % des lignes, **déjà trié par `(veve_uuid, edition)`** — 0 rupture.
+  // C'est ce tri qui autorise l'écriture séquentielle de `classeur.mjs` : le
+  // perdre ferait rouvrir des poignées déjà fermées, EN SILENCE. ⚠️ Le banc
+  // `test:classeur` §1 le vérifie à chaque build ; ne pas l'y retirer.
+  //
+  // 🔴🔴 `holder` VAUT LITTÉRALEMENT DEUX GUILLEMETS QUAND LA PIÈCE N'EST
+  // DÉTENUE PAR PERSONNE — la chaîne `""`, longueur 2, PAS la chaîne vide.
+  // Mesuré le 04/09 : le champ ne prend QUE deux longueurs sur 12 466 996
+  // lignes, 42 (une adresse) ou 2 (ces guillemets), 1 825 547 fois, soit
+  // 14,64 %. `split(',')` ne dé-quote pas, donc :
+  //     ⛔ `!holder` → FAUX          ⛔ `holder === ''` → FAUX
+  //     ✅ `holder === '""'` → VRAI
+  // Ces deux tests ont été écrits et ont rendu 0 — deux tours de suite, par
+  // deux personnes différentes. ⭐⭐ *Un champ « vide » se mesure par la
+  // DISTRIBUTION de ses valeurs, jamais par le test qu'on croit juste.*
+  // ⇒ la constante `NON_DETENUE` de `engine/lib/classeur.mjs` est la SEULE
+  // définition de ce vide dans le dépôt. Deux divergent un jour.
+  //
+  // 🧮 ET CE VIDE EST UN STATUT, PAS UNE ABSENCE : 1 825 547 = burned
+  // 1 393 823 + stock 431 723 au `meta_ledger`, à UNE unité près sur 1,8
+  // million. ⚠️ Mais l'identité dit ce que le champ VAUT, jamais ce qu'il
+  // DISTINGUE : brûlée contre stock n'est PAS reconstituable ici, et
+  // `ledger_statuts.csv` n'a que des totaux. ⇒ arbitrage Preda du 04/09 :
+  // affichées, INDISTINCTES, sous « non détenue ». ⛔ Ne pas rouvrir sans un
+  // SECOND fichier en amont.
+  //
+  // ⛔ PAS DE `prev`, ET C'EST DÉLIBÉRÉ. `analytics-derived-prev` existe (les
+  // six dérivés au-dessus s'en servent), mais ce fichier-ci pèse 264 Mo : un
+  // repli le reteléchargerait intégralement après un premier échec, doublant
+  // le coût du build pour un classeur qui n'est pas le socle du site.
+  // ⭐ `classeur.mjs` traite l'absence comme `ventes.mjs` traite la sienne :
+  // le classeur n'est pas écrit, les deux pages le disent, le build vit.
+  //
+  // ⛔ PAS DE `sample` NON PLUS, ET C'EST LA MÊME RAISON QUE `omiUsd` À
+  // L'ENVERS. Hors ligne, il n'y a pas de grand livre à inventer : un
+  // échantillon ferait juger aux bancs une condition qui n'existe pas en
+  // production. ⚠️ Le champ est déclaré (chaîne valide) et le fichier n'existe
+  // pas — `existsSync` rend faux et la lecture rend 0 proprement, là où
+  // `undefined` ferait lever un TypeError à `join()` qui accuserait le
+  // chargeur d'un défaut qui n'est pas le sien.
+  ledger: {
+    url: process.env.LEDGER_URL || base('analytics-derived', 'ledger_full.csv.gz'),
+    sample: 'ledger_full.csv',
+  },
+};
+
+// ===========================================================================
+// ⭐⭐ LE REPLI N-1 NE PASSE PLUS EN SILENCE  (A3, 29/07/2026)
+// ===========================================================================
+// Il y avait DEUX replis muets dans ce fichier, pas un : `load()` (catalogue,
+// baselines) et `streamPrices` (prix). Tous deux parcourent `[url, prev]` et
+// se contentaient d'un `console.warn` sur l'echec de la fraiche : la lecture
+// sur la release N-1 reussissait, le build restait VERT, et rien ne disait
+// que le site venait d'etre construit sur l'identite de la veille.
+//
+// ⭐ La nuance qui fait tout : ce repli n'est PAS un defaut partout.
+//    · `rebuild-daily`  -> reconstruire sur des donnees d'hier est un
+//      comportement degrade ACCEPTABLE : demain rattrape.
+//    · `freeze-slugs`   -> le gel est IRREVERSIBLE. Geler les adresses sur
+//      `catalogue-prev` grave A VIE l'identite d'AVANT l'uniformisation.
+//      Ce n'est pas degrade, c'est definitif.
+//
+// D'ou la forme : le repli CRIE toujours, et il n'est FATAL que la ou
+// l'appelant le demande (`WAREHOUSE_REFUSE_PREV=1`). Un garde-fou qui casse
+// tout casse aussi ce qu'il fallait laisser passer, et on finit par le
+// desarmer -- voir D3 du plan.
+const REFUSE_PREV = process.env.WAREHOUSE_REFUSE_PREV === '1';
+
+// ⭐ Un marqueur LITTERAL et unique. `freeze-slugs.yml` greppait
+// `catalogue-prev`, c'est-a-dire un fragment d'URL : ca ne couvrait ni les
+// prix ni les baselines, et ca cassait au premier renommage de release.
+export const MARQUEUR_REPLI = '[entrepot][REPLI-N-1]';
+
+const REPLIS = [];
+/** Les replis N-1 subis depuis le demarrage du process. */
+export const getReplis = () => REPLIS.slice();
+/** Remise a zero — pour les bancs de test uniquement. */
+export const _resetReplis = () => { REPLIS.length = 0; };
+
+function noterRepli(name, url) {
+  if (!REPLIS.some((r) => r.source === name)) REPLIS.push({ source: name, url });
+  console.warn(`${MARQUEUR_REPLI} ${name} : source fraiche injoignable, LU SUR LA RELEASE N-1 ${url}`);
+  // Annotation GitHub Actions : visible dans le resume du run, pas seulement
+  // noyee dans 3 000 lignes de log.
+  console.warn(`::warning title=Entrepot en repli N-1::${name} a ete lu sur la release N-1 (${url}). Les donnees ont un jour de retard.`);
+  if (REFUSE_PREV) {
+    throw new Error(
+      `${MARQUEUR_REPLI} ${name} : repli sur la release N-1 REFUSE (WAREHOUSE_REFUSE_PREV=1). ` +
+      `Cette etape ecrit quelque chose d'irreversible : elle exige la source fraiche. ` +
+      `Relancer quand ${SOURCES[name] ? SOURCES[name].url : name} sera de nouveau joignable.`);
+  }
+}
+
+export function parseCSV(text) {
+  const rows = [];
+  let i = 0, field = '', row = [], inQ = false;
+  while (i < text.length) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+        inQ = false; i++; continue;
+      }
+      field += c; i++; continue;
+    }
+    if (c === '"') { inQ = true; i++; continue; }
+    if (c === ',') { row.push(field); field = ''; i++; continue; }
+    if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; i++; continue; }
+    if (c === '\r') { i++; continue; }
+    field += c; i++;
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  if (!rows.length) return [];
+  const header = rows.shift().map((h) => h.trim());
+  return rows
+    .filter((r) => r.some((v) => v !== ''))
+    .map((r) => Object.fromEntries(header.map((h, idx) => [h, r[idx] ?? ''])));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🕰️🔴🔴 LOT 217 — `vuLe` : LA DATE À LAQUELLE ON A REGARDÉ, ET ELLE ÉTAIT
+//                  DÉJÀ DANS LA RÉPONSE
+// ═══════════════════════════════════════════════════════════════════════════
+// Preda, 03/09 : « un prix inchangé est une donnée » — encore faut-il savoir
+// JUSQU'À QUAND on sait qu'il n'a pas changé. `releves.csv` porte cette date,
+// mais pour 8 801 pièces seulement ; 3 003 fiches PUBLIÉES n'y sont pas, et
+// n'y seront jamais : `releves.csv` dérive de `floor_state.json`, qui ne
+// connaît que ce qui a été LISTÉ sur un marché. Une pièce que personne ne vend
+// n'a aucune ligne — et étendre ce collecteur ne changerait rien.
+//
+// ⭐⭐⭐ ET LA DATE MANQUANTE ÉTAIT DÉJÀ SUR LE FIL. Chaque téléchargement de
+// release GitHub rend un en-tête `Last-Modified` (mesuré le 04/09 :
+// « Thu, 03 Sep 2026 11:41:24 GMT » sur `catalogue.csv.gz`). Le catalogue est
+// rebâti chaque jour avec le `floor` de CHAQUE pièce : cet en-tête date donc
+// une observation de tout le catalogue, y compris des 19 786 pièces que
+// `floor_state.json` ignore.
+// ⇒ ZÉRO appel réseau de plus, ZÉRO fichier neuf, ZÉRO dépôt côté jetonveve.
+//   *On ne collecte rien : on cesse de jeter un en-tête qu'on recevait déjà.*
+//
+// ⛔ CE QUE CETTE DATE N'EST PAS : une observation de la COURBE. Elle date la
+//   lecture du CATALOGUE. Mesuré le 04/09 sur les 3 359 fiches sans relevé :
+//   le `floor` du catalogue égale le dernier point de la courbe dans 81,5 %
+//   des cas — et EN DIFFÈRE dans 18,5 %. Prolonger une courbe à plat jusqu'à
+//   cette date quand les deux sources ne disent pas le même prix affirmerait
+//   « il valait encore 7,98 » au moment même où le catalogue lu dit 2,56.
+//   ⇒ `dataset.mjs` n'emploie cette date QUE si les deux sources concordent.
+//     La règle vit là-bas, avec les deux valeurs ; ici on ne fait que la
+//     TRANSPORTER.
+// ⚠️ ELLE SUIT LA SOURCE RÉELLEMENT LUE. Si la release fraîche est injoignable
+//   et qu'on retombe sur `catalogue-prev`, la date est celle de la PRÉCÉDENTE
+//   — c'est correct, et c'est même tout l'intérêt : l'observation est
+//   réellement plus ancienne, et la courbe doit s'arrêter plus tôt.
+// ⛔ EN MODE HORS-LIGNE (`WAREHOUSE_OFFLINE=1`), elle vaut `null` et PAS
+//   « maintenant » : un échantillon n'a pas été observé aujourd'hui.
+const VU_LE = new Map();
+// La date du DERNIER téléchargement, en attente d'être attribuée à une source.
+// ⛔ Variable de module et non valeur de retour : `fetchTable` rend un tableau
+//    de lignes, et lui faire rendre un couple obligerait ses deux appelants à
+//    déballer — dont celui du secours N-1, qui n'en a pas l'usage.
+let DERNIERE_DATE = null;
+
+/** L'instant (epoch SECONDES) où la source a été observée, ou `null`.
+ *  ⛔ Jamais un repli sur l'heure courante — cf. le bloc ci-dessus. */
+export const vuLe = (name) => (VU_LE.has(name) ? VU_LE.get(name) : null);
+
+async function fetchTable(url) {
+  const res = await fetch(url, { redirect: 'follow' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  // ⭐ On le lit AVANT le corps : un `arrayBuffer()` qui échoue laisserait
+  //   sinon une date posée pour une table qu'on n'a pas.
+  const lm = Date.parse(res.headers.get('last-modified') || '');
+  const buf = Buffer.from(await res.arrayBuffer());
+  const text = url.endsWith('.gz') ? gunzipSync(buf).toString('utf8') : buf.toString('utf8');
+  DERNIERE_DATE = Number.isFinite(lm) ? Math.floor(lm / 1000) : null;
+  return parseCSV(text);
+}
+
+function readSample(file) {
+  const p = join(SAMPLE_DIR, file);
+  if (!existsSync(p)) return [];
+  return parseCSV(readFileSync(p, 'utf8'));
+}
+
+const cache = new Map();
+
+export async function load(name) {
+  if (cache.has(name)) return cache.get(name);
+  const src = SOURCES[name];
+  if (!src) throw new Error(`source inconnue: ${name}`);
+  let rows = null;
+  // ⭐ On retient le RANG lu, pas l'URL : `CATALOGUE_URL` peut surcharger la
+  // fraiche, et comparer deux chaines aurait rate le cas ou la surcharge
+  // pointe deja la release N-1.
+  let rangLu = -1;
+  if (!OFFLINE) {
+    // ⭐ `.filter(Boolean)` — une source PEUT n'avoir aucun secours N-1, et
+    // `fetch(undefined)` leverait une erreur qu'on relirait comme « la release
+    // N-1 est injoignable ». Un rang qui n'existe pas ne doit pas produire un
+    // echec qui ressemble a un rang qui a echoue.
+    const urls = [src.url, src.prev].filter(Boolean);
+    for (let i = 0; i < urls.length; i++) {
+      const url = urls[i];
+      try {
+        // ⚠️ LE NOM N'EST PASSÉ QUE SI LA TABLE EST RETENUE — sinon une
+        //    release fraîche mais VIDE poserait sa date, et la table servie
+        //    (le secours N-1) porterait la date de celle qu'on a rejetée.
+        //    *Une date se pose avec la donnée qu'elle décrit, jamais avant.*
+        const lues = await fetchTable(url);
+        if (lues.length) {
+          rows = lues;
+          rangLu = i;
+          VU_LE.set(name, DERNIERE_DATE);
+          console.log(`[entrepot] ${name}: ${rows.length} lignes depuis ${url}`
+            + (DERNIERE_DATE ? ` — observé le ${new Date(DERNIERE_DATE * 1000).toISOString()}` : ''));
+          break;
+        }
+      } catch (e) {
+        console.warn(`[entrepot] ${name}: echec ${url} (${e.message})`);
+        rows = null;
+      }
+    }
+    // ⛔⛔ HORS du try/catch, et c'est le cœur du correctif. Appele a
+    // l'interieur, le `throw` de `noterRepli()` serait avale par le `catch`
+    // ci-dessus, relu comme « echec de la release N-1 » — et le refus se
+    // serait transforme en un repli de plus, silencieux lui aussi.
+    if (rangLu > 0) noterRepli(name, urls[rangLu]);
+  }
+  if (!rows || !rows.length) {
+    // Le repli sur l'echantillon n'est autorise QUE si on l'a demande
+    // explicitement. Sinon on echoue : publier de fausses donnees serait
+    // pire que de laisser en ligne la version precedente.
+    if (!OFFLINE && process.env.ALLOW_SAMPLE !== '1') {
+      throw new Error(
+        `[entrepot] ${name} : source ET secours N-1 injoignables. ` +
+        `Build interrompu volontairement pour ne pas publier de donnees d'exemple.`);
+    }
+    rows = readSample(src.sample);
+    console.log(`[entrepot] ${name}: ECHANTILLON local (${rows.length} lignes)`);
+  }
+  cache.set(name, rows);
+  return rows;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UNE SOURCE FACULTATIVE — lot 144
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴🔴 CE LOT A FAILLI ETRE ECRIT SUR UNE ANALOGIE FAUSSE, ET ELLE AURAIT
+// PRODUIT UN DEPLOIEMENT ROUGE, PAS UNE DATE ABSENTE.
+// Le plan disait : « ajouter `releves` dans SOURCES, lue sans etre exigee,
+// comme `nomComic` au 01/08 ». Or `nomComic` est une COLONNE d'une source deja
+// chargee : absente, elle vaut `null` et rien ne s'affiche. `releves` est une
+// SOURCE : `load()` **`throw`** quand la fraiche ET le secours N-1 echouent
+// (l. ~205, correctif A3 du 29/07), et le build du `Dockerfile` tourne RESEAU
+// OUVERT, sans `WAREHOUSE_OFFLINE=1`.
+// ⭐⭐⭐ L'ANALOGIE CHANGEAIT DE COUCHE. Une colonne facultative n'est pas une
+// source facultative. La verification n'etait pas dans le plan, elle etait dans
+// les `throw` du chargeur. → [[regle-analogie-qui-change-de-couche]]
+//
+// ⛔ POURQUOI PAS ASSOUPLIR `load()` : ses deux `throw` sont precisement ce
+// qu'un lot a ferme expres, pour que le repli N-1 CRIE. Y ajouter une porte
+// muette rouvre en une ligne ce qui a coute un correctif entier.
+// ⛔ POURQUOI PAS UN `try/catch` CHEZ L'APPELANT : `load()` met en CACHE. Un
+// echec attrape apres mise en cache se relirait comme « 0 ligne » pour les six
+// gabarits, sans que rien ne le dise.
+//
+// ⭐ Cette porte-ci CRIE (`console.warn` + annotation GitHub), rend `[]`, et
+// **ne met pas le vide en cache** : un 404 passager ne doit pas geler la date
+// pour tout le reste du build.
+// 🔴🔴 ET ELLE RE-LEVE LE REFUS DE REPLI. `WAREHOUSE_REFUSE_PREV=1` (pose par
+// `freeze-slugs`, dont le gel est IRREVERSIBLE) fait `throw` a `noterRepli()`.
+// Avaler celui-la transformerait un refus deliberement fatal en un repli
+// silencieux de plus — exactement la panne que le correctif A3 a fermee.
+// ⭐⭐ « Un garde-fou qui casse tout casse aussi ce qu'il fallait laisser
+// passer » : on laisse passer l'absence, on ne laisse pas passer le refus.
+export async function chargerFacultatif(name) {
+  try {
+    return await load(name);
+  } catch (e) {
+    if (String(e && e.message).includes(MARQUEUR_REPLI)) throw e;
+    console.warn(`[entrepot] ${name} : source FACULTATIVE absente (${e.message}) — on continue sans.`);
+    console.warn(`::warning title=Source facultative absente::${name} n'a pas ete lue. Les fiches diront qu'elles ne connaissent pas leur date de relevement.`);
+    cache.delete(name);
+    return [];
+  }
+}
+
+
+// --- Lecture EN FLUX de l'historique des prix -------------------------------
+// Ce fichier grandit sans limite (append-on-change sur 18 900 items) : le
+// charger en entier fait exploser la memoire du build. On le traite donc
+// ligne par ligne, et l'appelant ne garde que ce dont il a besoin.
+import { createGunzip } from 'node:zlib';
+import { createReadStream } from 'node:fs';
+import { Readable } from 'node:stream';
+import { createInterface } from 'node:readline';
+
+// ⭐ L'INDEX DES COLONNES DES PRIX — sorti du corps de `consumeStream` au lot
+// 224, sans changer une virgule de ce qu'il calcule. Il y était ÉCRIT EN DUR,
+// ce qui rendait la fonction inutilisable pour toute autre source : le grand
+// livre n'a ni `ts`, ni `floor`, ni `listings`, et serait sorti avec quatre
+// `-1` sans qu'une seule erreur ne se produise.
+// ⚠️ Le défaut par défaut : `consumeStream` appelé sans `faireIdx` se comporte
+// EXACTEMENT comme avant. C'est ce qui rend ce changement sûr pour les prix,
+// qui sont, eux, le socle du site.
+const IDX_PRIX = (h) => ({
+  uuid: h.indexOf('veve_uuid') >= 0 ? h.indexOf('veve_uuid') : h.indexOf('uuid'),
+  ts: h.indexOf('ts_utc') >= 0 ? h.indexOf('ts_utc') : h.indexOf('ts'),
+  floor: h.indexOf('floor'),
+  listings: h.indexOf('listings'),
+});
+
+// 📒 L'index du grand livre. ⚠️ Repérage par NOM, jamais par position —
+// règle dure du projet, payée par un montant affiché « 15636,0 % » le jour où
+// une colonne s'était insérée. Quatre colonnes seulement, donc quatre
+// occasions de la commettre, mais la règle ne dépend pas du nombre.
+const IDX_LEDGER = (h) => ({
+  uuid: h.indexOf('veve_uuid'),
+  edition: h.indexOf('edition'),
+  holder: h.indexOf('holder'),
+  listed: h.indexOf('listed'),
+});
+
+async function consumeStream(stream, onRow, faireIdx = IDX_PRIX) {
+  const rl = createInterface({ input: stream, crlfDelay: Infinity });
+  let idx = null;
+  let n = 0;
+  for await (const line of rl) {
+    if (!line) continue;
+    const cols = line.split(',');
+    if (idx === null) {
+      idx = faireIdx(cols.map((c) => c.trim()));
+      continue;
+    }
+    onRow(cols, idx);
+    n++;
+  }
+  return n;
+}
+
+export async function streamPrices(onRow) {
+  const src = SOURCES.prices;
+  if (!OFFLINE) {
+    const urls = [src.url, src.prev];
+    let rangLu = -1;
+    let lues = 0;
+    for (let i = 0; i < urls.length; i++) {
+      const url = urls[i];
+      try {
+        const res = await fetch(url, { redirect: 'follow' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        let stream = Readable.fromWeb(res.body);
+        if (url.endsWith('.gz')) stream = stream.pipe(createGunzip());
+        lues = await consumeStream(stream, onRow);
+        rangLu = i;
+        console.log(`[entrepot] prix : ${lues} lignes lues EN FLUX depuis ${url}`);
+        break;
+      } catch (e) {
+        console.warn(`[entrepot] prix : echec ${url} (${e.message})`);
+      }
+    }
+    // ⛔ Meme piege qu'au-dessus : le `return` etait DANS le `try`, donc toute
+    // annonce posee la aurait ete avalee par le `catch`. On sort d'abord.
+    if (rangLu >= 0) {
+      if (rangLu > 0) noterRepli('prices', urls[rangLu]);
+      return lues;
+    }
+  }
+  if (!OFFLINE && process.env.ALLOW_SAMPLE !== '1') {
+    throw new Error('[entrepot] prix : source ET secours N-1 injoignables. Build interrompu volontairement.');
+  }
+  const p = join(SAMPLE_DIR, src.sample);
+  if (existsSync(p)) {
+    const n = await consumeStream(createReadStream(p), onRow);
+    console.log(`[entrepot] prix : ECHANTILLON local (${n} lignes, en flux)`);
+    return n;
+  }
+  console.warn('[entrepot] prix : aucune source disponible');
+  return 0;
+}
+
+// 📒 LE GRAND LIVRE, LU EN FLUX — lot 224
+// ⭐ MÊME DISPOSITIF QUE `streamPrices`, ET C'EST TOUT L'INTÉRÊT : 264 Mo ne
+// tiennent pas plus en mémoire que les prix, et le remède est déjà écrit et
+// éprouvé juste au-dessus. On l'appelle, on ne le réinvente pas.
+//
+// ⛔ IL N'A NI REPLI NI ÉCHANTILLON, contrairement à `streamPrices`, et les
+// deux raisons sont dans le bloc de `SOURCES.ledger`. Conséquence directe :
+// **ce flux rend 0 au lieu de lever**, dans les trois cas où il n'a rien à
+// lire (hors ligne, source absente, source illisible). C'est l'appelant qui
+// décide ce que « 0 » veut dire — et `classeur.mjs` le dit à voix haute.
+//
+// 🔴 POURQUOI PAS `throw` COMME `streamPrices` LE FAIT POUR LES PRIX. Les prix
+// sont le socle : un site sans prix n'est pas ce site, et l'interruption est
+// la bonne réponse. Le classeur est un ajout de plus, derrière une porte
+// membre : interrompre le déploiement des 9 354 fiches publiques parce qu'une
+// release de 264 Mo a mis trop longtemps serait échanger un service qui marche
+// contre un service qui n'existait pas hier.
+// ⚠️ ET LE SILENCE N'EST PAS LE PRIX À PAYER POUR ÇA : l'échec CRIE ici
+// (`console.warn` + annotation GitHub), exactement comme `chargerFacultatif`.
+export async function streamLedger(onRow) {
+  const src = SOURCES.ledger;
+  if (!OFFLINE) {
+    try {
+      const res = await fetch(src.url, { redirect: 'follow' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      let stream = Readable.fromWeb(res.body);
+      if (src.url.endsWith('.gz')) stream = stream.pipe(createGunzip());
+      const n = await consumeStream(stream, onRow, IDX_LEDGER);
+      console.log(`[entrepot] grand livre : ${n} lignes lues EN FLUX depuis ${src.url}`);
+      return n;
+    } catch (e) {
+      console.warn(`[entrepot] grand livre : echec ${src.url} (${e.message}) — le classeur ne sera pas ecrit.`);
+      console.warn('::warning title=Grand livre injoignable::Le classeur et Mint Hunter repondront « indisponible ».');
+      return 0;
+    }
+  }
+  // ⚠️ HORS LIGNE, IL N'Y A PAS DE GRAND LIVRE, ET C'EST UN ÉTAT NORMAL, PAS
+  // UNE PANNE. `SOURCES.ledger.sample` désigne un fichier qui N'EXISTE PAS
+  // exprès (voir son bloc) : `existsSync` rend faux et on sort à 0 sans bruit
+  // d'alarme. C'est la même soupape que `reserve.mjs` et `ventes.mjs`, et
+  // c'est ce qui laisse le build du Dockerfile (`WAREHOUSE_OFFLINE=1`) vert.
+  const p = join(SAMPLE_DIR, src.sample);
+  if (existsSync(p)) {
+    const n = await consumeStream(createReadStream(p), onRow, IDX_LEDGER);
+    console.log(`[entrepot] grand livre : ECHANTILLON local (${n} lignes, en flux)`);
+    return n;
+  }
+  console.log('[entrepot] grand livre : HORS LIGNE et sans echantillon — 0 ligne, etat attendu.');
+  return 0;
+}
+
+export const getCatalogue = () => load('catalogue');
+export const getBaselines = () => load('baselines');
+
+// ⭐ FACULTATIF, ET LE NOM DE LA FONCTION LE DIT. Le jour ou quelqu'un le
+// remplacera par `load('releves')` « pour faire comme les autres », il aura
+// devant les yeux la seule ligne qui explique pourquoi ce n'en est pas un.
+export const getReleves = () => chargerFacultatif('releves');
+// 📉📈 LOT H — facultatif comme `releves`, et pour la même raison : tant que le
+// dépôt `jetonveve` n'a pas tourné avec le pont, le fichier n'existe pas dans
+// la release. ⭐ `chargerFacultatif` rend `[]`, le site sert la colonne sans sa
+// seconde ligne, et RIEN ne casse. Une absence n'est pas une panne.
+export const getExtremesStackr = () => chargerFacultatif('extremesStackr');
+// 🛰️ FACULTATIF, ET C'EST LA BONNE FORME. Si la release `etat-fiches-stackr`
+//   disparaît ou tarde, la fiche perd ses chiffres StackR et rien d'autre —
+//   ⛔ le build ne doit pas mourir pour un enrichissement. Voir le bloc de
+//   `SOURCES.fichesStackr` : la couverture est de toute façon partielle, donc
+//   « absent » est un état NORMAL que les gabarits savent déjà rendre.
+export const getFichesStackr = () => chargerFacultatif('fichesStackr');
+
+// 💱 FACULTATIF POUR LA MÊME RAISON, ET D'UN CRAN PLUS : `releves` manquant
+// prive les fiches de leur DATE de relèvement ; `omiUsd` manquant ne prive que
+// d'un équivalent en dollars, sous un montant qui reste affiché. Le jour où la
+// chaîne jetonveve s'arrête, la fiche perd la ligne « ≈ $… » et rien d'autre.
+// ⛔ Ne jamais le passer à `load()` : le premier build après ce lot tourne
+//    AVANT le premier run de `floor-watch.yml` qui pose le fichier — la
+//    release ne le porte pas encore, et `load()` interromprait le déploiement.
+export const getOmiUsd = () => chargerFacultatif('omiUsd');
+
+// 💰 FACULTATIF, MEME FAMILLE QUE `fichesStackr` : si la release tarde, la
+// fiche perd son tableau de ventes et RIEN d'autre. ⛔ Le build ne meurt pas
+// pour un enrichissement dont deux fiches sur trois se passent deja.
+export const getVentes = () => chargerFacultatif('ventes');
+// 🔥 Le pont du pouls 24 h — FACULTATIVES l'une comme l'autre : une case qui
+// redit « pas encore branché » vaut mieux qu'un build rouge, et infiniment
+// mieux qu'un zéro (qui affirmerait qu'il ne s'est rien brûlé aujourd'hui).
+// ══════════════════════════════════════════════════════════════════════════
+// 🫀 LE POULS 24 H — lot L, 08/09/2026 · LE JOUR EST DANS LE NOM DU FICHIER
+// ══════════════════════════════════════════════════════════════════════════
+// ⭐⭐⭐ CE N'EST PAS UNE SOURCE ORDINAIRE, ET C'EST POUR ÇA QU'ELLE A SA
+// FONCTION. `SOURCES` tient des URL FIXES ; ici le nom porte la date
+// (`transfers_daily_2026-09-07.csv.gz`), et le fichier de J-1 n'existe qu'à
+// partir d'environ 07:15 UTC — mesuré sur la release : 07:22:32Z le 07/09,
+// 07:15:29Z le 08/09. Un build lancé à 06:00 doit donc lire J-2, et ce n'est
+// PAS un incident.
+// ⛔ D'OÙ LE REFUS DU CHAMP `prev` : il aurait marché, mais `noterRepli()` crie
+// un `::warning` et devient FATAL sous `WAREHOUSE_REFUSE_PREV=1`. Un mécanisme
+// de secours transformerait une matinée normale en alerte — et une alerte qui
+// se déclenche tous les jours finit désarmée.
+//
+// Schéma MESURÉ le 08/09 sur `transfers_daily_2026-09-07.csv.gz` (5 591 lignes) :
+//   block, log_index, ts_utc, date_pt, kind, category, veve_uuid, edition,
+//   from, to, token_id
+// · `date_pt` : le jour PACIFIQUE, constant dans tout le fichier. C'est LUI
+//   qu'on affiche, avec son décalage — jamais un jour UTC.
+// · `kind` : `mint` · `market` · `listing` · `system_transfer`.
+//   ⭐ `mint` EST la supply vendue au drop (arbitrage Preda, 08/09) : 1 922 le
+//   06/09, 279 le 07/09.
+// · `from` / `to` : ⚠️ la colonne s'appelle `from`, PAS `from_address`. Lue
+//   sous le mauvais nom elle rend `undefined` partout, et un filtre écrit
+//   dessus déclare alors que TOUTES les lignes sont des mints. (Fait le 08/09.)
+//
+// 🔬 LA CONTRE-ÉPREUVE QUI AUTORISE À REMPLACER LE CONSTAT FIGÉ : recalculé
+// sur `transfers_daily_2026-09-06`, ce lecteur rend **7 013 transferts et 943
+// wallets** — exactement les deux nombres que `pouls24.json` portait à la main.
+// Un pont qui rend d'autres chiffres que le constat qu'il remplace n'est pas un
+// pont, c'est un second constat.
+const JOURS_ESSAYES = 4;
+const urlTransferts = (jour) => 'https://github.com/Leonessa2/scrapeur-veve/releases/'
+  + `download/chain-archive-daily/transfers_daily_${jour}.csv.gz`;
+
+/** Les transferts du jour le plus récent qu'on trouve, ou `null`.
+ *  ⛔ `null` et JAMAIS un tableau vide : « pas de fichier » et « une journée
+ *  sans un seul transfert » ne doivent pas rendre la même chose — l'un est un
+ *  manque, l'autre serait une mesure (et fausse). */
+export async function chargerTransfertsQuotidiens(aujourdHui = new Date()) {
+  if (OFFLINE) {
+    const rows = readSample('transfers_daily.csv');
+    return rows.length ? { rows, jour: rows[0].date_pt || null, source: 'echantillon' } : null;
+  }
+  for (let d = 1; d <= JOURS_ESSAYES; d += 1) {
+    const j = new Date(aujourdHui.getTime() - d * 86400000).toISOString().slice(0, 10);
+    try {
+      const rows = await fetchTable(urlTransferts(j));
+      if (rows.length) {
+        console.log(`[entrepot] transfertsQuotidiens: ${rows.length} lignes pour le ${j}`);
+        return { rows, jour: rows[0].date_pt || j, source: urlTransferts(j) };
+      }
+    } catch (e) {
+      console.warn(`[entrepot] transfertsQuotidiens: ${j} indisponible (${e.message})`);
+    }
+  }
+  console.warn('::warning title=Pouls 24 h sans source::aucun `transfers_daily_<J>` sur '
+    + `${JOURS_ESSAYES} jours — le tableau de bord dira « pas encore branché ».`);
+  return null;
+}
+
+export const getBurns = () => chargerFacultatif('burns');
+export const getBurnsSplit = () => chargerFacultatif('burnsSplit');
+
+// Les dérivés du grand livre. ⚠️ Réservés : ne jamais les passer à un composant
+// rendu au build — ils vont dans `.reserve/`, servis par `/api/analytics/`.
+export const getPulse = () => load('pulse');
+export const getWalletSize = () => load('walletSize');
+export const getWhales = () => load('whales');
+export const getCorner = () => load('corner');
+export const getProfilsAgregats = () => load('profilsAgregats');
+export const getMetaLedger = () => load('metaLedger');

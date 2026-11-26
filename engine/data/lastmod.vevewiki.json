@@ -1,0 +1,36 @@
+{
+ "_note": "Date du dernier changement REEL de chaque famille de pages, et de chaque fiche pour un site a prix. Produit par engine/tools/lastmod.py et engine/tools/lastmod-prix.mjs, lu par src/pages/sitemap.xml.js. Ne pas editer a la main : la date suivrait le fichier, pas le contenu.",
+ "site": "vevewiki",
+ "passages": 0,
+ "sections": {
+  "glossary": {
+   "h": "e890eaa2b6d477759d714cfbc84635ffef729139450bad718385c39e46908ea0",
+   "d": "2026-07-27"
+  },
+  "acronyms": {
+   "h": "9ebd4b46b6ecdf867f5c0afbfa6f392ca844a2e70d3b40f71398d9096fe7f7cd",
+   "d": "2026-07-27"
+  },
+  "annuaire": {
+   "h": "86be689709c22d05ec88a97b8e7aa2e5a1653b6c1eafbc699a4d50b8deccb7e4",
+   "d": "2026-07-31"
+  },
+  "history": {
+   "h": "65dd0c9457f43f4ded9112de6cba74720fc7ee172ad38306967682da8df6b580",
+   "d": "2026-07-27"
+  },
+  "brands": {
+   "h": "6fa7fa2edf3487658f1fb92ad130cb318a555e2611be3342c4fdd45aad79d8a8",
+   "d": "2026-07-27"
+  },
+  "donnees": {
+   "h": "2f6eaaeadfff86f5f8315957ee03a5acc6c1507926c3b88e1652c5d3235a075b",
+   "d": "2026-07-28"
+  },
+  "legal": {
+   "h": "affc039cea25b10870e8edc4c306857cd459fc4803bf15c4472c1f7c16402fa3",
+   "d": "2026-08-25"
+  }
+ },
+ "items": {}
+}

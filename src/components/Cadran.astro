@@ -1,0 +1,332 @@
+---
+// ⚠️ Leonessa2/veve-sites — src/components/Cadran.astro   (FICHIER NEUF)
+// ═══════════════════════════════════════════════════════════════════════════
+// LE CADRAN — l'historique COMPLET, chargé à la demande, sur une page STATIQUE.
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// CE QU'IL FERME. Les 461 pages de contenu sont pré-générées (c'est le
+// référencement), donc le `<Gate>` d'une fiche est calculé AU BUILD, au niveau
+// visiteur : un abonné voyait encore la page du visiteur. Ici la page reste un
+// fichier statique et la partie réservée arrive par `/api/historique/[uuid]`,
+// qui lit la session. C'est la seule forme qui garde les deux.
+//
+// ⛔⛔ CE QUI VIENT DE LA MAQUETTE NE DÉFAIT PAS CE QUE LE MOTEUR TIENT.
+// La maquette a un `voile()` : le VRAI contenu réservé, flouté sous un calque.
+// C'est une FUITE — le flou est une propriété de PRÉSENTATION, la donnée reste
+// en clair dans le HTML, lisible par « afficher la source ». Elle peut se le
+// permettre : ses courbes sont fabriquées (`serieJours()` est un générateur
+// pseudo-aléatoire amorcé sur le nom de la pièce). Elle n'a rien à protéger.
+//
+// ⭐⭐ CE QU'ON FLOUTE ICI, ET POURQUOI CE N'EN EST PAS UNE.
+// `.verrou__fond` habille EXACTEMENT la courbe publique — les 30 relevés sur
+// 3 jours que le manifeste donne à tout le monde, et qui sont DÉJÀ affichés en
+// clair 40 lignes plus haut sur la même page. Flouter du public ne cache rien
+// et n'expose rien : ça donne au verrou la profondeur visuelle de la maquette
+// sans jamais mettre un octet réservé dans le HTML pré-généré.
+// ⛔ NE JAMAIS y passer la donnée complète « puisque le CSS la floute ».
+//
+// ⭐ LES EXTRÊMES SONT CALCULÉS SUR LES POINTS REÇUS, jamais sur `item.ath` /
+// `item.atl` du catalogue. Ce n'est pas de la méfiance de principe : au 31/07
+// le taux de paires ATL > ATH est INCONNU (les 16,7 % mesurés datent du
+// catalogue du 16/07, la réparation a tourné le 22/07, et le garde-fou
+// n'était posé que sur UN des deux chemins d'export). Un min/max lu sur la
+// série observée ne peut pas être incohérent avec la courbe qu'il annote.
+import { t, nu, numberLocale, dateLocale, localize } from '../../engine/lib/i18n.mjs';   // 🔴 LOT 213 — `localize` pour le lien du teasing
+import { porte, PALIERS, plages } from '../../engine/lib/access.mjs';
+import { manifest } from '../../engine/lib/manifest.mjs';
+import { pick } from '../../engine/lib/i18n.mjs';
+
+// 🔴 LOT 123 — `svgPublic` A QUITTÉ LES PROPS. Il portait la courbe publique
+// jusque dans le fond flouté du panneau verrouillé, c'est-à-dire dans le HTML
+// de 3 000 fiches. Le laisser en props « au cas où » aurait gardé la porte
+// ouverte : un lot suivant l'aurait rebranché sans y penser, puisqu'il était
+// encore là. ⛔ Ce qui ne doit plus circuler ne reste pas dans une signature.
+const { lang, uuid, total, shown } = Astro.props;
+const p = porte('price_history');
+const nf = numberLocale[lang] || 'en-GB';
+const df = dateLocale[lang] || 'en-GB';
+
+// ⭐ Si la porte est inactive (site gratuit, ou vevewiki), ce composant ne rend
+// RIEN. Pas un verrou vide, pas un cadran désactivé : rien. Le manifeste
+// décide, le code obéit — et un verrou sur un site sans mur serait un mensonge
+// commercial autant qu'une faute d'interface.
+const rendre = p.actif && Number(total) > Number(shown);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔴🔴🔴 LOT 132 — LES BOUTONS DE DURÉE, ET ILS N'EXISTAIENT NULLE PART
+// ═══════════════════════════════════════════════════════════════════════════
+// Preda, 10/08 : « sur le graphe on doit avoir, selon son abonnement, des
+// boutons pour voir l'historique sur une durée (cadenas pour les jours qui
+// nécessitent un abonnement supérieur) ».
+//
+// ⭐⭐⭐ MESURÉ AVANT DE CODER, ET LE RÉSULTAT EST LE PLUS INSTRUCTIF DU LOT :
+// TOUT ÉTAIT DÉJÀ LÀ SAUF LE HTML. Le lot 104 avait posé, le 07/08 :
+//   · la grille au manifeste (`access.gates.price_history.plages`) ;
+//   · `plages()` dans `access.mjs`, qui la lit et calcule les verrous ;
+//   · `const LES_PLAGES = plages();` en tête d'`Item.astro` ;
+//   · la boucle de déverrouillage ci-dessous, qui cherche `[data-plages]` ;
+//   · `.plages`, `.plages button` et `.plages button[data-verrou]` au thème.
+// Et PERSONNE N'ÉMETTAIT LES BOUTONS. `LES_PLAGES` apparaissait UNE fois dans
+// `Item.astro` — sa propre définition (`grep` : 1 occurrence). Le
+// `querySelector('[data-plages]')` rendait `null` sur les 3 000 fiches, la
+// boucle tournait dans le vide, et les trois règles CSS n'habillaient rien.
+//
+// ⭐⭐⭐ TROIS SILENCES CONNUS DE CE DÉPÔT, SUR UNE SEULE FONCTIONNALITÉ, PENDANT
+// TROIS JOURS, SANS UN SEUL BANC ROUGE :
+//   ① un IMPORT SANS APPEL (lot 122) — `plages()` calculée, jamais lue ;
+//   ② une RÈGLE CSS SANS ÉMETTEUR (lot 126, `.socle__fav` : onze lots) ;
+//   ③ un SÉLECTEUR QUI NE MATCHE JAMAIS (lot 103, `dl.fiche-tbl`) — et celui-là
+//      ne lève pas : `querySelector` rend `null`, le `if` est faux, on continue.
+// ⛔ Le remède n'est pas « faire attention » : c'est `test:plages`, écrit dans
+//    ce lot, qui exige que l'ÉMETTEUR, le LECTEUR et la RÈGLE existent tous les
+//    trois. *« Qui écrit, qui lit ? » — et « qui est de l'autre côté du mur ? »*
+//
+// ⚠️ LES BOUTONS SONT RENDUS VERROUILLÉS POUR TOUT LE MONDE, ET C'EST LA SEULE
+// FORME POSSIBLE. Cette page est PRÉ-GÉNÉRÉE : elle n'a pas de visiteur au
+// moment où elle se fabrique. Un `franchit()` ici serait évalué AU BUILD, au
+// niveau visiteur, et figé dans 3 000 fichiers — la panne du lot 24, et celle
+// du `<Gate>` de fiche. Le script relève les verrous quand l'API a répondu,
+// donc quand un droit RÉEL a été reconnu côté serveur.
+// ⛔ Et le verrou d'affichage n'est PAS la porte : la porte est `/api/historique/`,
+// qui lit la session. Retirer `data-verrou` depuis la console ne donne aucun
+// point de plus — il n'y a rien à déverrouiller côté client, la donnée n'est
+// pas là.
+const LES_PLAGES = plages();
+// ⭐ LE NOM DU PALIER VIENT DU MANIFESTE, comme sur `/offre/` et le tableau de
+// bord. Une clé i18n `tier.*` aurait été une SECONDE source pour le même
+// libellé — « Crevette » ici, « Shrimp » là, le jour où l'une des deux bouge.
+const PLANS = manifest().offer?.plans || [];
+const nomPalier = (cle) => pick((PLANS.find((x) => x.cle === cle) || {}).nom, lang) || cle;
+// 🔴🔴 LOT 161 — LE LIBELLÉ ÉTAIT FABRIQUÉ ICI, DONC IL NE SE TRADUISAIT PAS.
+// `cle.replace(/j$/, ' J')` rendait « 3 J · 7 J · 30 J · 90 J · MAX » : un
+// « J » de « Jours », en français, sur un site servi en anglais — et figé, sur
+// 90 pages, dans les cinq langues. Mesuré le 24/08 (point `s` de Preda).
+//
+// ⭐⭐⭐ ET LES CLÉS EXISTAIENT DÉJÀ. `item.range.3j`, `.7j`, `.30j`, `.90j`,
+// `.max` sont dans les CINQ dictionnaires — traduites — depuis un lot
+// précédent. Le gabarit fabriquait le texte à la main à dix lignes de là.
+// ⚠️ Je les ai d'abord AJOUTÉES sans regarder si elles y étaient : cinq
+// doublons dans cinq fichiers, retirés depuis. *Mesurer avant de corriger,
+// même ce qu'on croit absent.*
+// ⭐ La casse vient de Preda (24/08) : « 3d · 7d · 30d · 90d · Max ».
+//
+// ⛔ PAS DE `vars` DANS CE `t()`. Un libellé à variable (`t(lang,'…',{n:30})`)
+//    est marqué `data-i18n-var` et le navigateur ne l'échange PAS — le
+//    mécanisme ne sait pas re-substituer. Une clé par plage, sans variable.
+// ⚠️ REPLI NOMMÉ : une plage ajoutée au manifeste sans sa clé afficherait
+//    « item.range.180j » en toutes lettres. On retombe donc sur la forme
+//    anglaise, et `test:plages` refuse qu'une plage soit sans clé.
+const libelleBrut = (cle) => (cle === 'max' ? 'Max' : cle.replace(/j$/, 'd'));
+const libelle = (cle) => {
+  const rendu = t(lang, `item.range.${cle}`);
+  return nu(rendu) === `item.range.${cle}` ? libelleBrut(cle) : rendu;
+};
+
+import { moduleJs } from '../../engine/lib/socle_js.mjs';
+const pilote = moduleJs('cadran');
+---
+{rendre && (
+  <div class="dissout" data-cadran={uuid}
+       data-nf={nf} data-df={df}
+       data-l-haut={t(lang, 'item.high')} data-l-bas={t(lang, 'item.low')}
+       data-l-pts={t(lang, 'home.points')} data-l-refus={t(lang, 'hist.denied')}
+       {/* 🔢 Le mot « Offres » de la seconde courbe (lot 171). ⛔ Il passe par
+           un `data-` comme les cinq autres : `cadran.js` est du JS de socle,
+           il n'a AUCUN acces aux dictionnaires. Un libelle ecrit en dur dans
+           le module aurait rendu le graphique francais sur les cinq langues,
+           sans qu'aucun banc ne le voie — `test:cles_i18n` ne regarde pas le
+           JS de socle. */}
+       data-l-offres={t(lang, 'item.listings')}
+       data-paliers={PALIERS.join(',')}>
+
+    {/* ⚠️ CE COMMENTAIRE DISAIT « l'état verrouillé est ce que le HTML
+        contient, et c'est voulu ». Il a été retiré au lot 123 avec le panneau
+        qu'il décrivait — un avertissement qui survit à sa cause se cite et
+        empêche de regarder.
+        ⭐ Ce qu'il protégeait reste vrai autrement : sans JavaScript, il n'y a
+        rien ici, et le robot d'indexation voit exactement ce que voit un
+        visiteur — RIEN. La page ne dit toujours pas une chose à Google et une
+        autre aux gens ; elle en dit simplement moins aux deux. */}
+    {/* ═══════════════════════════════════════════════════════════════════
+        🔴🔴🔴 LOT 123 — LE PANNEAU VERROUILLÉ A DISPARU. RIEN NE LE REMPLACE.
+        ═══════════════════════════════════════════════════════════════════
+        Preda, 10/08 : « deux modules qui ne devraient pas exister ». Il y en
+        avait deux parce que <Gate> et ce composant rendaient le même texte,
+        l'un sous l'autre. Le <Gate> est parti de la fiche ; celui-ci perd son
+        panneau.
+        ⭐⭐⭐ ET ON NE MET RIEN À LA PLACE — pas un cadre, pas un « bientôt »,
+        pas une silhouette. *Un emplacement vide se lit comme une panne ; un
+        emplacement ABSENT ne se lit pas du tout.* Une fiche sans graphe est
+        une fiche plus courte, et c'est tout ce qu'un visiteur doit en
+        conclure.
+        ⛔ CE QUI EST PARTI AVEC : le fond flouté (`svgPublic`). Il portait la
+        courbe publique dans le HTML de chaque fiche — donc servie à tout le
+        monde, robots compris, sous une couche de flou qui n'est que de la
+        présentation. La courbe vit maintenant dans la réserve et n'arrive
+        qu'à qui a une session.
+        ⛔ ET LE BOUTON « afficher l'historique » AUSSI : il n'y a plus rien à
+        déverrouiller à la main. Le bloc se remplit tout seul quand le serveur
+        reconnaît un droit, et reste absent sinon. */}
+
+    {/* Le cadran lui-même : vide au build, rempli par le script si — et
+        seulement si — la route d'API a reconnu un droit. ⭐ `hidden` et non
+        `display:none` en style : les trois thèmes honorent `[hidden]` depuis
+        le lot 19, et un attribut se teste sans lire de CSS. */}
+    <div class="graph-hote" data-cible hidden>
+      {/* ⭐ `.graph-tete` ET `.plages` SONT LES NOMS DE LA MAQUETTE, déjà
+          habillés par le thème depuis le lot 45 — et jamais émis jusqu'ici.
+          On n'ajoute donc AUCUNE classe : on rend enfin ce que la feuille
+          attendait. */}
+      <div class="graph-tete">
+        <span class="ref ref--td" data-legende></span>
+        {LES_PLAGES.length > 0 && (
+          <div class="plages" data-plages role="group" aria-label={t(lang, 'item.range')}>
+            {LES_PLAGES.map((pl, i) => (
+              /* ⚠️ `aria-pressed` ET PAS `disabled` sur un bouton verrouillé.
+                 `disabled` le sort de l'ordre de tabulation ET de l'arbre
+                 d'accessibilité : un lecteur d'écran ne saurait même pas qu'une
+                 profondeur existe et se vend. On veut l'inverse — il doit
+                 l'entendre, avec le grade qui l'ouvre.
+                 ⭐ `data-jours` porte la borne ; `''` (vide) veut dire SANS
+                 BORNE, pas zéro. `jours: null` = Max, et un `0` ici raboterait
+                 la courbe à rien — « inconnu ≠ zéro », dans sa version la plus
+                 chère : le dernier palier n'aurait plus de graphe du tout. */
+              <button type="button" data-cle={pl.cle} data-tier={pl.tier}
+                      data-jours={pl.jours === null ? '' : String(pl.jours)}
+                      aria-pressed={i === 0 ? 'true' : 'false'}
+                      data-verrou={pl.verrouillee ? '' : undefined}
+                      title={pl.verrouillee ? t(lang, 'dash.locked', { tier: nomPalier(pl.tier) }) : undefined}
+              >{libelle(pl.cle)}</button>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* 🔴🔴 LOT 217 — LE REFUS A ENFIN UN ENDROIT OU S'ECRIRE.
+          Preda, 03/09 : « cliquer un onglet cadenasse ne fait rien et ne dit
+          rien ». Le `return` muet vivait dans `cadran.js` depuis le lot 132,
+          et le libelle — `dash.locked`, « {palier} l'ouvre » — n'existait que
+          dans un `title`, donc au SURVOL, donc jamais sur un telephone.
+          ⭐ VIDE AU BUILD, ET C'EST LE POINT : il ne porte AUCUN texte tant
+          que personne n'a clique. Ecrire la phrase ici la mettrait dans le
+          HTML pre-genere des 9 354 fiches — servie aux robots, et le mot
+          « Members only » reviendrait par la porte que le lot 123 a fermee.
+          `cadran.js` la recopie depuis le `title` du bouton clique.
+          ⚠️ `role="status"` (poli), pas `alert` : c'est une reponse a un
+          geste, pas une urgence a interrompre la lecture. */}
+      <p class="graph-refus" data-refus role="status" hidden></p>
+      <div data-svg></div>
+      <div class="info-bulle" data-bulle hidden></div>
+    </div>
+
+    {/* ═══════════════════════════════════════════════════════════════════
+        🔑🔴🔴 LOT 213 — LE TEASING. IL ROUVRE LA DECISION DU LOT 123, EXPRES.
+        ═══════════════════════════════════════════════════════════════════
+        Le 123 avait retire le panneau verrouille en posant : « un emplacement
+        vide se lit comme une panne ; un emplacement ABSENT ne se lit pas du
+        tout. » La regle etait juste et le resultat mesure le 01/09 l'etait
+        aussi : un visiteur ne voyait RIEN — pas meme qu'une profondeur existe
+        et se vend. ⇒ ARBITRAGE PREDA DU 01/09, sur maquette : « montrer la
+        forme + les 5 cadenas ».
+        ⭐ Ce n'est pas le panneau du 123 qui revient. Le 123 refusait un
+        emplacement VIDE ; celui-ci n'est pas vide — il porte une phrase, un
+        cadenas et une destination. La regle du 123 tient toujours contre ce
+        qu'elle visait : un cadre gris, une silhouette muette, un « bientot ».
+
+        ⛔⛔ ET IL NE FUIT RIEN. C'est le point qui a coute le plus cher au lot
+        123, qui avait du supprimer `svgPublic` : celui-ci portait la COURBE
+        REELLE de la piece dans le HTML de chaque fiche — servie a tout le
+        monde, robots compris — sous une couche de flou qui n'est que de la
+        presentation, et qu'on retire en trois clics dans la console.
+        Ici : AUCUN releve, AUCUN montant, AUCUNE date ne descend. La forme
+        vit dans le THEME (`--courbe-m`), identique sur les 8 840 fiches, donc
+        structurellement incapable de decrire une piece.
+        ⭐ ET ELLE Y VIT AUSSI POUR LE POIDS : en SVG dans ce gabarit elle
+        pesait 8 840 fois ; dans la feuille elle pese UNE fois, dans un
+        fichier deja en cache. C'est le calcul du cadenas du lot 127.
+
+        ⚠️ VISIBLE PAR DEFAUT, MASQUE PAR LE SCRIPT — et pas l'inverse.
+        `cadran.js` sort a sa premiere ligne si `<html>` ne porte pas
+        `data-membre` : un teasing masque par defaut serait donc reste masque
+        pour EXACTEMENT le public a qui il s'adresse. L'etat sans JavaScript
+        doit etre l'etat du visiteur. */}
+    <div class="graph-teaser" data-teaser>
+      {/* ⚠️ `aria-hidden` SUR LA RANGEE, ET PAS SUR LE VOILE. Ces libellés
+          sont decoratifs : ils ne cliquent pas, et « 3d 7d 30d 90d Max » lu a
+          voix haute n'apprend rien. Le message accessible est la PHRASE du
+          voile, qui dit ce qui existe et ce qui l'ouvre.
+          ⛔ Ce sont des `span`, jamais des `button` : cinq boutons morts
+          entreraient dans l'ordre de tabulation pour ne rien faire — et
+          `test:plages`, qui compte les `<button … data-verrou … title>`,
+          verrait son chiffre doubler sans qu'une seule plage soit servie. */}
+      {LES_PLAGES.length > 0 && (
+        <div class="plages plages--vitrine" aria-hidden="true">
+          {LES_PLAGES.map((pl) => (<span data-verrou>{libelle(pl.cle)}</span>))}
+        </div>
+      )}
+      <div class="graph-teaser__voile">
+        <span class="graph-teaser__cad" aria-hidden="true"></span>
+        <p>{t(lang, 'item.teaseHistory')}</p>
+        <a class="puce" href={localize(lang, '/offre/')}>{t(lang, 'nav.offer')}</a>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* ═══════════════════════════════════════════════════════════════════════
+    🔴🔴🔴 LOT 123 — CE QUE FAIT LE SCRIPT CI-DESSOUS, ET POURQUOI SES
+    COMMENTAIRES SONT ICI ET PAS DEDANS.
+    ═══════════════════════════════════════════════════════════════════════
+    ⛔ UN COMMENTAIRE DANS UN `<script is:inline>` EST ÉMIS. Il part dans les
+    3 000 fiches, sur le chemin critique. C'est exactement le défaut payé au
+    lot 105 pour les commentaires CSS (2 500 o × 8 484 pages) — et je venais de
+    le refaire : mes explications ajoutaient ~2 Ko par fiche, et le mot
+    « Members only » réapparaissait dans le HTML **depuis un commentaire qui
+    expliquait pourquoi il ne devait plus y être.** Un banc cherchant ce texte
+    l'aurait trouvé, et aurait eu raison de le trouver.
+    ⭐ Ils vivent donc ici, dans un commentaire JSX que le compilateur ne rend
+    jamais. Rien n'est perdu pour qui lit le gabarit.
+
+    ── CE QUE LE SCRIPT FAIT ────────────────────────────────────────────────
+    ① Il ne s'exécute QUE si `<html>` porte `data-membre`. ⛔ On relit
+       l'ATTRIBUT, jamais le cookie : `test:session` refuse le nom du cookie
+       d'affichage dans un fichier qui approche un droit, et il a raison —
+       il a d'ailleurs fait échouer ma première version. Ce n'est pas une
+       décision de DROIT (l'attribut ne dit que « quelqu'un est connecté »),
+       c'est une décision d'APPEL RÉSEAU : inutile de réveiller Node pour les
+       visiteurs anonymes, qui sont l'immense majorité.
+    ② Il demande `/api/historique/[uuid]` — porte `price_history`, palier
+       `crevette`. Si ça répond : historique COMPLET, avec les montants.
+    ③ Sinon il retombe sur `/api/cote/[uuid]` — porte `cote`, palier `member`
+       depuis le lot 118. Elle sert la courbe NORMALISÉE 0..1000, qui ne dit
+       aucun prix. C'est ce qui répond à l'arbitrage de Preda du 10/08 : « le
+       graphique visible une fois CONNECTÉ » — connecté, pas abonné.
+       ⭐⭐ DEUX PROFONDEURS, DEUX PORTES, UN SEUL BLOC À L'ÉCRAN : le membre
+       voit la forme, l'abonné voit les valeurs. Le mur vend la PROFONDEUR,
+       pas l'existence.
+       ⛔ L'ORDRE N'EST PAS INTERCHANGEABLE : demander la cote d'abord
+       dessinerait la courbe pauvre à un abonné puis la remplacerait — un
+       clignotement, et une fiche qui se contredit une demi-seconde.
+    ④ 401/403 : rien ne s'affiche, et rien ne le dit. Le bloc reste absent.
+       *Un refus qui laisse une trace à l'écran redevient un panneau
+       « Members only ».*
+    ⑤ 404/500 : une trace en console. Le contenu est DÛ et n'arrive pas —
+       sans ça, une réserve non copiée dans l'image rendrait toutes les fiches
+       muettes pour les abonnés, sur un déploiement vert.
+
+    ── LES DEUX PIÈGES DU MODE NORMALISÉ ────────────────────────────────────
+    ⛔ `meta.h` N'EXISTE PAS quand la courbe vient de `/api/cote/`. Un
+       `meta.h.n` nu aurait levé, et le `catch` global l'aurait avalé —
+       laissant le bloc vide sans un mot. *Le repli le plus dangereux est
+       celui qui existait déjà pour autre chose.*
+    ⛔ AUCUN CHIFFRE EN ORDONNÉE dans ce mode : la série vaut 0..1000 sur
+       elle-même. Écrire « 493 » serait un prix inventé au milieu de chiffres
+       observés — indiscernable d'un vrai.
+    ⛔ `meta.palier` non plus : aucune plage ne se déverrouille, et `'visitor'`
+       est la bonne réponse. `/api/cote/` reconnaît une session, elle ne dit
+       RIEN du palier — deviner fabriquerait une seconde vérité. */}
+{/* ⚡ LOT 137 (A2 / OPT‑3) — 8 194 o RENDUS sur chacune des 90 fiches.
+    ⛔ MODULE DE COMPOSANT, PAS SOCLE GLOBAL : 58 pages sur 148 n'ont aucun
+    cadran ; le verser au socle aurait déplacé le gaspillage au lieu de le
+    supprimer. Et il reste sous `{rendre && …}` : une page qui ne dessine pas
+    de cadran ne demande pas son pilote. */}
+{rendre && <script defer src={pilote.href}></script>}

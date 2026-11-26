@@ -1,0 +1,321 @@
+---
+// =============================================================================
+//  Editorial.astro — LE rendu générique des pages éditoriales (tous sites)
+//
+//  ⚠️ CE FICHIER VA DANS LE DÉPÔT  Leonessa2/veve-sites , dans
+//     src/components/pages/  (chemin exact : src/components/pages/Editorial.astro)
+//
+//  Étape 3 du constructeur générique. UN composant pour glossary / acronyms /
+//  annuaire / history / brands. Les données arrivent déjà filtrées (publie),
+//  gatées (publication programmée) et résolues en langue par engine/lib/
+//  editorial.mjs ; les compteurs Brands viennent de l'entrepôt. Aucune logique
+//  réutilisable ici : le composant ne fait que METTRE EN FORME.
+// =============================================================================
+import Base from '../../layouts/Base.astro';
+import { collection, parseSources } from '../../../engine/lib/editorial.mjs';
+import { sectionMeta, languesDeSection } from '../../../engine/lib/editorial_pages.mjs';
+import { t, localize, numberLocale } from '../../../engine/lib/i18n.mjs';
+import { fichesDe, cheminFiche, ancreJalon, ancreTerme, ancresAnnuaire } from '../../../engine/lib/editorial_entries.mjs';
+import { siteUrl } from '../../../engine/lib/manifest.mjs';
+import { definedTermSetLd, chronologieLd, itemListLd } from '../../../engine/lib/seo.mjs';
+
+const { lang, section } = Astro.props;
+
+// Ancre stable d'un jalon : son `id` de Sheet s'il existe, sinon date + titre
+// translitteres. Stable = un lien profond ne casse pas au prochain build.
+// ⚠️ RÈGLE D'ANCRE IMPORTÉE, PLUS RECOPIÉE (30/07/2026).
+// Ce fichier portait sa propre copie, et elle avait DÉJÀ divergé de celle
+// d'`editorial_entries.mjs` : `slice(0, 60)` ici, `slice(0, 70)` là-bas. Sans
+// conséquence à ce jour — le plus long identifiant de jalon fait 29 caractères,
+// mesuré sur les 41 — et parfaitement silencieux le jour où un titre dépasse :
+// la fiche pointerait vers une ancre que la page n'émet pas.
+// Le commentaire d'`editorial_entries.mjs` annonçait exactement ce risque
+// (« si les deux divergent, ces liens pointent dans le vide »). Il avait raison ;
+// deux copies suffisent à diverger, il n'en reste plus qu'une.
+const ancre = ancreJalon;
+const meta = sectionMeta(section, lang);
+// ⭐ VOCABULAIRE DE SHEET, LU PAR UN HUMAIN. Les colonnes `precision` et
+// `statut` portent un vocabulaire FERMÉ, saisi en français par l'auteur du
+// Sheet — et il était rendu TEL QUEL : la page ANGLAISE de la chronologie
+// affiche « 2020-10 (mois) » et un badge « recoupe » depuis toujours. Ce n'est
+// pas une colonne de langue (pas de `_en`/`_fr`), donc `resolveLang` ne la voit
+// pas et aucun contrôle ne pouvait la signaler. Avec ES/IT/DE, le même mot
+// français serait sorti sur cinq pages au lieu de deux.
+// ⚠️ Repli sur la valeur BRUTE si la clé n'existe pas : une valeur nouvelle dans
+//    le Sheet doit s'afficher telle quelle, jamais sous la forme d'une clé i18n.
+//    `t()` renvoie la clé quand elle manque — c'est ce qu'on teste.
+const libelle = (cle, brut) => { const v = t(lang, cle); return v === cle ? brut : v; };
+// Nombre formaté SELON LA LANGUE. ⚠️ « 8486 » en espagnol et en italien est
+// CORRECT : ces locales ne groupent qu'à partir de 5 chiffres (8486 -> 8486,
+// 18926 -> 18.926). Ne pas « corriger » ce qui n'est pas cassé.
+const nf = numberLocale[lang] || 'en-GB';
+const nombre = (v) => (Number.isFinite(Number(v)) && String(v).trim() !== '' ? Number(v).toLocaleString(nf) : null);
+// `langs` passe a Base : cette section n'est pas publiee dans toutes les langues
+// du site (cf. engine/lib/langues.mjs). Le gabarit n'annoncera donc en hreflang,
+// et n'offrira dans le selecteur de langue, que les langues ou la page existe.
+// ⚠️ En commentaire JS, pas en {/* */} : un commentaire JSX en tete de gabarit
+// sort dans le HTML comme un blanc avant <html>.
+const { items } = await collection(section, lang);
+// Adresses des entrées qui ont VRAIMENT une fiche : une ligne d'index ne devient
+// un lien que si la page existe (cf. le seuil dans editorial_entries.mjs).
+// ⚠️ PIÈGE PAYÉ : la carte était indexée par l'OBJET de l'enregistrement — or
+// `collection()` est relu ici ET dans `fichesDe`, donc deux instances
+// différentes du même contenu. `Map.has(objet)` était toujours faux : aucun
+// lien posé, 58 fiches inatteignables, et pas la moindre erreur au build.
+// On indexe donc par une CLÉ de contenu, jamais par identité d'objet.
+const cleEntree = (x) => String(x.licence ?? x.id ?? x.terme ?? x.nom ?? '').trim();
+// Verdict d'unicité calculé sur CETTE liste : le même que celui de l'index,
+// qui part de la même `collection(section, lang)`.
+const ancreAnnuaire = ancresAnnuaire(items);
+const fiches = new Map((await fichesDe(section, lang))
+  .map((f) => [cleEntree(f.record), cheminFiche(f.section, f.slug)]));
+
+// --- Tris propres à chaque section -----------------------------------------
+const byText = (k) => (a, b) => String(a[k] || '').localeCompare(String(b[k] || ''));
+if (section === 'glossary') items.sort(byText('terme'));
+if (section === 'acronyms') items.sort(byText('sigle'));
+if (section === 'history')  items.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+if (section === 'brands')   items.sort((a, b) => (Number(b.nb_items) || 0) - (Number(a.nb_items) || 0));
+
+// --- Annuaire : regroupé par type, liens sociaux normalisés ----------------
+const SOCIAL = {
+  twitter: (v) => (/^https?:/.test(v) ? v : `https://twitter.com/${v.replace(/^@/, '')}`),
+  instagram: (v) => (/^https?:/.test(v) ? v : `https://instagram.com/${v.replace(/^@/, '')}`),
+  youtube: (v) => (/^https?:/.test(v) ? v : `https://youtube.com/${v.replace(/^@/, '')}`),
+  tiktok: (v) => (/^https?:/.test(v) ? v : `https://tiktok.com/@${v.replace(/^@/, '')}`),
+  facebook: (v) => (/^https?:/.test(v) ? v : `https://facebook.com/${v.replace(/^@/, '')}`),
+  reddit: (v) => (/^https?:/.test(v) ? v : `https://reddit.com/${v.replace(/^@/, '')}`),
+  discord: (v) => (/^https?:/.test(v) ? v : ''),
+  site: (v) => (/^https?:/.test(v) ? v : `https://${v}`),
+};
+const socialLinks = (rec) => Object.keys(SOCIAL)
+  .map((k) => ({ k, v: String(rec[k] || '').trim() }))
+  .filter((x) => x.v)
+  .map((x) => ({ k: x.k, href: SOCIAL[x.k](x.v) }))
+  .filter((x) => x.href);
+
+const annuaireGroups = section === 'annuaire'
+  ? [...items.reduce((m, r) => {
+      const type = String(r.type || 'autre').trim() || 'autre';
+      (m.get(type) || m.set(type, []).get(type)).push(r);
+      return m;
+    }, new Map())]
+  : [];
+
+const crumbs = [
+  { name: t(lang, 'home.crumb'), url: localize(lang, '/') },
+  { name: meta.title },
+];
+
+// -----------------------------------------------------------------------------
+//  DONNEES STRUCTUREES — ⭐ la plus grande surface editoriale du reseau
+//  n'emettait QUE son fil d'Ariane (constate le 29/07/2026). Des centaines
+//  d'entrees parfaitement structurees dans le HTML, et rien qui les declare.
+//
+//  ⚠️ CHAQUE SECTION RECOIT LE TYPE QUI LUI CORRESPOND, ET AUCUN AUTRE :
+//     glossaire et sigles sont des ensembles de TERMES DEFINIS — c'est
+//     litteralement le type prevu pour ca ; la chronologie est une liste de
+//     jalons DATES ; l'annuaire est une liste. Les marques n'en recoivent pas
+//     ici : chaque marque a sa propre fiche, qui declare la sienne
+//     (cf. EditorialEntry.astro). Declarer deux fois la meme entite, une fois
+//     sur l'index et une fois sur la fiche, brouille ce qu'on veut dire.
+//
+//  ⚠️ Les ancres : une entree ne recoit une `url` QUE si elle porte vraiment un
+//     `id` dans le HTML. Renvoyer vers une ancre qui n'existe pas serait la
+//     meme faute que les hreflang vers des pages non construites.
+const urlPage = `${siteUrl()}${localize(lang, meta.path)}`;
+const ldSection = (() => {
+  if (section === 'glossary') {
+    return [definedTermSetLd({
+      name: meta.title, description: meta.description, url: urlPage,
+      termes: items.map((r) => ({
+        name: r.terme,
+        description: r.definition || r.description,
+        // ⚠️ MÊME fonction que l'attribut `id` rendu plus bas. Une donnée
+        // structurée qui pointe vers une ancre que la page n'émet pas est une
+        // promesse fausse faite à Google.
+        url: ancreTerme(r) ? `${urlPage}#${ancreTerme(r)}` : undefined,
+      })),
+    })];
+  }
+  if (section === 'acronyms') {
+    return [definedTermSetLd({
+      name: meta.title, description: meta.description, url: urlPage,
+      termes: items.map((r) => ({
+        name: r.sigle,
+        // ⭐ Pour un sigle, ce que le lecteur cherche d'abord est ce qu'il VEUT
+        //    DIRE. La signification passe donc devant la definition longue.
+        description: r.signification || r.definition,
+        url: ancreTerme(r) ? `${urlPage}#${ancreTerme(r)}` : undefined,
+      })),
+    })];
+  }
+  if (section === 'history') {
+    return [chronologieLd(items.map((r) => ({
+      name: r.titre, date: r.date, description: r.description || r.quoi,
+      url: `${urlPage}#${ancre(r)}`,
+    })), urlPage)];
+  }
+  if (section === 'annuaire') {
+    return [itemListLd(items.map((r) => ({ name: r.nom })), urlPage)];
+  }
+  return [];
+})();
+
+---
+<Base lang={lang} path={meta.path} title={meta.title} description={meta.description}
+      langs={languesDeSection(section)} crumbs={crumbs} ld={ldSection}>
+  <h1>{meta.title}</h1>
+  <p class="lead">{meta.description}</p>
+
+  {section === 'glossary' && (
+    <dl class="glossary">
+      {items.map((r) => (
+        <div class="term" id={ancreTerme(r) || undefined}>
+          <dt>{r.terme}{r.categorie && <span class="tag">{r.categorie}</span>}</dt>
+          <dd>{r.definition || r.description}</dd>
+        </div>
+      ))}
+    </dl>
+  )}
+
+  {section === 'acronyms' && (
+    <dl class="glossary">
+      {/* ⚠️ PAS `id={r.sigle}` : 8 sigles sur 65 contiennent une espace, ce qui
+          rend l'identifiant HTML invalide et l'ancre inatteignable. `ancreTerme`
+          est la seule fabrique d'ancre — la meme que le JSON-LD ci-dessus. */}
+      {items.map((r) => (
+        <div class="term" id={ancreTerme(r) || undefined}>
+          <dt>{r.sigle}{r.signification && <span class="muted"> — {r.signification}</span>}
+            {r.categorie && <span class="tag">{r.categorie}</span>}</dt>
+          {r.definition && <dd>{r.definition}</dd>}
+        </div>
+      ))}
+    </dl>
+  )}
+
+  {section === 'annuaire' && annuaireGroups.map(([type, list]) => (
+    <section class="annuaire-group">
+      <h2>{type}</h2>
+      <div class="grid">
+        {/* ⭐ Une ancre par entrée : sans `id`, l'annuaire est un BLOC de 59
+            fiches et un résultat de recherche ne peut que renvoyer en haut.
+            `ancreAnnuaire` rend '' pour un nom en double (deux « VaultValue »
+            existent) — et `undefined` n'émet alors aucun attribut : on ne pose
+            jamais deux fois le même id. */}
+        {list.map((r) => (
+          <div class="item" id={ancreAnnuaire(r) || undefined}>
+            <div class="n">{r.nom}</div>
+            {r.role_specialite && <div class="s">{r.role_specialite}</div>}
+            {(r.org || r.pays) && <div class="muted">{[r.org, r.pays].filter(Boolean).join(' · ')}</div>}
+            {r.notes && <p class="notes">{r.notes}</p>}
+            {socialLinks(r).length > 0 && (
+              <div class="socials">
+                {socialLinks(r).map((s) => (
+                  <a href={s.href} rel="nofollow noopener" target="_blank">{s.k}</a>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  ))}
+
+  {section === 'history' && (
+    <ol class="timeline">
+      {/* ⭐ Une ancre par jalon : sans `id`, la chronologie est un BLOC — impossible
+          d'y renvoyer depuis l'accueil, un article ou l'exterieur. 40 jalons ne
+          valaient qu'une seule adresse. */}
+      {items.map((r) => (
+        <li class="milestone" id={ancre(r)}>
+          <div class="when"><a class="lien-ancre" href={`#${ancre(r)}`}>{r.date}</a>{r.precision && r.precision !== 'jour' && <span class="muted"> ({libelle(`history.precision.${r.precision}`, r.precision)})</span>}</div>
+          <div class="what">
+            {/* ⚠️ h2 et non h3 : ces jalons suivent directement le h1 de la
+                page. Un h1 suivi d'un h3 est un niveau sauté (WCAG 1.3.1) —
+                un lecteur d'écran annonce une sous-section qui n'existe pas.
+                Ils sont tous de même rang, ils prennent le rang juste sous
+                le titre. Le style ne change pas. */}
+            <h2>{r.titre}{/* ⚠️ La CLASSE garde la valeur brute (c'est un identifiant de style), seul le
+     LIBELLÉ est traduit. Les deux ne doivent pas être confondus. */}
+{r.statut && <span class={`badge s-${r.statut}`}>{libelle(`history.statut.${r.statut}`, r.statut)}</span>}</h2>
+            {r.resume && <p>{r.resume}</p>}
+            {parseSources(r.sources).length > 0 && (
+              <p class="sources muted">
+                {t(lang, 'sources.label')}
+                {parseSources(r.sources).map((s, i) => (
+                  <>{i > 0 && ' · '}{s.href
+                    ? <a href={s.href} rel="nofollow noopener" target="_blank">{s.label}</a>
+                    : <span>{s.label}</span>}</>
+                ))}
+              </p>
+            )}
+          </div>
+        </li>
+      ))}
+    </ol>
+  )}
+
+  {section === 'brands' && (
+    <div class="grid">
+      {items.map((r) => (
+        <div class="item">
+          <div class="n">{fiches.has(cleEntree(r))
+            ? <a href={localize(lang, fiches.get(cleEntree(r)))}>{r.nom_affiche || r.licence}</a>
+            : (r.nom_affiche || r.licence)}</div>
+          {r.note_editoriale && <div class="s">{r.note_editoriale}</div>}
+          <div class="counters">
+            {/* ⭐ DEUX CORRECTIONS SUR UNE LIGNE, toutes deux visibles en ligne aujourd'hui :
+                 · `collections.items` est le mot des pages de PRIX (veveprice). En français il
+                   vaut « items », en espagnol « artículos » : /fr/brands/ affichait donc
+                   « 8486 items » et la fiche de la même licence « 8 486 objets ». C'est
+                   `fiche.items` qu'il faut ici — la même clé que la fiche, donc le même mot,
+                   et celle que le lot 7 avait corrigée sans que cet index en profite.
+                 · le nombre n'était pas formaté : « 8486 » au lieu de « 8 486 ». */}
+            <span><b>{nombre(r.nb_items) || '—'}</b> {t(lang, 'fiche.items')}</span>
+            <span><b>{r.nb_series || '—'}</b> {t(lang, 'brands.series')}</span>
+            {/* Une date sans son étiquette ment : « premier drop » et « première
+                frappe » ne sont pas le même fait (cf. mergeBrandCounters).
+                ⚠️ ORDRE INVERSÉ le 30/07/2026 : la valeur d'abord, l'étiquette
+                ensuite — comme les deux compteurs ci-dessus. Les trois chiffres
+                d'une même ligne se lisent en colonne ; un seul qui commence par
+                son libellé casse le balayage et se fait relire. */}
+            {r.premier_drop && (
+              <span class="muted" title={r.date_nature === 'mint' ? t(lang, 'brands.first_mint_hint') : undefined}>
+                <b>{r.premier_drop}</b>
+                {' '}{r.date_nature === 'mint' ? t(lang, 'brands.first_mint') : t(lang, 'brands.first_drop')}
+              </span>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</Base>
+
+<style>
+  .lien-ancre { color: inherit; text-decoration: none; }
+  .lien-ancre:hover { text-decoration: underline; }
+  .milestone:target .what { border-left: 2px solid var(--primary); padding-left: 12px; }
+  .glossary { display: grid; gap: 14px; }
+  .glossary .term { border-bottom: 1px solid var(--surface); padding-bottom: 10px; }
+  .glossary dt { font-weight: 700; }
+  .glossary dd { margin: 4px 0 0; color: var(--muted); }
+  .tag { margin-left: 8px; font-size: 12px; padding: 1px 8px; border-radius: 999px;
+         background: var(--surface); color: var(--muted); }
+  .annuaire-group { margin-top: 24px; }
+  .annuaire-group h2 { text-transform: capitalize; }
+  .notes { margin: 6px 0 0; font-size: 14px; }
+  .socials { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .socials a { font-size: 13px; text-transform: capitalize; }
+  .timeline { list-style: none; padding: 0; margin: 0; border-left: 2px solid var(--surface); }
+  .milestone { display: grid; grid-template-columns: 120px 1fr; gap: 14px; padding: 0 0 20px 16px; position: relative; }
+  .milestone .when { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .milestone h2 { margin: 0 0 4px; font-size: 17px; font-weight: 600; }
+  .milestone p { margin: 0; color: var(--muted); }
+  .badge { margin-left: 8px; font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--surface); }
+  .badge.s-officiel { color: var(--accent); }
+  .counters { margin-top: 8px; display: flex; gap: 14px; align-items: baseline; font-size: 14px; }
+  .counters b { font-size: 18px; }
+  @media (max-width: 560px) { .milestone { grid-template-columns: 1fr; } }
+</style>

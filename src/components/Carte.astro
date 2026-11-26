@@ -1,0 +1,242 @@
+---
+// ⚠️ Leonessa2/veve-sites — src/components/Carte.astro   (remplace Piece.astro)
+// ═══════════════════════════════════════════════════════════════════════════
+// LA CARTE — socle + cartouche, au balisage EXACT de la maquette
+// ═══════════════════════════════════════════════════════════════════════════
+// ⭐⭐ LE NOM DU FICHIER A CHANGÉ, ET C'EST LE POINT. Il s'appelait
+// `Piece.astro` et émettait `class="piece"` ; la maquette dit `carte`. Le CSS
+// porté visait donc une classe que le HTML n'écrivait jamais — 95 règles
+// appliquées à rien, sans la moindre erreur pour le dire.
+// ⛔ SUPPRIMER `src/components/Piece.astro` après dépôt.
+import { rar, delta, gemsM, esc, mentionEdition } from '../../engine/lib/vitrine.mjs';
+import { coteFermee as coteEstFermee } from '../../engine/lib/cote.mjs';
+// ⭐ LOT 126 — `t()` arrive ici POUR LE CŒUR : ses libellés sont lus par un
+//   lecteur d'écran, ils ne peuvent pas rester en anglais sur une carte
+//   française. Les clés `fav.add` / `fav.remove` existent depuis le lot 15.
+import { t } from '../../engine/lib/i18n.mjs';
+import Cote from './Cote.astro';
+// 🔴 LOT 139 — LA VIGNETTE EST DÉCLARÉE UNE FOIS. Le bandeau ATL/ATH quitte
+//   ce fichier (il n'y sortait que sur 2 des 5 familles de pages) et les
+//   budgets de coupe quittent le gabarit (ils y seraient devenus 4 seuils).
+import Extremes from './Extremes.astro';
+import { nomItem } from '../../engine/lib/vignette.mjs';
+import { imageCarte, ONERROR_REPLI } from '../../engine/lib/image_cdn.mjs';
+
+// 🔴🔴 LOT 139 — `ed` PASSE À `true` PAR DÉFAUT, ET C'EST LA CORRECTION.
+// Mesuré en prod le 11/08 : `ed` n'était passé QUE par `Home.astro:391` — une
+// seule ligne dans tout le dépôt. `/collections/` émettait donc 12 `<span
+// class="cartouche__s">` parfaitement VIDES, et ma note de tri les comptait
+// comme « présents ». ⭐⭐ *Un span vide se compte comme un span.*
+// ⛔ ET CE N'EST PAS UN PRIX : `mentionEdition()` rend FA/FE/AP, une
+// caractéristique d'édition que `/collectibles/` publie déjà en clair. Elle
+// n'a jamais eu à être gatée — le défaut d'origine (lot 118) était d'écrire le
+// NUMÉRO d'édition, pas la mention, et il est fermé depuis.
+// ⭐ La prop survit pour qu'un appelant puisse la RETIRER (`ed={false}`) ;
+//   c'est l'inverse du défaut qu'on ferme, et ça ne coûte rien.
+// 🔴🔴 LOT 154-A — `cote` : UNE CARTE QUI NE PARLE PAS D'ARGENT.
+// `/favoris/` est la seule page du site qui n'a JAMAIS porté ni prix ni cote —
+// c'est écrit dans son en-tête depuis le lot 116, et c'est ce qui la garde hors
+// du mur des abonnés : « un uuid, un chemin et un nom, trois choses déjà
+// publiques ». Le lot 154-A l'a passée en tuiles ; elle doit donc appeler CE
+// gabarit sans hériter de sa ligne de prix.
+// ⛔⛔ ET SURTOUT PAS EN RECOPIANT LE BALISAGE DANS `Favoris.astro`. Une
+// seconde fabrique de carte aurait divergé au premier lot qui touche celle-ci —
+// c'est exactement le défaut que le lot 140-3 a payé sur le pilote des favoris
+// (« deux copies du même rendu de ligne, à un `slice(0, 8)` près »), et celui
+// que le 155 doit refermer sur les tuiles de `/market/`.
+// ⇒ UNE PROP, comme `ed`, et la valeur par défaut ne change rien pour personne.
+// ⚠️ `cote={false}` retire DEUX choses, et les deux sont des données de cote :
+//    la ligne du plancher ET le bandeau `<Extremes>` (ATL/ATH). Retirer l'une
+//    sans l'autre laisserait passer par le bandeau ce qu'on ferme par la ligne.
+// 📈 LOT J — `variation` : LA VARIATION 7 J, ET ELLE EST FERMÉE PAR DÉFAUT.
+// ⛔ ELLE NE S'ALLUME PAS PARTOUT, ET C'EST LE LOT 112 QU'ON RESPECTE : « la
+//    variation apparaissait sur CHAQUE carte du site, à côté d'un prix fermé —
+//    44 pourcentages en clair sur le seul accueil ». Ici elle ne sort QUE là où
+//    une page la demande explicitement (`/favoris/`, où la maquette v5 la
+//    range parmi les trois choses qu'une tuile de favori porte en plus).
+// ⭐ Et sous le mur elle passe par le MÊME hôte que le plancher (`<Cote>`), donc
+//    par `/api/cote/lot` : aucun pourcentage n'est écrit au serveur.
+const { item, lang, href, nf, i = 0, ed = true, libre = false, cote = true,
+        variation = false, eteinte = false } = Astro.props;
+// ═══════════════════════════════════════════════════════════════════════════
+// 🎯 LOT O — LA TUILE ÉTEINTE, ET POURQUOI ELLE VIT DANS **CE** FICHIER
+// ═══════════════════════════════════════════════════════════════════════════
+// Arbitrage de Preda du 09/09 : « des tuiles grisées, non cliquables ». Mesuré
+// sur la prod avant de le lui demander : **1 511 pages de set sur 3 256
+// (46,4 %)** annoncent plus de pièces qu'elles n'en montrent, et **3 249
+// pièces** ne sont listées nulle part — `/collection/fantastic-four-vol-1-53/`
+// dit « 5 items · 1 collectibles tracked » et sert UNE carte.
+//
+// ⛔⛔ ET ON N'ÉCRIT PAS UN SECOND COMPOSANT. Une `CarteEteinte.astro` serait
+// une DEUXIÈME FABRIQUE de la même tuile : elles divergeraient au premier lot
+// qui n'en touche qu'une, et ce dépôt a déjà payé ce motif cinq fois
+// (`regle-seconde-fabrique-ne-montre-que-sa-source`). Une seule fabrique, un
+// drapeau : `eteinte`.
+//
+// CE QUE LE DRAPEAU CHANGE, ET RIEN D'AUTRE :
+//   · la racine cesse d'être un `<a>` — une tuile qui ne mène nulle part ne
+//     doit pas être un lien : ni tabulable, ni cliquable, ni suivie par un
+//     robot. `aria-disabled` seul sur un `<a href>` laisserait les deux.
+//   · aucun hôte de cote (`<Extremes>`, `<Cote>`) : ces pièces n'ont AUCUN
+//     prix — leur plancher est effacé dans `dataset.mjs` juste après le dépôt
+//     du classement. Un hôte vide enverrait une requête pour un tiret.
+//   · aucun cœur de favori : le favori mémorise un CHEMIN, et il n'y en a pas.
+// ⭐ Le reste — image, nom, rareté, mention d'édition — est identique, parce
+//   que c'est exactement ce que la tuile doit dire : QUELLE pièce manque.
+const Balise = eteinte ? 'div' : 'a';
+// ⭐ Le drapeau IMPLIQUE la fermeture de la cote : appeler `<Carte eteinte
+//   cote={true}>` poserait un hôte de prix sur une pièce qui n'en a pas. On ne
+//   le laisse pas au choix de l'appelant — un appelant se trompe, un invariant
+//   non.
+const avecCote = cote && !eteinte;
+const nom = nomItem(item.name);
+// 🔴 LOT 101 — la carte ne porte plus de montant quand la cote est fermee.
+// ⭐ ELLE NE TESTE PAS `item.floor` : apres `projeter()` ce champ est absent
+// pour TOUT LE MONDE, donc un test sur sa valeur confondrait « ferme » et
+// « pas encore collecte » — deux etats qui meritent deux affichages.
+const coteFermee = coteEstFermee();
+const money = (v) => (v === null || v === undefined ? '—' : v.toLocaleString(nf, { maximumFractionDigits: 2 }));
+
+// ⚠️ `--i` porte le rang dans la grille : le thème s'en sert pour décaler
+// l'apparition. Sans lui, les cartes surgissent toutes en même temps — et une
+// apparition simultanée n'est pas une animation, c'est un clignotement.
+
+// ⭐ UNE SEULE DÉCISION D'IMAGE PAR CARTE, prise au point unique. Les deux
+// <img> la partagent : même URL, donc même requête et même cache — c'est la
+// propriété que le balisage avait déjà, et la vignette ne doit pas la casser.
+// 🔴 Avant ce lot, cette carte servait `item.image` BRUT : ni vignette, ni même
+// compression. Elle n'importait pas ce module du tout. Mesuré en production :
+// 2 000 px servis pour 174 à 207 px dessinés, sur 3 195 pages de collection.
+const imgC = imageCarte(item.image);
+// ⚠️ CHANGEMENT ASSUMÉ : le fond diffus n'avait AUCUN `onerror`. Il porte
+// désormais le même que l'image nette. Comme les deux partagent l'URL, elles
+// échouent ensemble — le gestionnaire commun ne peut donc pas marquer le socle
+// cassé pour un fond qui aurait échoué seul.
+---
+{/* ═══════════════════════════════════════════════════════════════════════
+    ❤️ LOT 126 — LE CŒUR ARRIVE SUR LES CARTES, ET IL EST DEHORS DU LIEN
+    ═══════════════════════════════════════════════════════════════════════
+    ⛔⛔ `.carte` **EST** UN `<a>`. Un `<button>` à l'intérieur d'un `<a>` est du
+    HTML invalide (contenu interactif imbriqué) : les navigateurs le réparent
+    chacun à leur façon, et le clic sur le cœur suivrait le lien.
+    ⇒ Le bouton est un FRÈRE du lien, dans une enveloppe `position:relative`.
+
+    ⭐⭐⭐ ET LE THÈME L'ATTENDAIT DEPUIS LE LOT 15. `.socle__fav` y est stylé
+    `position:absolute; top:8px; right:8px; opacity:0`, avec une règle
+    `.carte:hover .socle__fav` — c'est-à-dire un cœur DE CARTE. Seule la fiche
+    l'émettait, via la variante `--fiche` qui le repasse en `position:static`.
+    *Une règle CSS sans émetteur n'est pas du style mort : c'est une intention
+    en attente, et elle ne se voit pas dans une feuille de 2 300 lignes.*
+
+    ⚠️ `revele` ET `--i` PASSENT SUR L'ENVELOPPE, pas sur le lien : c'est
+    `.grille>*` qui porte le `transition-delay:calc(var(--i)*40ms)`, et l'enfant
+    direct de la grille est désormais l'enveloppe. Les laisser en bas ferait
+    apparaître le cœur AVANT sa carte.
+    ⛔ AUCUNE DONNÉE RÉSERVÉE NE TRANSITE : le favori ne mémorise qu'un uuid,
+    un chemin et un nom — trois choses déjà publiques sur la carte elle-même.
+    Le gestionnaire est global (Base.astro, `[data-fav]`) : rien à brancher. */}
+<div class="carte-h revele" style={`--i:${i}`}>
+<Balise class:list={["carte", eteinte && "carte--eteinte"]} href={eteinte ? undefined : href}
+   aria-disabled={eteinte ? "true" : undefined}>
+  <div class="socle">
+    {item.image ? (
+      <>
+        {/* Deux <img>, UNE SEULE URL : même requête, même cache. Le fond diffus
+            remplit le cadre, l'image nette se pose dessus. */}
+        <img class="socle__fond ok" src={imgC.src} alt="" aria-hidden="true"
+             data-repli={imgC.repli} width="400" height="600"
+             loading="lazy" decoding="async" onerror={ONERROR_REPLI} />
+        <span class="socle__voile"></span>
+        <img class="socle__net ok" src={imgC.src} alt={item.name}
+             data-repli={imgC.repli} width="400" height="600"
+             loading="lazy" decoding="async" onerror={ONERROR_REPLI} />
+      </>
+    ) : (
+      <>
+        <span class="socle__voile"></span>
+        {/* ⭐ Le repli EST celui de la maquette : la gemme `forme--xl`, dans le
+            gris des filets. Il dit « pièce » sans prétendre montrer laquelle —
+            un cadre vide, lui, dit « ce site est cassé ». */}
+        <span style="position:absolute;inset:0;display:grid;place-items:center;z-index:3">
+          <span class="forme forme--xl" style="--c-a:var(--rule-2)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+              <path d="M12 2.9 19.9 7.5v9L12 21.1 4.1 16.5v-9Z" />
+            </svg>
+          </span>
+        </span>
+      </>
+    )}
+    {/* 🔴 LOT 139 — LE BANDEAU SORT D'ICI. Il vivait en dur, avec sa branche
+        « cote fermée / cote ouverte », et c'est précisément pour ça qu'il
+        n'existait que sur les deux pages qui appellent CE gabarit. Mesuré :
+        0 sur 40 lignes de rayon, 0 sur 910 cartes de set. ⇒ `<Extremes>`. */}
+    {avecCote && <Extremes lang={lang} uuid={item.uuid} item={item} nf={nf} />}
+    {libre && <span class="socle__coin etiq">Libre</span>}
+    {/* ⭐ L'ÉTIQUETTE DIT POURQUOI LA TUILE EST ÉTEINTE. Une tuile grise sans
+        mot se lit « image cassée » — c'est le même piège que le losange de
+        repli quatre lignes plus haut. `socle__coin etiq` est le coin que
+        `Libre` occupe déjà : une place, un style, pas une règle de plus. */}
+    {eteinte && <span class="socle__coin etiq">{t(lang, 'collection.untracked')}</span>}
+  </div>
+
+  <div class="cartouche">
+    {/* ⭐ LOT 139 — 20 CARACTÈRES, PUIS « … » (Preda, 11/08). Mesuré avant :
+          78 % des noms de l'accueil dépassaient 20 caractères, jusqu'à 89.
+          ⛔ LE NOM ENTIER RESTE LISIBLE, en `title` : un nom tronqué sans
+          moyen de lire l'entier est une PERTE, pas une mise en forme. Et le
+          `title` porte le nom NU — servir des sentinelles i18n à un attribut
+          les rendrait visibles en infobulle.
+          ⚠️ Le thème garde son `-webkit-line-clamp:2` : une coupe au caractère
+          ne connaît pas la largeur de la boîte, une coupe CSS ne connaît pas
+          le nombre de caractères. Les deux, et pas l'une à la place de l'autre. */}
+      <div class="cartouche__n" title={nom.tronque ? nom.complet : undefined}>{nom.vu}</div>
+    {/* ⚠️ `border:0` QUAND LA LIGNE DE PRIX N'EST PAS RENDUE. Ce filet est un
+        SÉPARATEUR entre deux lignes ; sans la seconde, il devient un trait qui
+        pend sous la dernière. Un `style` en ligne et non une classe : les trois
+        contrôles CSS tournent avant le compilateur, et une classe émise sans
+        règle dans les thèmes les ferait crier — à juste titre. */}
+    <div class="cartouche__l" style={avecCote ? undefined : 'border:0'}>
+      {/* ⚠️ `rar--sur-blanc` est OBLIGATOIRE ici : le cartouche est le seul vrai
+          blanc de la page, et la forme y bascule sur son encre foncée. Sans
+          cette classe, le tracé clair sur blanc tombe à 1,22:1 — invisible. */}
+      <Fragment set:html={rar(item.rarity, { blanc: true })} />
+      {/* 🔴 LOT 118 — LA MENTION, JAMAIS LE NUMÉRO. `edition_type` vaut soit
+          « FA »/« FE »/« AP », soit « 1 », « 2 », « 3 »… La carte écrivait la
+          cellule telle quelle : 4 350 pièces affichaient un numéro d'édition à
+          la place d'une mention. ⭐ `mentionEdition()` rend `''` pour tout le
+          reste, et un `<span>` vide n'occupe aucune place. */}
+      <span class="cartouche__s">{ed ? mentionEdition(item.edition_type) : ''}</span>
+    </div>
+    {avecCote && (
+    <div class="cartouche__l" style="border:0;padding-top:0">
+      {/* ⭐ LE PICTOGRAMME GEMS RESTE, MEME FERME. Il dit dans quelle UNITE se
+          compte ce qui est cache — et une unite n'est pas un montant. Le retirer
+          rendrait le tiret muet : on ne saurait meme plus de quoi il s'agit. */}
+      <span class="prix"><Fragment set:html={gemsM()} />{coteFermee
+        ? <Cote lang={lang} uuid={item.uuid} champ="floor" />
+        : money(item.floor)}</span>
+      {/* 🔴 LOT 112 — la variation suit le prix. Elle apparaissait sur CHAQUE
+          carte du site, à côté d'un prix fermé : 44 pourcentages en clair sur
+          le seul accueil. */}
+      {!coteFermee && variation && <Fragment set:html={delta(item.change7d, { blanc: true })} />}
+      {/* ⭐ SOUS LE MUR, LA VARIATION EST UN HÔTE — comme le plancher juste
+          au-dessus. `60-cote.js` y écrira le nombre au retour de la route ;
+          sans palier, le cadenas reste et dit « je ne montre pas », ce qui
+          n'est pas « je n'ai pas ». */}
+      {coteFermee && variation && <span class="delta delta--flat">
+        <Cote lang={lang} uuid={item.uuid} champ="change7d" /></span>}
+    </div>
+    )}
+  </div>
+</Balise>
+  {!eteinte && <button type="button" class="socle__fav" data-fav={item.uuid}
+          data-fav-path={item.path} data-fav-nom={item.qualifie || item.name}
+          aria-pressed="false"
+          data-l={t(lang, 'fav.add')}
+          data-l-on={t(lang, 'fav.remove')} data-l-off={t(lang, 'fav.add')}
+          aria-label={t(lang, 'fav.add')} title={t(lang, 'fav.add')}>
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 20.3 4.7 13a4.6 4.6 0 0 1 6.5-6.5l.8.8.8-.8A4.6 4.6 0 0 1 19.3 13Z" />
+    </svg>
+  </button>}
+</div>

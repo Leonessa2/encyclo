@@ -1,0 +1,20 @@
+---
+// ⚠️ Leonessa2/veve-sites — src/pages/[locale]/index.astro
+import Home from '../../components/pages/Home.astro';
+import EditorialHome from '../../components/pages/EditorialHome.astro';
+import { locales } from '../../../engine/lib/i18n.mjs';
+import { languesDuSite } from '../../../engine/lib/editorial_pages.mjs';
+import { manifest } from '../../../engine/lib/manifest.mjs';
+// ⛔ Une langue sans une seule section publiable n'a pas d'accueil : un accueil
+// vide dans une langue est pire qu'une langue absente — il est indexable, il
+// promet un site, et il ne mene nulle part.
+export function getStaticPaths() {
+  const { def } = locales();
+  return languesDuSite().filter((l) => l !== def).map((l) => ({ params: { locale: l } }));
+}
+const lang = Astro.params.locale;
+const m = manifest();
+const wiki = (m.content?.home === 'editorial')
+  || (!!(m.editorial?.pages?.length) && !((m.content?.data_modules || []).length));
+---
+{wiki ? <EditorialHome lang={lang} /> : <Home lang={lang} />}

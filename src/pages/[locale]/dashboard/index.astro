@@ -1,0 +1,56 @@
+---
+// ⚠️ Leonessa2/veve-sites — src/pages/[locale]/dashboard/index.astro (lot 126)
+// ⭐ Le jumeau localisé de `/dashboard/`. `getStaticPaths()` rend une liste
+//   VIDE : aucune adresse n'est pré-générée, la route n'existe qu'à la demande,
+//   basculée par `astro_routes_compte.mjs`. Même dispositif que `/favoris/`.
+export const prerender = true;
+
+import Dashboard from '../../../components/pages/Dashboard.astro';
+import { connecte, palierVisiteur } from '../../../../engine/lib/access.mjs';
+import { COOKIE as TB_COOKIE } from '../../../../engine/lib/tableau.mjs';
+// 🔴 LOT J — LE CHARGEMENT EST PARTAGÉ PAR LES DEUX ROUTES DE TABLEAU DE
+//   BORD. Recopié, il aurait divergé au premier champ ajouté — et il aurait
+//   divergé EN SILENCE, une langue sur deux. Voir son en-tête.
+import { donneesDuBord } from '../../../../engine/lib/bord.mjs';
+
+export function getStaticPaths() {
+  return [];
+}
+
+const lang = Astro.params.locale;
+
+if (!connecte(Astro.locals)) {
+  return Astro.redirect(`/connexion/?suite=%2F${encodeURIComponent(lang)}%2Fdashboard%2F`, 302);
+}
+
+Astro.response.headers.set('cache-control', 'private, no-store');
+Astro.response.headers.set('vary', 'cookie');
+
+// 🔴🔴 LOT 131 — LE PALIER DESCEND DANS LE COMPOSANT, ET IL DESCEND D'ICI.
+// Le tableau de bord montre des tuiles verrouillées : il doit donc savoir à
+// quel grade parle. ⛔ `palierVisiteur()` NE PEUT PAS être appelée dans le
+// composant : `Astro.locals` n'existe que sur la ROUTE, et un composant qui va
+// le chercher tout seul rendrait « visitor » sur toute page pré-générée — sans
+// erreur, sans banc rouge, avec un cadenas sur chaque tuile pour un abonné.
+// C'est la panne du lot 24 (« le middleware ne tourne pas ») vue depuis le
+// gabarit, et celle du `<Gate>` évalué au build.
+const palier = palierVisiteur(Astro.locals);
+
+// 🔴🔴🔴 LOT 202 — MÊME LECTURE QUE SUR `/dashboard/`, ET ELLE DOIT Y ÊTRE.
+// Le composant ne peut pas aller chercher le cookie tout seul, pour la raison
+// écrite juste au-dessus à propos de `Astro.locals`. Ce fichier-ci est le
+// jumeau qu'on oublie : il ne s'ouvre qu'en français, en espagnol, en italien
+// ou en allemand, et un réglage qui ne marcherait qu'en anglais ne se voit pas
+// depuis un banc qui ne juge qu'une route. `test:tableau` juge LES DEUX.
+const tb = Astro.cookies.get(TB_COOKIE)?.value || '';
+
+// ❤️📅 LOT J — LES FAVORIS ET LA DATE DE LA VISITE PRÉCÉDENTE.
+// ⚠️ `await` SUR UNE ROUTE RENDUE À LA DEMANDE, ET C'EST SANS DANGER ICI :
+//   `donneesDuBord()` interroge veveid et SQLite — pas `dataset()`. Le garde du
+//   lot 125 (10 328 ms) porte sur l'entrepôt, que ce chemin ne touche pas ;
+//   `test:marche` §3 balaie d'ailleurs les routes de compte pour cela même.
+// ⭐ LE `sid` EST LU ICI, SUR LA ROUTE, comme `tb` juste au-dessus.
+const { favoris, visite, indisponible } = await donneesDuBord(Astro.cookies.get('vp_session')?.value || null);
+
+---
+<Dashboard lang={lang} palier={palier} tb={tb} favoris={favoris} visite={visite} indisponible={indisponible} />
