@@ -26,10 +26,10 @@
 //  GÉNÉRIQUE PAR CONSTRUCTION : `brands` aujourd'hui, `glossary` demain — il
 //  suffit d'ajouter une entrée à FICHES. Rien ici n'est propre à vevewiki.
 // =============================================================================
-import { manifest } from './manifest.mjs';
-import { locales } from './i18n.mjs';
-import { collection, licenceAgregats } from './editorial.mjs';
-import { activeSections, languesDeSection } from './editorial_pages.mjs';
+import { manifest } from '../../moteur/lib/manifest.mjs';
+import { locales } from '../../moteur/lib/i18n.mjs';
+import { collection, licenceAgregats } from './contenu.mjs';
+import { activeSections, languesDeSection } from '../../moteur/lib/editorial_pages.mjs';
 
 const norm = (s) => String(s ?? '').trim();
 export const slugifier = (v) => norm(v).normalize('NFD').replace(/[̀-ͯ]/g, '')

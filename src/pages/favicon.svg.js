@@ -1,4 +1,4 @@
-import { manifest } from '../../engine/lib/manifest.mjs';
+import { manifest } from '../../moteur/lib/manifest.mjs';
 // Favicon derive du manifeste : chaque site a automatiquement le sien.
 export function GET() {
   const m = manifest();

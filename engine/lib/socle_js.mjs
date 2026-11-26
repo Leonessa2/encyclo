@@ -47,7 +47,7 @@
 import { createHash } from 'node:crypto';
 import { acces } from './access.mjs';
 import { coteFermee } from './cote.mjs';
-import { langueUiDansEntete } from './i18n.mjs';
+import { langueUiDansEntete } from '../../moteur/lib/i18n.mjs';
 
 const fichiers = import.meta.glob('../../src/socle/*.js', { query: '?raw', import: 'default', eager: true });
 

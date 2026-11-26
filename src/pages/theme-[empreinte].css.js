@@ -21,7 +21,7 @@
 // ferme les deux portes d'un coup.
 export const prerender = true;
 
-import { feuilleTheme } from '../../engine/lib/feuille_theme.mjs';
+import { feuilleTheme } from '../../moteur/lib/feuille_theme.mjs';
 
 // ⭐ L'EMPREINTE VIENT DU CONTENU, PAS L'INVERSE. `getStaticPaths` ne rend
 // qu'UN chemin — celui que `Base.astro` va écrire dans son `<link>`, calculé

@@ -27,7 +27,7 @@
 // ⭐ UN CONTROLE DE COHERENCE NE VOIT PAS UNE PERTE UNIFORME. Il faut un
 //   controle qui compare la page a la REALITE, pas les langues entre elles.
 //
-// ⭐⭐ ET POURQUOI RIEN N'A PLANTE. `engine/lib/i18n.mjs` :
+// ⭐⭐ ET POURQUOI RIEN N'A PLANTE. `moteur/lib/i18n.mjs` :
 //     const raw = d[key] !== undefined ? d[key] : (dict(def)[key] ?? key);
 // Le `?? key` est un repli DELIBERE, et il est bon : une cle manquante ne doit
 // pas faire tomber un site en production. Mais un repli qui produit une valeur
@@ -91,6 +91,7 @@ const MOTIF_T = /\bt\(\s*[A-Za-z_$][\w$.]*\s*,\s*(['"`])([^'"`]+)\1/g;
 const sources = [
   ...fichiers(join(RACINE, 'src'), ['.astro', '.js', '.mjs', '.ts']),
   ...fichiers(join(RACINE, 'engine', 'lib'), ['.mjs', '.js']),
+  ...fichiers(join(RACINE, 'moteur', 'lib'), ['.mjs', '.js']),
 ];
 const vocabulaire = new Set();
 let dynamiques = 0;

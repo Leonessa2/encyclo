@@ -75,7 +75,7 @@ import { join } from 'node:path';
 const R = new URL('../..', import.meta.url).pathname;
 const DOSSIER = join(R, 'themes');
 const THEMES = readdirSync(DOSSIER).sort();
-const SRC_FEUILLE = readFileSync(join(R, 'engine/lib/feuille_theme.mjs'), 'utf8');
+const SRC_FEUILLE = readFileSync(join(R, 'moteur/lib/feuille_theme.mjs'), 'utf8');
 const mSocle = SRC_FEUILLE.match(/const SOCLE = `([\s\S]*?)`;/);
 if (!mSocle) {
   console.log('  ❌ le socle est introuvable dans feuille_theme.mjs — ce banc jugerait une feuille incomplète');

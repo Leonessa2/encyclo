@@ -26,10 +26,10 @@ import { join } from 'node:path';
 process.env.SITE = process.env.SITE || 'vevewiki';
 
 const ROOT = process.env.PROJECT_ROOT || process.cwd();
-const I18N = await import('../lib/i18n.mjs');
-const P = await import('../lib/editorial_pages.mjs');
-const L = await import('../lib/langues.mjs');
-const ED = await import('../lib/editorial.mjs');
+const I18N = await import('../../moteur/lib/i18n.mjs');
+const P = await import('../../moteur/lib/editorial_pages.mjs');
+const L = await import('../../moteur/lib/langues.mjs');
+const ED = await import('../lib/contenu.mjs');
 const BLOG = await import('../lib/blog.mjs');
 
 let ok = 0, ko = 0;
@@ -65,11 +65,11 @@ for (const l of active) {
 }
 
 console.log('\n3. Une langue publiée a des textes légaux DANS cette langue');
-const LEGAL = await import('../lib/legal.mjs');
+const LEGAL = await import('../../moteur/lib/legal.mjs');
 const langsSite = P.languesDuSite();
 const langsLegales = LEGAL.languesLegales(langsSite);
 for (const l of langsSite) {
-  const a = existsSync(join(ROOT, 'engine', 'legal', `${l}.json`));
+  const a = existsSync(join(ROOT, 'moteur', 'legal', `${l}.json`));
   dit(a === langsLegales.includes(l),
     `${l} : pages légales ${langsLegales.includes(l) ? 'publiées' : 'retenues'} — cohérent avec le fichier`);
 }
@@ -216,7 +216,7 @@ console.log('\n8. Le VOCABULAIRE FERMÉ du Sheet est traduit, pas recopié');
 // `/favoris/` la veille.* Cette fois, elle est mesurée.
 console.log('\n🌍 les trois listes de langues');
 {
-  const MANIF = (await import(join(ROOT, 'engine/lib/manifest.mjs'))).manifest();
+  const MANIF = (await import(join(ROOT, 'moteur/lib/manifest.mjs'))).manifest();
   const active = I18N.locales().active;
   const inter = I18N.languesInterface();
   const declBlog = I18N.languesDeclareesBlog();

@@ -12,11 +12,11 @@
 //  réutilisable ici : le composant ne fait que METTRE EN FORME.
 // =============================================================================
 import Base from '../../layouts/Base.astro';
-import { collection, parseSources } from '../../../engine/lib/editorial.mjs';
-import { sectionMeta, languesDeSection } from '../../../engine/lib/editorial_pages.mjs';
-import { t, localize, numberLocale } from '../../../engine/lib/i18n.mjs';
+import { collection, parseSources } from '../../../engine/lib/contenu.mjs';
+import { sectionMeta, languesDeSection } from '../../../moteur/lib/editorial_pages.mjs';
+import { t, localize, numberLocale } from '../../../moteur/lib/i18n.mjs';
 import { fichesDe, cheminFiche, ancreJalon, ancreTerme, ancresAnnuaire } from '../../../engine/lib/editorial_entries.mjs';
-import { siteUrl } from '../../../engine/lib/manifest.mjs';
+import { siteUrl } from '../../../moteur/lib/manifest.mjs';
 import { definedTermSetLd, chronologieLd, itemListLd } from '../../../engine/lib/seo.mjs';
 
 const { lang, section } = Astro.props;
@@ -51,7 +51,7 @@ const libelle = (cle, brut) => { const v = t(lang, cle); return v === cle ? brut
 const nf = numberLocale[lang] || 'en-GB';
 const nombre = (v) => (Number.isFinite(Number(v)) && String(v).trim() !== '' ? Number(v).toLocaleString(nf) : null);
 // `langs` passe a Base : cette section n'est pas publiee dans toutes les langues
-// du site (cf. engine/lib/langues.mjs). Le gabarit n'annoncera donc en hreflang,
+// du site (cf. moteur/lib/langues.mjs). Le gabarit n'annoncera donc en hreflang,
 // et n'offrira dans le selecteur de langue, que les langues ou la page existe.
 // ⚠️ En commentaire JS, pas en {/* */} : un commentaire JSX en tete de gabarit
 // sort dans le HTML comme un blanc avant <html>.

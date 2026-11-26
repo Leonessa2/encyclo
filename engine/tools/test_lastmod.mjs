@@ -19,10 +19,10 @@ const dit = (b, quoi, detail = '') => {
   else { ko++; console.log(`  ❌ ${quoi}${detail ? ` — ${detail}` : ''}`); }
 };
 
-const { activeSections } = await import('../lib/editorial_pages.mjs');
+const { activeSections } = await import('../../moteur/lib/editorial_pages.mjs');
 const { ficheSections } = await import('../lib/editorial_entries.mjs');
 const { priceEnabled } = await import('../lib/features.mjs');
-const { SITE } = await import('../lib/manifest.mjs');
+const { SITE } = await import('../../moteur/lib/manifest.mjs');
 
 console.log(`\n1. Le fichier d'état de « ${SITE} » existe et se lit`);
 // 🔴 UN FICHIER PAR SITE — ET C'EST CE TEST QUI EMPÊCHE LE RETOUR EN ARRIÈRE.

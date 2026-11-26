@@ -13,7 +13,7 @@ import process from 'node:process';
 process.env.SITE = process.env.SITE || 'vevewiki';
 
 const { figureSVG, figureHTML, verifierFigure } = await import('../lib/figures.mjs');
-const { renderMarkdown } = await import('../lib/markdown.mjs');
+const { renderMarkdown } = await import('../../moteur/lib/markdown.mjs');
 
 let ok = 0, ko = 0;
 const dit = (b, quoi, detail = '') => {

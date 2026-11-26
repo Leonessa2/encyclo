@@ -217,7 +217,7 @@ export function figureHTML(fig, ctx) {
 // =============================================================================
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { manifest } from './manifest.mjs';
+import { manifest } from '../../moteur/lib/manifest.mjs';
 
 const RACINE = process.env.PROJECT_ROOT || process.cwd();
 const DOSSIER = join(RACINE, 'engine', 'data', 'figures');

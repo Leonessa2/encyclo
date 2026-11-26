@@ -37,8 +37,8 @@ import { retourSur, COOKIE_RETOUR, RETOUR_DEFAUT } from '../../../engine/lib/ret
 //   `prefs.mjs` n'ouvre sa base qu'au premier appel (ouverture paresseuse).
 import { compteDeLaSession } from '../../../engine/lib/compte.mjs';
 import { lirePref } from '../../../engine/lib/prefs.mjs';
-import { COOKIE_LANGUE, languesInterface } from '../../../engine/lib/i18n.mjs';
-import { CLE_THEME, COOKIE_THEME, THEME_DUREE, themeValide } from '../../../engine/lib/theme.mjs';
+import { COOKIE_LANGUE, languesInterface } from '../../../moteur/lib/i18n.mjs';
+import { CLE_THEME, COOKIE_THEME, THEME_DUREE, themeValide } from '../../../moteur/lib/theme.mjs';
 import {
   CLE_PREF as TB_CLE, COOKIE as TB_COOKIE, COOKIE_DUREE as TB_DUREE,
   lireAgencement, ecrireAgencement,

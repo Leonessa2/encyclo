@@ -2,7 +2,7 @@
 //  editorial.mjs — le CONSOMMATEUR générique du contenu éditorial (tous sites)
 //
 //  ⚠️ CE FICHIER VA DANS LE DÉPÔT  Leonessa2/veve-sites , dans  engine/lib/
-//     (chemin exact : engine/lib/editorial.mjs)
+//     (chemin exact : moteur/lib/editorial.mjs)
 //
 //  Étape 2 du constructeur générique (bible/architecture-generateur-sites.md).
 //  Il charge les snapshots écrits par le récolteur `editorial_pull.py`
@@ -36,7 +36,7 @@ const EDITORIAL_DIR = join(ROOT, 'sites', SITE, 'editorial');
 // Surchargée par BUILD_DATE (AAAA-MM-JJ) pour tester/rejouer.
 // -----------------------------------------------------------------------------
 // 🗑️ LOT 161 — `buildDay()` vivait ICI et, mot pour mot, dans l'autre fichier.
-// Elle est partie dans `engine/lib/jour_du_build.mjs`, avec sa raison d'etre.
+// Elle est partie dans `moteur/lib/jour_du_build.mjs`, avec sa raison d'etre.
 // ⛔ Ne pas la recopier « pour eviter un import » : c'est ce raisonnement qui
 //    en avait deja fait deux, et le lot 161 allait en ecrire une troisieme.
 const buildDay = jourDuBuild;
@@ -252,91 +252,6 @@ export function parseSources(raw) {
 }
 
 // -----------------------------------------------------------------------------
-// Compteurs Brands — depuis l'ENTREPÔT (jamais le Sheet)
-// -----------------------------------------------------------------------------
-let _agg = null;
-/** Agrégats par licence :
- *  `{ <licence>: {n_series, n_items, first_mint, first_drop, first_drop_source} }`.
- *
- *  ⭐⭐ DEUX DATES, DEUX FAITS (corrigé le 27/07/2026) — ne pas les confondre :
- *    • `first_mint`  = 1re FRAPPE on-chain. VeVe frappe dans son coffre AVANT
- *                      d'ouvrir le drop : médiane +2 j d'avance, jusqu'à +54 j.
- *    • `first_drop`  = 1re SORTIE PUBLIQUE (catalogue). C'est CELA qu'un lecteur
- *                      appelle « premier drop », et c'est ce que confirment les
- *                      annonces datées du blog officiel (vérifié 5 fois sur 5).
- *  `first_drop` peut être `null` quand le catalogue ne prouve rien : on retombe
- *  alors sur la frappe, et `compteurs_date` le dit (cf. mergeBrandCounters).
- *
- *  Priorité à l'artefact d'entrepôt `engine/data/licence_agregats.json` (produit
- *  par `outils/construire_licence_agregats.py` côté ScrapeurVeVe) ; à défaut,
- *  calcul depuis `getCatalogue()` + `alias_series_licence.json`.
- *  Aucune valeur inventée : licence absente = null. */
-export async function licenceAgregats() {
-  if (_agg) return _agg;
-  for (const rel of ['engine/data/licence_agregats.json',
-                     `sites/${SITE}/editorial/_licence_agregats.json`]) {
-    const p = join(ROOT, rel);
-    if (existsSync(p)) {
-      _agg = JSON.parse(readFileSync(p, 'utf8'));
-      return _agg;
-    }
-  }
-  _agg = await computeAgregats();                  // repli : recalcul depuis l'entrepôt
-  return _agg;
-}
-
-async function computeAgregats() {
-  const aliasPath = join(ROOT, 'engine', 'data', 'alias_series_licence.json');
-  if (!existsSync(aliasPath)) {
-    console.warn('[editorial] ni licence_agregats.json ni alias : compteurs Brands indisponibles.');
-    return {};
-  }
-  const alias = JSON.parse(readFileSync(aliasPath, 'utf8'));   // { serie: [licence, ...] }
-  const { getCatalogue } = await import('../data/warehouse.mjs');
-  const cat = await getCatalogue();
-  const agg = {};
-  const seriesByLic = {};                          // licence -> Set(series)
-  for (const row of cat) {
-    const serie = norm(row.series);
-    const lics = alias[serie] || [];
-    const rd = norm(row.release_date);
-    for (const lic of lics) {
-      // ⚠️ Ce repli lit le CATALOGUE : sa date est donc une date de SORTIE
-      // (`first_drop`), pas une frappe. On ne remplit surtout pas `first_mint`
-      // avec, sinon on recrée la confusion que l'artefact vient de lever.
-      const a = (agg[lic] ||= { n_series: 0, n_items: 0, first_mint: '', first_drop: '', first_drop_source: 'catalogue' });
-      a.n_items += 1;
-      (seriesByLic[lic] ||= new Set()).add(serie);
-      if (rd && (!a.first_drop || rd < a.first_drop)) a.first_drop = rd;
-    }
-  }
-  for (const [lic, set] of Object.entries(seriesByLic)) agg[lic].n_series = set.size;
-  return agg;
-}
-
-/** Injecte premier_drop / nb_series / nb_items depuis l'entrepôt et RETIRE les
- *  colonnes `*_auto` du Sheet (elles ne font jamais foi).
- *
- *  `premier_drop` prend la SORTIE PUBLIQUE (`first_drop`) et retombe sur la
- *  FRAPPE (`first_mint`) quand le catalogue ne prouve rien. `date_nature` dit
- *  laquelle des deux est affichée — le gabarit s'en sert pour l'étiqueter, parce
- *  qu'un wiki qui donne une date doit dire de quelle date il parle. */
-function mergeBrandCounters(rec, agg) {
-  const out = { ...rec };
-  for (const k of Object.keys(out)) {
-    if (k.endsWith('_auto')) delete out[k];        // le Sheet ne compte pas
-  }
-  const a = agg[norm(rec.licence)] || null;
-  const drop = a && a.first_drop ? a.first_drop : '';
-  out.premier_drop = drop || (a ? a.first_mint || '' : '');
-  out.date_nature = !a || !out.premier_drop ? '' : (drop ? 'drop' : 'mint');
-  out.nb_series = a ? a.n_series : '';
-  out.nb_items = a ? a.n_items : '';
-  out.compteurs_source = a ? 'entrepot' : 'absent';
-  return out;
-}
-
-// -----------------------------------------------------------------------------
 // API principale : la collection prête à rendre pour une page + une langue
 // -----------------------------------------------------------------------------
 /**
@@ -345,7 +260,7 @@ function mergeBrandCounters(rec, agg) {
  *        → (Brands) compteurs entrepôt.
  * Renvoie { items, missing, dropped } ; `missing` = journal à-traduire.
  */
-export async function collection(page, lang, { required = true } = {}) {
+export async function collection(page, lang, { required = true, transformer = null } = {}) {
   const raw = records(page, { required });
   const day = buildDay();
   const missing = [];
@@ -359,16 +274,9 @@ export async function collection(page, lang, { required = true } = {}) {
 
   let items = kept.map((r) => resolveLang(r, lang, missing));
 
-  // Chronologie : dates canonisees -> le tri par chaine reste juste quel que
-  // soit le format d'affichage du Sheet (cf. canonDate).
-  if (page === 'history') {
-    items = items.map((r) => ({ ...r, date: canonDate(r.date, r.precision) }));
-  }
-
-  if (page === 'brands') {
-    const agg = await licenceAgregats();
-    items = items.map((r) => mergeBrandCounters(r, agg));
-  }
+  // Ce que le SITE ajoute pour une page donnée (dates canonisées, compteurs
+  // calculés…) : le moteur ne connaît aucune page par son nom.
+  if (typeof transformer === 'function') items = await transformer(page, items);
 
   if (missing.length) {
     const byLang = missing.reduce((m, x) => ((m[x.lang] = (m[x.lang] || 0) + 1), m), {});
@@ -411,5 +319,5 @@ export function siteConfig(lang) {
   return out;
 }
 
-/** Réinitialise les caches (tests). */
-export function _reset() { _agg = null; }
+/** Réinitialise les caches (tests). Le moteur n'en garde aucun. */
+export function _reset() {}

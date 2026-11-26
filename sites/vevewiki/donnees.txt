@@ -1,0 +1,13 @@
+# Dépôt : Leonessa2/encyclo — fichier : sites/vevewiki/donnees.txt  (lot 4, 26/11/2026)
+# Les fichiers du scrapeur que le wiki lit à la construction, téléchargés par
+# moteur/donnees/telecharger.sh. Une ligne par fichier :
+#   variable lue par la construction | nom du fichier local | adresse de la release
+# (Tant que CONTRAT.md n'existe pas, ce sont les releases d'aujourd'hui.)
+CATALOGUE_URL|catalogue.csv.gz|https://github.com/Leonessa2/jetonveve/releases/download/catalogue/catalogue.csv.gz
+PRICES_URL|prices.csv.gz|https://github.com/Leonessa2/jetonveve/releases/download/prices-full/prices.csv.gz
+BASELINES_URL|prices_baselines.csv.gz|https://github.com/Leonessa2/jetonveve/releases/download/prices-full/prices_baselines.csv.gz
+RELEVES_URL|releves.csv|https://github.com/Leonessa2/jetonveve/releases/download/etat-floor-watch/releves.csv
+EXTREMES_STACKR_URL|extremes_stackr.csv|https://github.com/Leonessa2/jetonveve/releases/download/etat-floor-watch/extremes_stackr.csv
+OMI_USD_URL|omi_usd.csv|https://github.com/Leonessa2/jetonveve/releases/download/etat-floor-watch/omi_usd.csv
+FICHES_STACKR_URL|fiches_stackr.csv|https://github.com/Leonessa2/jetonveve/releases/download/etat-fiches-stackr/fiches_stackr.csv
+VENTES_URL|ventes_stackr.csv|https://github.com/Leonessa2/scrapeur-veve/releases/download/etat-ventes-stackr/ventes_stackr.csv

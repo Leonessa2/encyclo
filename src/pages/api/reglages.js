@@ -46,7 +46,7 @@ export const prerender = true;
 import { compteDeLaSession } from '../../../engine/lib/compte.mjs';
 import { poserPref, retirerPref } from '../../../engine/lib/prefs.mjs';
 // 🎨 LOT 217 — le thème rejoint la langue et le tableau de bord sous le compte.
-import { CLE_THEME, COOKIE_THEME, THEME_DUREE, themeValide } from '../../../engine/lib/theme.mjs';
+import { CLE_THEME, COOKIE_THEME, THEME_DUREE, themeValide } from '../../../moteur/lib/theme.mjs';
 import {
   CLE_PREF, COOKIE, COOKIE_DUREE, PLAFOND,
   lireAgencement, ecrireAgencement, deplacer,

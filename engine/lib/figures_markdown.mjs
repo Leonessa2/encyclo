@@ -6,7 +6,7 @@
 //
 //  POURQUOI IL EXISTE
 //  Un article de ce réseau arrive par DEUX chemins : le Sheet (rendu par
-//  engine/lib/markdown.mjs) et un `.md` du dépôt (rendu par le processeur
+//  moteur/lib/markdown.mjs) et un `.md` du dépôt (rendu par le processeur
 //  Markdown d'Astro). Si la figure ne marchait que d'un côté, l'auteur devrait
 //  savoir par où passe son texte pour choisir sa syntaxe — c'est exactement le
 //  genre de règle qu'on oublie, et la figure disparaît sans bruit.
@@ -25,7 +25,7 @@
 //     site — d'où le journal ci-dessous plutôt qu'un silence.
 // =============================================================================
 import { figureParId } from './figures.mjs';
-import { locales } from './i18n.mjs';
+import { locales } from '../../moteur/lib/i18n.mjs';
 
 const langueDuChemin = (chemin) => {
   const m = /\/blog\/([a-z]{2})\//i.exec(String(chemin || '').replace(/\\/g, '/'));

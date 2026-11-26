@@ -338,7 +338,7 @@ dit(/x-client-ip/.test(insc), 'la route transmet l’adresse du visiteur',
  */
 dit(!/piege,\s*sceau,/.test(insc), 'le sceau ne voyage PAS vers veveid',
   'un sceau vérifié par qui ne l’a pas émis suppose un second secret partagé, que personne n’a posé');
-const rb = lire(join(RACINE, 'engine/lib/robots.mjs'));
+const rb = lire(join(RACINE, 'moteur/lib/robots.mjs'));
 dit(/timingSafeEqual/.test(rb), 'le sceau est comparé à durée constante');
 dit(/DELAI_MAX_MS/.test(rb), 'le sceau EXPIRE',
   'un sceau éternel se récolte une fois et se rejoue mille fois');

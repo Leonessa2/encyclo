@@ -14,7 +14,7 @@
    partout — et la media query en dessous ne faisait que répéter ce qui était
    déjà en vigueur.
 
-   MESURÉ SUR veveprice : 46 règles. Conséquences visibles sur chaque page :
+   MESURÉ SUR le site de prix : 46 règles. Conséquences visibles sur chaque page :
      .nav__liens{display:none}          → la navigation invisible, TOUJOURS
      .tarifs{grid-template-columns:1fr} → les 4 paliers empilés en 1 colonne
      .fiche{grid-template-columns:1fr}  → la fiche sans sa colonne latérale
@@ -29,7 +29,7 @@
    ⭐⭐ LA LEÇON : « est-ce là ? » et « est-ce ce qui gagne ? » sont deux
    questions, et tous mes contrôles ne posaient que la première.
 
-   Usage :  node outils/cascade-aplatie.mjs [racine]
+   Usage :  node moteur/bancs/cascade-aplatie.mjs [racine]
 */
 import fs from 'node:fs';
 import path from 'node:path';

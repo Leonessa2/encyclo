@@ -9,7 +9,7 @@
 #   (étapes « build » et « marquer:i18n »), avec SITE=vevewiki.
 # LOT 3 (26/11/2026) :
 # - données du scrapeur téléchargées dans .donnees/ par
-#   outils/donnees_scrapeur.sh ; si le scrapeur ne publie plus, on garde la
+#   moteur/donnees/telecharger.sh ; si le scrapeur ne publie plus, on garde la
 #   dernière bonne copie (cache GitHub) avec sa vraie date, sans échec ;
 # - bancs retenus pour le wiki (outils/bancs.sh), avant et après construction.
 
@@ -72,7 +72,7 @@ jobs:
         id: donnees
         env:
           DONNEES_PANNE: ${{ inputs.simuler_panne && '1' || '0' }}
-        run: outils/donnees_scrapeur.sh
+        run: moteur/donnees/telecharger.sh
 
       - name: Garder cette copie pour la prochaine fois
         if: steps.donnees.outputs.rafraichi == 'true'

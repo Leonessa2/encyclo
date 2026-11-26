@@ -32,7 +32,7 @@
 import { dataset } from './dataset.mjs';
 import { coteFermee } from './cote.mjs';
 import { deposerExtremes } from './extremes.mjs';
-import { manifest } from './manifest.mjs';
+import { manifest } from '../../moteur/lib/manifest.mjs';
 // 🖥️ La sonde mémoire — elle OBSERVE, elle ne pilote rien (voir memoire.mjs).
 import * as memoire from './memoire.mjs';
 

@@ -18,15 +18,15 @@
 export const prerender = true;
 
 import Base from '../../layouts/Base.astro';
-import { manifest } from '../../../engine/lib/manifest.mjs';
+import { manifest } from '../../../moteur/lib/manifest.mjs';
 // ⛔ `porte` et `franchit` ont quitté cet import au lot 98, avec la liste des
 // modules qui les employait. Un import qui survit à son usage n'est pas
 // inoffensif : `imports-orphelins` le signale, et surtout il laisse croire que
 // cette page décide encore de droits d'accès — elle n'en décide plus aucun.
 import { acces, palierVisiteur, sessionDe } from '../../../engine/lib/access.mjs';
-import { t, localize, locales, localeNames, languesInterface, choisirLangue, COOKIE_LANGUE } from '../../../engine/lib/i18n.mjs';
+import { t, localize, locales, localeNames, languesInterface, choisirLangue, COOKIE_LANGUE } from '../../../moteur/lib/i18n.mjs';
 import { comptesActifs } from '../../../engine/lib/features.mjs';
-import { cleBascule } from '../../../engine/lib/feuille_theme.mjs';
+import { cleBascule } from '../../../moteur/lib/feuille_theme.mjs';
 // ❤️ LOT 141 — `avoirsDeLaSession()` VIT DANS LE MOTEUR, PAS ICI.
 // ⭐⭐ Elle porte QUATRE ÉTATS NOMMÉS (liste · vide · inconnu · nonverifie) et
 // c'est un module Node, donc `test:membre` §8 peut l'IMPORTER et l'exercer sur

@@ -4,7 +4,7 @@
 // sections actives × locales ≠ défaut. Chaque langue a sa propre adresse
 // (/fr/glossary/…), reliée par hreflang dans Base ; aucune redirection auto.
 import Editorial from '../../components/pages/Editorial.astro';
-import { sectionParamsLocalized } from '../../../engine/lib/editorial_pages.mjs';
+import { sectionParamsLocalized } from '../../../moteur/lib/editorial_pages.mjs';
 
 export function getStaticPaths() {
   return sectionParamsLocalized();

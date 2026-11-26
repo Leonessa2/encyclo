@@ -256,7 +256,7 @@ else {
 //     « floora.setsA set has no single price but … »
 // Cause : `set:html={t(…)}` était le PREMIER du dépôt. Sous `I18N_MARQUAGE=1`
 // — que le Dockerfile pose, donc en PRODUCTION — `t()` entoure le texte de
-// sentinelles, et `outils/marquer_i18n.mjs` ne sait les convertir en
+// sentinelles, et `moteur/outils/marquer_i18n.mjs` ne sait les convertir en
 // `span data-i18n` que sur du texte SIMPLE. La valeur contenant du balisage,
 // il a retiré les sentinelles et laissé la CLÉ dans la phrase.
 // ⭐⭐ ET AUCUN BANC N'AURAIT MORDU : `test:i18n` cherche les sentinelles

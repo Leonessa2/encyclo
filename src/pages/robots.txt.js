@@ -1,4 +1,4 @@
-import { siteUrl } from '../../engine/lib/manifest.mjs';
+import { siteUrl } from '../../moteur/lib/manifest.mjs';
 import { searchEnabled } from '../../engine/lib/features.mjs';
 
 // ⭐ ON N'INTERDIT QUE CE QUI N'EST PAS DU CONTENU, ET SEULEMENT S'IL EXISTE.

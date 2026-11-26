@@ -13,7 +13,7 @@
 // d'extinction balaie bien les préfixes de langue ; encore faut-il qu'il y ait
 // un talon à retirer.
 import Analytics from '../../../components/pages/Analytics.astro';
-import { locales } from '../../../../engine/lib/i18n.mjs';
+import { locales } from '../../../../moteur/lib/i18n.mjs';
 import { comptesActifs } from '../../../../engine/lib/features.mjs';
 export function getStaticPaths() {
   const { active, def } = locales();

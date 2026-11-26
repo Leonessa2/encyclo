@@ -1,4 +1,4 @@
-// ⚠️ Leonessa2/veve-sites — engine/lib/feuille_theme.mjs   (NEUF — lot 105)
+// ⚠️ Moteur commun — moteur/lib/feuille_theme.mjs   (NEUF — lot 105)
 // ═══════════════════════════════════════════════════════════════════════════
 // LE THÈME SORT DU HTML — UNE FEUILLE, UNE FOIS, POUR 8 484 PAGES
 // ═══════════════════════════════════════════════════════════════════════════
@@ -14,7 +14,7 @@
 //
 // ⛔⛔ CE MODULE NE MODIFIE AUCUN `themes/*/theme.css`. Il les LIT et les écrit
 // AILLEURS. Les trois thèmes (`vitrine`, `encyclopedie`, `aurora`) passent par
-// exactement le même chemin : le mécanisme n'est pas taillé pour veveprice.
+// exactement le même chemin : le mécanisme n'est pas taillé pour le site de prix.
 //
 // ⛔⛔⛔ `import.meta.glob` ET NON `readFileSync` — ET CETTE LIGNE-LÀ DÉCIDE DE
 // LA PRODUCTION. Le Dockerfile ne copie PAS `themes/` dans l'image de runtime
@@ -56,9 +56,9 @@ export const colorScheme = (pal) => (luminance(pal.bg) < 0.18 ? 'dark' : 'light'
 // ═══════════════════════════════════════════════════════════════════════════
 // LOT M, 08/09/2026. Le bouton d'apparence annonçait `theme.toggle` =
 // « Passer en mode nuit », dans les cinq langues, sur les DEUX sites.
-// 🔬 Mesuré sur `/compte/` servi le 08/09 : veveprice est SOMBRE par défaut et
-// son `palette_nuit` est CLAIRE (bg #EFEFEF) ⇒ le bouton promettait la nuit et
-// livrait le jour. Sur vevewiki, base claire et `palette_nuit` sombre (#0c0d10),
+// 🔬 Mesuré sur `/compte/` servi le 08/09 : le site de prix est SOMBRE par défaut et
+// son `palette_nuit` est CLAIRE (bg (couleur du site)) ⇒ le bouton promettait la nuit et
+// livrait le jour. Sur le site à cinq langues, base claire et `palette_nuit` sombre ((couleur du site)),
 // le même libellé était JUSTE. Un seul texte, deux sites, un sens opposé.
 //
 // ⭐⭐⭐ LA CAUSE N'EST PAS UNE FAUTE DE TRADUCTION, C'EST UN NOM QUI DÉCIDE.
@@ -74,7 +74,7 @@ export const colorScheme = (pal) => (luminance(pal.bg) < 0.18 ? 'dark' : 'light'
 // choisi. La renommer remettrait leur préférence à zéro sans qu'ils l'aient
 // demandé — un coût réel, payé par eux, pour un confort de lecture qui est le
 // mien. Le mot trompeur est DOCUMENTÉ là où il vit (themes/vitrine/theme.css,
-// engine/lib/theme.mjs) ; c'est ce que l'utilisateur LIT qui est corrigé.
+// moteur/lib/theme.mjs) ; c'est ce que l'utilisateur LIT qui est corrigé.
 
 /** La clé i18n du libellé « passer à … », déduite de la palette VISÉE.
  *  ⛔ Jamais une constante : sur un site à base claire, la cible est sombre. */

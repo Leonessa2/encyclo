@@ -4,7 +4,7 @@
 //    devient un 404 des que le menu la reference — invisible au build.
 import Rayon from '../../../components/Rayon.astro';
 import { priceEnabled } from '../../../../engine/lib/features.mjs';
-import { locales } from '../../../../engine/lib/i18n.mjs';
+import { locales } from '../../../../moteur/lib/i18n.mjs';
 export function getStaticPaths() {
   if (!priceEnabled()) return [];
   const { active, def } = locales();

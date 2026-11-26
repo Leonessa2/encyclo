@@ -242,7 +242,7 @@ if dup_d:
 
 # ── 4. longueurs ────────────────────────────────────────────────────────────
 # Fenetres utiles : titre <= 60, description 70..160 (cf. DESC_MIN/DESC_MAX dans
-# engine/lib/editorial_pages.mjs). Longueurs mesurees sur le texte DECODE.
+# moteur/lib/editorial_pages.mjs). Longueurs mesurees sur le texte DECODE.
 longs = [u for u, v in titles.items() if len(v) > 60]
 courts = [u for u, v in descs.items() if v and len(v) < 70]
 bavards = [u for u, v in descs.items() if v and len(v) > 160]
@@ -459,7 +459,7 @@ for u, h in H.items():
 #    site entier finit desarme, et ne garde alors plus rien (cf. test_slugs).
 # ➡️ LE CONTROLE VIT DONC LA OU IL EST EXACT, PAS APPROXIMATIF : `test:langues`
 #    interroge le MOTEUR, qui sait champ par champ ce qui est retombe sur le
-#    repli (`__repli`, engine/lib/editorial.mjs). Mesurer le HTML obligeait a
+#    repli (`__repli`, moteur/lib/editorial.mjs). Mesurer le HTML obligeait a
 #    deviner ; interroger la source ne demande aucun seuil.
 
 # ── 9. fuite de donnees ─────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 // Donnees structurees JSON-LD.
 import { coteFermee } from './cote.mjs';
-import { nu } from './i18n.mjs';
+import { nu } from '../../moteur/lib/i18n.mjs';
 // ═══════════════════════════════════════════════════════════════════════════
 // 🔴🔴🔴 LOT 228 — LES SENTINELLES D'I18N NE DOIVENT PAS SORTIR D'ICI
 // ═══════════════════════════════════════════════════════════════════════════

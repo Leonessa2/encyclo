@@ -226,7 +226,7 @@ if (pret) {
   } else {
     // ⭐ Les langues viennent du MANIFESTE, pas d'une liste écrite ici. Une
     //   langue ajoutée demain est testée demain, sans que personne y pense.
-    const { languesInterface } = await import('../lib/i18n.mjs');
+    const { languesInterface } = await import('../../moteur/lib/i18n.mjs');
     let langues = ['en'];
     try { langues = languesInterface(); } catch { /* repli sur la seule sûre */ }
 
@@ -310,7 +310,7 @@ if (pret) {
     // aurait trouvé aucune page membre, et serait sorti VERT sur zéro page —
     // le vert le plus dangereux qui soit.
     {
-      const { langueUiDansEntete } = await import('../lib/i18n.mjs');
+      const { langueUiDansEntete } = await import('../../moteur/lib/i18n.mjs');
       const MEMBRE = ['/compte/', '/market/', '/favoris/', '/dashboard/', '/alertes/', '/classeur/', '/mint-hunter/'];
       if (!langueUiDansEntete()) {
         // ⭐ SANS OBJET, et on l'imprime. vevewiki n'a pas de sélecteur

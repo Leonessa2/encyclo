@@ -32,7 +32,7 @@
 // retirés exprès) et l'y remettre publierait 19 412 prix par un chemin que
 // `projeter()` ne voit pas. `test:rayon` §① tient cette liste.
 import { clen, couperMots } from './seo.mjs';
-import { nu } from './i18n.mjs';
+import { nu } from '../../moteur/lib/i18n.mjs';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LES BUDGETS — décidés par Preda le 11/08, écrits ici et nulle part ailleurs

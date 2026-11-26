@@ -31,10 +31,10 @@ import { render } from 'astro:content';
 import Base from '../../layouts/Base.astro';
 import { translationPaths, tagsFor, postsFor, dureeLecture } from '../../../engine/lib/blog.mjs';
 import { dataset } from '../../../engine/lib/dataset.mjs';
-import { manifest, siteUrl } from '../../../engine/lib/manifest.mjs';
+import { manifest, siteUrl } from '../../../moteur/lib/manifest.mjs';
 import { jsonld, breadcrumbLd } from '../../../engine/lib/seo.mjs';
-import { t, localize, dateLocale } from '../../../engine/lib/i18n.mjs';
-import { carteArticle } from '../../../engine/lib/og.mjs';
+import { t, localize, dateLocale } from '../../../moteur/lib/i18n.mjs';
+import { carteArticle } from '../../../moteur/lib/og.mjs';
 
 const { lang, post, updatedAt } = Astro.props;
 const m = manifest();

@@ -12,9 +12,9 @@ import Cote from '../Cote.astro';
 // qui n'ont aucun `[data-ventes]` — meme arbitrage que `Cadran.astro`.
 import { moduleJs } from '../../../engine/lib/socle_js.mjs';
 import { productLd, breadcrumbLd, couperMilieu } from '../../../engine/lib/seo.mjs';
-import { manifest, siteUrl } from '../../../engine/lib/manifest.mjs';
-import { DESC_MIN, DESC_MAX } from '../../../engine/lib/editorial_pages.mjs';
-import { t, localize, numberLocale, dateLocale, nu } from '../../../engine/lib/i18n.mjs';
+import { manifest, siteUrl } from '../../../moteur/lib/manifest.mjs';
+import { DESC_MIN, DESC_MAX } from '../../../moteur/lib/editorial_pages.mjs';
+import { t, localize, numberLocale, dateLocale, nu } from '../../../moteur/lib/i18n.mjs';
 import { imageFiche, ONERROR_REPLI } from '../../../engine/lib/image_cdn.mjs';
 import { postsForItem } from '../../../engine/lib/blog.mjs';
 import { rar, forme, delta, gemsM, RAR, omiM, mcpPoints, mentionEdition, dateSeule, urlStackR } from '../../../engine/lib/vitrine.mjs';
@@ -183,7 +183,7 @@ const varEtat = !varLe ? 'absent'
 // ne fait pas d'erreur : il fait de la chaleur, et il fait croire que la
 // donnée circule encore.
 // ⛔ `priceChartSVG` et `courbeSVG` restent importés : `chart.mjs` les sert à
-//    d'autres gabarits (Analytics), et `outils/imports-orphelins.mjs` dira si
+//    d'autres gabarits (Analytics), et `moteur/bancs/imports-orphelins.mjs` dira si
 //    ce n'est plus vrai.
 const money = (v) => (v === null || v === undefined ? '—' : v.toLocaleString(nf, { maximumFractionDigits: 2 }));
 const pct = (v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(1)} %`);
@@ -469,7 +469,7 @@ const descItem = tient(descLongue) ? descLongue
 // 🏷️ LA MÉTHODE DE DROP, DITE DANS LA LANGUE DE LA PAGE.
 // ⛔ ON NE PASSE PAS LA VALEUR DIRECTEMENT À `t()`, et c'est tout l'intérêt de
 // ce garde : `t()` rend LA CLÉ BRUTE quand elle est absente du dictionnaire
-// (`?? key`, engine/lib/i18n.mjs). Le jour où VeVe ajoute une cinquième
+// (`?? key`, moteur/lib/i18n.mjs). Le jour où VeVe ajoute une cinquième
 // méthode, un `t(lang, \`item.drop.\${v}\`)` nu afficherait « item.drop.LOTTERY »
 // aux visiteurs — une chaîne de code sur une fiche publique.
 // ⭐ Ici l'inconnu retombe sur SA PROPRE VALEUR : « LOTTERY » s'affiche, c'est

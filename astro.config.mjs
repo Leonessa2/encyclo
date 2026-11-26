@@ -10,7 +10,7 @@ import temoinBuild from './engine/lib/astro_temoin_build.mjs';
 import extremes from './engine/lib/astro_extremes.mjs';
 import { satteri } from '@astrojs/markdown-satteri';
 import figuresMarkdown from './engine/lib/figures_markdown.mjs';
-import { siteUrl } from './engine/lib/manifest.mjs';
+import { siteUrl } from './moteur/lib/manifest.mjs';
 
 // Rendu HYBRIDE : chaque site choisit son mode via la variable RENDERING
 //   static  (defaut) = tout est pre-genere, aucun serveur

@@ -1,6 +1,6 @@
 import { postsFor } from '../../engine/lib/blog.mjs';
-import { manifest, siteUrl } from '../../engine/lib/manifest.mjs';
-import { locales, localize, t, nu } from '../../engine/lib/i18n.mjs';
+import { manifest, siteUrl } from '../../moteur/lib/manifest.mjs';
+import { locales, localize, t, nu } from '../../moteur/lib/i18n.mjs';
 
 // 🔴🔴🔴 CORRECTIF J-1 (07/09, 18:25Z) — `nu()` AUTOUR DE CHAQUE `t()`, ET
 // C'EST UN DÉFAUT SERVI QUI L'A DEMANDÉ, MESURÉ SUR LA PRODUCTION.

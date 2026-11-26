@@ -378,7 +378,7 @@ if (gros.length) {
 //    valeur » : il dit « une valeur a été posée là exprès, et elle gagne ».
 //    Le jour où Preda voudra 60 px, la constante bouge et le banc suit.
 {
-  const { decouper, quiGagne } = await import('./_cascade.mjs');
+  const { decouper, quiGagne } = await import('../../moteur/bancs/_cascade.mjs');
   const { regles, anomalies } = decouper(texteFeuilleBrut);
 
   // ── A · la feuille se découpe-t-elle proprement ? ────────────────────────
@@ -764,7 +764,7 @@ console.log('\n═══ LOT 203, POINT `ag` — la série est bornée, et son n
   //   critère EXACT que `Dashboard.astro` et `test:promesses` emploient déjà
   //   pour décider si la caisse existe. Trois lecteurs, un seul critère : c'est
   //   la seule façon qu'ils ne divergent pas.
-  const { manifest: manifeste204 } = await import(join(R, 'engine/lib/manifest.mjs'));
+  const { manifest: manifeste204 } = await import(join(R, 'moteur/lib/manifest.mjs'));
   const venteOuverte204 = Boolean(String(manifeste204().offer?.url || '').trim());
   if (!venteOuverte204) {
     console.log(`\n  --  §204-B SANS OBJET — « ${process.env.SITE} » ne déclare pas d'\`offer.url\` : ce site ne sert pas de caisse.`);
@@ -1320,7 +1320,7 @@ console.log('\n═══ LOT 203, POINT `ag` — la série est bornée, et son n
 // nomme le premier PRÉCISÉMENT pour qu'on cesse de le confondre avec le second.*
 {
   // ── ① QUELLES VALEURS LE CODE POSE-T-IL VRAIMENT ? ───────────────────────
-  // ⛔ PAS la liste blanche de `engine/lib/theme.mjs` : elle contient `jour`,
+  // ⛔ PAS la liste blanche de `moteur/lib/theme.mjs` : elle contient `jour`,
   // qui est une valeur de COOKIE (« j'ai choisi clair ») et non un attribut —
   // le clair se rend en RETIRANT l'attribut. Lire cette liste-là aurait rendu
   // ce banc vert sur le défaut même qu'il existe pour attraper. *On lit le

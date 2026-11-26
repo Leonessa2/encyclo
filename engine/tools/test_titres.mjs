@@ -43,7 +43,7 @@
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { localeNames, nu, t } from '../lib/i18n.mjs';
+import { localeNames, nu, t } from '../../moteur/lib/i18n.mjs';
 // ⭐⭐ LA FENÊTRE DES DESCRIPTIONS EXISTE DÉJÀ, ET ELLE N'AVAIT PAS DE JUGE.
 // `DESC_MIN = 70` / `DESC_MAX = 160` sont écrits dans `editorial_pages.mjs`
 // depuis l'audit SEO du 27/07 — mais ils n'y produisaient qu'un `console.warn`,
@@ -52,7 +52,7 @@ import { localeNames, nu, t } from '../lib/i18n.mjs';
 // 70 caractères jusqu'à l'audit du 10/08. ⛔ On ne fabrique donc PAS deux
 // nouveaux nombres ici. *Un seuil recopié est un seuil qui divergera ; un
 // avertissement qui n'arrête rien est un seuil qui n'existe pas.*
-import { DESC_MIN, DESC_MAX } from '../lib/editorial_pages.mjs';
+import { DESC_MIN, DESC_MAX } from '../../moteur/lib/editorial_pages.mjs';
 import { pageTitle, TITLE_BUDGET, couperMilieu, couperMots, texteVu } from '../lib/seo.mjs';
 
 const R = new URL('../..', import.meta.url).pathname;
@@ -402,7 +402,7 @@ if (hors.length) {
   console.log('        la description est écrite, servie, et sans aucun effet. Au-dessus de');
   console.log(`        ${DESC_MAX}, elle est coupée — et la fin, c'est ce qu'on avait à dire.`);
   console.log('     ➡️  Y faire entrer le NOMBRE (« 16 682 comics »), pas des adjectifs.');
-  console.log(`     ⚠️  Les bornes viennent de \`engine/lib/editorial_pages.mjs\` — les changer`);
+  console.log(`     ⚠️  Les bornes viennent de \`moteur/lib/editorial_pages.mjs\` — les changer`);
   console.log('        ici seulement les ferait diverger de l\'avertissement éditorial.');
 }
 

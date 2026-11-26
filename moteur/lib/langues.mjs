@@ -2,11 +2,11 @@
 //  langues.mjs — UNE SECTION PAR LANGUE : la couverture de traduction MESURÉE
 //
 //  ⚠️ CE FICHIER VA DANS LE DÉPÔT  Leonessa2/veve-sites , dans  engine/lib/
-//     (chemin exact : engine/lib/langues.mjs)
+//     (chemin exact : moteur/lib/langues.mjs)
 //
 //  LE PROBLÈME QU'IL RÉSOUT
 //  --------------------------------------------------------------------------
-//  vevewiki portait 152 entrées (87 termes de glossaire, 65 sigles) DÉJÀ
+//  le site à cinq langues portait 152 entrées (87 termes de glossaire, 65 sigles) DÉJÀ
 //  traduites en espagnol, italien et allemand — et invisibles, parce que le
 //  moteur ne savait activer une langue que pour le SITE ENTIER. Ajouter `es` à
 //  `languages.active` aurait publié /es/brands/, /es/history/ et /es/annuaire/
@@ -34,8 +34,8 @@
 //  une colonne facultative à moitié remplie condamnerait la section dans
 //  toutes les langues.
 //
-//  GÉNÉRIQUE PAR CONSTRUCTION : rien ici ne connaît vevewiki. Un site sans bloc
-//  `editorial` (veveprice) n'est pas mesuré du tout — ses langues restent
+//  GÉNÉRIQUE PAR CONSTRUCTION : rien ici ne connaît le site à cinq langues. Un site sans bloc
+//  `editorial` (le site de prix) n'est pas mesuré du tout — ses langues restent
 //  exactement celles de son manifeste.
 // =============================================================================
 import { manifest } from './manifest.mjs';

@@ -39,7 +39,7 @@
 //   moteur continue de décider lesquels ont une page.
 import Base from '../../layouts/Base.astro';
 import { postsFor, tagsFor, blogMeta, languesBlog, dureeLecture } from '../../../engine/lib/blog.mjs';
-import { t, localize, dateLocale } from '../../../engine/lib/i18n.mjs';
+import { t, localize, dateLocale } from '../../../moteur/lib/i18n.mjs';
 
 const { lang, updatedAt } = Astro.props;
 const posts = await postsFor(lang);

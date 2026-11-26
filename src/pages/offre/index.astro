@@ -2,7 +2,7 @@
 // Route racine (langue par défaut). ⭐ Mince par construction : toute la page
 // vit dans le composant, donc les deux routes ne peuvent pas diverger.
 import Offre from '../../components/pages/Offre.astro';
-import { locales } from '../../../engine/lib/i18n.mjs';
+import { locales } from '../../../moteur/lib/i18n.mjs';
 const lang = locales().def;
 ---
 <Offre lang={lang} />

@@ -16,26 +16,26 @@
    c'est la seule qui décide de ce qu'on voit à l'écran.
 
    Usage :
-     node outils/cascade-resolue.mjs <feuille.css> <page.html> [sélecteur] [largeur]
+     node moteur/bancs/cascade-resolue.mjs <feuille.css> <page.html> [sélecteur] [largeur]
    Exemple, sur ce qui est SERVI (et pas sur le dépôt) :
-     curl -s https://veveprice.com/analytics/            -o /tmp/p.html
-     curl -s https://veveprice.com/theme-<empreinte>.css -o /tmp/t.css
-     node outils/cascade-resolue.mjs /tmp/t.css /tmp/p.html main 1280
+     curl -s https://<domaine du site>/analytics/            -o /tmp/p.html
+     curl -s https://<domaine du site>/theme-<empreinte>.css -o /tmp/t.css
+     node moteur/bancs/cascade-resolue.mjs /tmp/t.css /tmp/p.html main 1280
 
    ⛔ CE QU'IL NE FAIT PAS — à lire avant de s'en servir : il ne résout pas
    `var()`, n'applique ni héritage ni layout, ne connaît que `min/max-width` en
    px, ignore `@supports` et `@container`. Il répond à UNE question.
-   ⭐ Le moteur vit dans `engine/tools/_cascade.mjs` — le même que celui du banc
+   ⭐ Le moteur vit dans `moteur/bancs/_cascade.mjs` — le même que celui du banc
    `test:feuille`, et il n'a AUCUNE dépendance hors `linkedom` (déjà déclaré).
    Deux instruments qui répondraient séparément finiraient par diverger.
    ═══════════════════════════════════════════════════════════════════════════ */
 import { readFileSync } from 'node:fs';
 import { parseHTML } from 'linkedom';
-import { decouper, quiGagne } from '../engine/tools/_cascade.mjs';
+import { decouper, quiGagne } from './_cascade.mjs';
 
 const [, , fCss, fHtml, sel = 'main', largeurA] = process.argv;
 if (!fCss || !fHtml) {
-  console.error('usage : node outils/cascade-resolue.mjs <feuille.css> <page.html> [sélecteur] [largeur]');
+  console.error('usage : node moteur/bancs/cascade-resolue.mjs <feuille.css> <page.html> [sélecteur] [largeur]');
   process.exit(2);
 }
 const LARGEURS = largeurA ? [Number(largeurA)] : [1280, 390];

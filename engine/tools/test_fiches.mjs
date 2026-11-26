@@ -37,7 +37,7 @@ dit(new Set(fr.map((f) => f.slug)).size === fr.length, 'aucun slug en double');
 dit(fr.every((f) => f.slug === f.slug.toLowerCase() && !/[^a-z0-9-]/.test(f.slug)), 'les slugs sont propres');
 
 console.log('\n2. Le SEUIL — mieux vaut 29 bonnes fiches que 44 tièdes');
-const { collection } = await import('../lib/editorial.mjs');
+const { collection } = await import('../lib/contenu.mjs');
 const toutes = (await collection('brands', 'fr')).items;
 dit(fr.length < toutes.length, `${toutes.length - fr.length} entrées restent sans page (sous le seuil)`);
 dit(fr.every((f) => (f.agg?.n_items || 0) >= 5 || f.jalons.length > 0),

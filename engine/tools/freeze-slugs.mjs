@@ -4,7 +4,7 @@
 import { writeFileSync, existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { dataset, migrerRacines } from '../lib/dataset.mjs';
-import { SITE } from '../lib/manifest.mjs';
+import { SITE } from '../../moteur/lib/manifest.mjs';
 
 const ROOT = process.env.PROJECT_ROOT || process.cwd();
 const out = join(ROOT, 'sites', SITE, 'slugs.json');

@@ -38,8 +38,8 @@ export const prerender = true;
 const secretDeService = () => process.env.VEVEID_SERVICE || process.env.ID_SERVICE || '';
 
 
-import { t, locales, languesInterface } from '../../../engine/lib/i18n.mjs';
-import { CHAMP_PIEGE, verdict, adresseVisiteur } from '../../../engine/lib/robots.mjs';
+import { t, locales, languesInterface } from '../../../moteur/lib/i18n.mjs';
+import { CHAMP_PIEGE, verdict, adresseVisiteur } from '../../../moteur/lib/robots.mjs';
 
 const langueDe = (request) => {
   const { active, def } = locales();
@@ -92,7 +92,7 @@ export async function POST(context) {
   if (!email) return context.redirect('/connexion/?e=1', 303);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // ⭐⭐ LES GARDE-FOUS ANTI-ROBOTS — voir engine/lib/robots.mjs pour le POURQUOI.
+  // ⭐⭐ LES GARDE-FOUS ANTI-ROBOTS — voir moteur/lib/robots.mjs pour le POURQUOI.
   // ═══════════════════════════════════════════════════════════════════════════
   // ⛔ ON REND LA MÊME PAGE QU'UN SUCCÈS. Dire « vous êtes un robot »
   //    apprendrait à son auteur ce qui l'a trahi, donc comment corriger. Et un

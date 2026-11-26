@@ -1,4 +1,4 @@
-import { manifest } from '../../engine/lib/manifest.mjs';
+import { manifest } from '../../moteur/lib/manifest.mjs';
 // IndexNow exige que la cle soit servie a la racine du site sous <cle>.txt
 export function getStaticPaths() {
   const key = manifest().seo?.indexnow_key;

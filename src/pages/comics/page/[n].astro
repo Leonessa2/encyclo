@@ -9,7 +9,7 @@
 //    ⭐ Le cas est assez rare pour etre accepte, assez reel pour etre ecrit.
 import Rayon, { PAR_PAGE } from '../../../components/Rayon.astro';
 import { priceEnabled } from '../../../../engine/lib/features.mjs';
-import { locales } from '../../../../engine/lib/i18n.mjs';
+import { locales } from '../../../../moteur/lib/i18n.mjs';
 import { dataset } from '../../../../engine/lib/dataset.mjs';
 export async function getStaticPaths() {
   if (!priceEnabled()) return [];

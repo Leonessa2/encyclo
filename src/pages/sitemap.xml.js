@@ -1,9 +1,9 @@
 import { dataset } from '../../engine/lib/dataset.mjs';
-import { siteUrl, SITE } from '../../engine/lib/manifest.mjs';
-import { locales, localize } from '../../engine/lib/i18n.mjs';
-import { DOCS, languesLegales } from '../../engine/lib/legal.mjs';
+import { siteUrl, SITE } from '../../moteur/lib/manifest.mjs';
+import { locales, localize } from '../../moteur/lib/i18n.mjs';
+import { DOCS, languesLegales } from '../../moteur/lib/legal.mjs';
 import { priceEnabled } from '../../engine/lib/features.mjs';
-import { activeSections, sectionMeta, languesDeSection, languesDuSite } from '../../engine/lib/editorial_pages.mjs';
+import { activeSections, sectionMeta, languesDeSection, languesDuSite } from '../../moteur/lib/editorial_pages.mjs';
 import { ficheSections, fichesDe, cheminFiche } from '../../engine/lib/editorial_entries.mjs';
 import { postsFor, tagsFor, translationPaths, SEUIL_INDEX_TAG, languesBlog } from '../../engine/lib/blog.mjs';
 // ⭐⭐ LE `lastmod` NE PEUT PAS ÊTRE « AUJOURD'HUI » POUR TOUT LE MONDE.
@@ -93,7 +93,7 @@ export async function GET() {
   // pas construites. Un sitemap qui liste des 404 est pire qu'un sitemap
   // incomplet : il apprend au moteur a se mefier de TOUT le fichier.
   // Une section n'est publiee que dans les langues ou elle est traduite
-  // (engine/lib/langues.mjs) ; la liste vient de la MEME fonction que les
+  // (moteur/lib/langues.mjs) ; la liste vient de la MEME fonction que les
   // routes et que les hreflang du gabarit, donc les trois ne peuvent pas
   // diverger.
   const langsSite = languesDuSite();

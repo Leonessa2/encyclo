@@ -34,7 +34,7 @@ export function locales() {
 // (rien ne se perd) et `[en,fr]` à la troisième (le seul vrai contenu
 // multilingue du réseau).
 //
-// ⛔ CHACUNE RETOMBE SUR `active` QUAND LE MANIFESTE SE TAIT. `vevewiki` ne
+// ⛔ CHACUNE RETOMBE SUR `active` QUAND LE MANIFESTE SE TAIT. le site à cinq langues ne
 // déclare ni `interface` ni `blog` : il garde EXACTEMENT le comportement
 // d'avant ce lot, sans qu'une ligne de son manifeste bouge. *Un réglage neuf
 // dont l'absence change quelque chose est un piège pour l'autre site.*
@@ -56,11 +56,11 @@ export function languesInterface() {
  *  🔴🔴 CE PRÉDICAT NE LIT **PAS** `identity.langues_dans`, ET C'EST TOUT LE
  *  SUJET DU LOT 139. Mesuré le 11/08/2026 sur les 147 pages construites :
  *
- *    veveprice  ·  languages.active    = [en]                ← 1 ADRESSE
+ *    le site de prix  ·  languages.active    = [en]                ← 1 ADRESSE
  *                  languages.interface = [en, fr, es, de]    ← 4 LIBELLÉS
  *
  *  `langues_dans` décide où vont les liens vers les AUTRES ADRESSES
- *  (`alternates`). Sur veveprice il n'y en a qu'une : les trois blocs qui en
+ *  (`alternates`). Sur le site de prix il n'y en a qu'une : les trois blocs qui en
  *  dépendent (`.langbar` de l'en-tête, `.globe` du compte, `.f-langues` du
  *  pied) sont soit gatés sur `alternates.length > 1`, soit réduits à un seul
  *  choix — « EN ». Mesuré : **0 `.langbar` et 0 `hreflang` dans le corps des
@@ -68,7 +68,7 @@ export function languesInterface() {
  *  notice du lot le proposait, n'aurait donc RIEN affiché du tout.
  *
  *  ⭐⭐⭐ *Une demande peut être parfaitement claire et porter sur un mécanisme
- *  qui ne peut pas la satisfaire.* Ce qu'un visiteur de veveprice ne peut pas
+ *  qui ne peut pas la satisfaire.* Ce qu'un visiteur du site de prix ne peut pas
  *  faire aujourd'hui, ce n'est pas « changer d'adresse » — c'est **choisir la
  *  langue de l'interface**, alors que le site en porte quatre. Le seul endroit
  *  qui pose le cookie `vp_langue` est `/compte/`, `/connexion/` et
@@ -85,7 +85,7 @@ export function languesInterface() {
  *  libellés ») ; on ne les recolle pas dans un enum.
  *
  *  ⛔⛔ ET SURTOUT : PAS DE NÉGATION. Le défaut vaut `'compte'`, c'est-à-dire
- *  le comportement d'aujourd'hui — vevewiki, qui ne pose pas la clé, ne bouge
+ *  le comportement d'aujourd'hui — le site à cinq langues, qui ne pose pas la clé, ne bouge
  *  pas d'un octet. Écrire `!== 'compte'` rendrait vraie toute valeur mal
  *  orthographiée : `entete` deviendrait la valeur par DÉFAUT des fautes de
  *  frappe. La comparaison est positive, comme `langueOu === 'entete'` que le
@@ -164,10 +164,19 @@ export function choisirLangue({ demande, cookie, accept, dispo, def }) {
   return { lang: souhaits.find(ok) || def, aPoser: false };
 }
 
+/** Le dossier des dictionnaires de libellés : un RÉGLAGE du site
+ *  (`moteur.dictionnaires` dans son manifeste), pas un chemin du moteur. */
+export function dossierDictionnaires() {
+  const d = String(manifest().moteur?.dictionnaires || '').trim();
+  if (!d) throw new Error('[moteur] réglage `moteur.dictionnaires` absent du manifeste du site.');
+  return join(ROOT, d);
+}
+
 export function dict(lang) {
   if (cache.has(lang)) return cache.get(lang);
+  const dossier = dossierDictionnaires();   // ⛔ hors du try : un réglage absent doit se voir
   let d = {};
-  try { d = JSON.parse(readFileSync(join(ROOT, 'engine', 'i18n', `${lang}.json`), 'utf8')); } catch {}
+  try { d = JSON.parse(readFileSync(join(dossier, `${lang}.json`), 'utf8')); } catch {}
   cache.set(lang, d);
   return d;
 }
@@ -216,7 +225,7 @@ export function dict(lang) {
 //
 // ⚠️ LES SENTINELLES SONT DES CARACTÈRES DE CONTRÔLE (U+0011..U+0013), pas des
 // balises : ils traversent l'échappement HTML d'Astro sans être transformés, et
-// ils ne peuvent apparaître dans aucun texte réel. `outils/marquer_i18n.mjs`
+// ils ne peuvent apparaître dans aucun texte réel. `moteur/outils/marquer_i18n.mjs`
 // les convertit en `data-i18n` après le build. ⛔ Si ce post-traitement ne
 // tourne pas, ils resteraient VISIBLES dans la page : `test:i18n` refuse toute
 // sentinelle survivante dans `dist/`, c'est la première chose qu'il regarde.
@@ -277,7 +286,7 @@ export function pick(value, lang) {
 // `/offre/`, formules comprises**. La page qui vend était la moins traduite.
 //
 // ⭐⭐⭐ ET CE N'ÉTAIT PAS UN DÉFAUT DE TRADUCTION. `manifest.yml` porte
-// `fr/en/es/de/it` pour l'accroche comme pour les paliers ; `engine/legal/*.json`
+// `fr/en/es/de/it` pour l'accroche comme pour les paliers ; `moteur/legal/*.json`
 // porte les cinq titres. **Les traductions existaient toutes.** Ce qui manquait,
 // c'est que `pick()` rend la chaîne anglaise choisie AU BUILD, sans sentinelle :
 // le navigateur n'a rien à échanger, et rien ne le signale.
@@ -291,8 +300,8 @@ export function pick(value, lang) {
 //
 // LA CONVENTION, ET ELLE EST MÉCANIQUE — ⛔ pas un nom choisi au hasard :
 //   `mf.<chemin.dans.le.manifeste>`   ex. `mf.identity.accroche`
-//   `lg.<doc>`                        ex. `lg.mentions`  (engine/legal/<lang>.json)
-// ⭐ `outils/marquer_i18n.mjs` RÉSOUT ces clés en relisant le manifeste et les
+//   `lg.<doc>`                        ex. `lg.mentions`  (moteur/legal/<lang>.json)
+// ⭐ `moteur/outils/marquer_i18n.mjs` RÉSOUT ces clés en relisant le manifeste et les
 // fichiers légaux — donc **aucun registre à tenir, aucune valeur recopiée**.
 // Une clé dont le chemin ne mène nulle part est signalée, pas ignorée.
 //
@@ -341,7 +350,7 @@ export function pickT(value, lang, cle) {
 //
 // ⛔ LE REPLI EST LE BON REPLI : une langue sans adresse retombe sur la langue
 // par défaut, qui a TOUJOURS une adresse. On ne rend jamais un lien mort.
-// ⚠️ CETTE LIGNE NE CHANGE RIEN SUR vevewiki, dont les cinq langues sont toutes
+// ⚠️ CETTE LIGNE NE CHANGE RIEN SUR le site à cinq langues, dont les cinq langues sont toutes
 // dans `active` — vérifié, 268 pages inchangées. Elle ne mord que là où une
 // langue d'INTERFACE s'était échappée dans une URL.
 // 🔴 Elle guérit aussi le canonical : `Base.astro` construisait
@@ -374,7 +383,7 @@ export function pickT(value, lang, cle) {
 //    les langues du blog, exactement comme `[locale]/blog/`.
 // ⭐ LE REPLI NE CHANGE PAS : une langue qui n'a d'adresse dans AUCUNE des deux
 //    listes retombe sur la langue par défaut. On ne rend jamais un lien mort.
-// ⚠️ SANS EFFET SUR vevewiki, dont les cinq langues sont dans `active` : les
+// ⚠️ SANS EFFET SUR le site à cinq langues, dont les cinq langues sont dans `active` : les
 //    deux listes y donnent le même préfixe. Vérifié par la chaîne, deux sites.
 // ⛔ NE PAS étendre ce motif à d'autres chemins « par prudence » : chaque
 //    entrée est une promesse que la page existe dans cette langue, et une

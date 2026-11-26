@@ -695,7 +695,7 @@ editorial:
     blog:
       title: { fr: "Blog", en: "Blog" }
       # ⚠️ 70 caractères minimum (audit SEO) : en dessous, Google fabrique son
-      # propre extrait. Cf. DESC_MIN dans engine/lib/editorial_pages.mjs.
+      # propre extrait. Cf. DESC_MIN dans moteur/lib/editorial_pages.mjs.
       description:
         fr: "Ce que les chiffres racontent quand on les regarde de près : chaque article s'appuie sur les relevés du site, avec ses sources."
         en: "What the numbers say when you look closely: every article is built on this site's own price records, sources included."

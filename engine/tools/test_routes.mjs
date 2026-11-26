@@ -43,11 +43,11 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const { manifest } = await import('../lib/manifest.mjs');
-const { locales, localize } = await import('../lib/i18n.mjs');
+const { manifest } = await import('../../moteur/lib/manifest.mjs');
+const { locales, localize } = await import('../../moteur/lib/i18n.mjs');
 const { priceEnabled } = await import('../lib/features.mjs');
 const { languesBlog, blogEnabled } = await import('../lib/blog.mjs');
-const { languesDuSite } = await import('../lib/editorial_pages.mjs');
+const { languesDuSite } = await import('../../moteur/lib/editorial_pages.mjs');
 
 let echecs = 0;
 const dit = (ok, titre, detail) => {

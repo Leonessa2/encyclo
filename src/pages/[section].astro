@@ -4,8 +4,8 @@
 // n'émet QUE les sections activées dans manifest.editorial.pages : un site qui
 // n'active rien ne génère aucune de ces adresses.
 import Editorial from '../components/pages/Editorial.astro';
-import { locales } from '../../engine/lib/i18n.mjs';
-import { sectionParamsDefault } from '../../engine/lib/editorial_pages.mjs';
+import { locales } from '../../moteur/lib/i18n.mjs';
+import { sectionParamsDefault } from '../../moteur/lib/editorial_pages.mjs';
 
 export function getStaticPaths() {
   return sectionParamsDefault();

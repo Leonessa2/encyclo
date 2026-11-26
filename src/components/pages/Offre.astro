@@ -19,7 +19,7 @@
 // qu'un bouton absent.
 import Base from '../../layouts/Base.astro';
 import { dataset } from '../../../engine/lib/dataset.mjs';   // 🔴 LOT 112 — la date du pied de page, rien d'autre
-import { manifest } from '../../../engine/lib/manifest.mjs';
+import { manifest } from '../../../moteur/lib/manifest.mjs';
 import { acces, porte, catalogueModules } from '../../../engine/lib/access.mjs';
 import { forme, iconePalier } from '../../../engine/lib/vitrine.mjs';
 // 🔴 LOT 140-4 — un palier gratuit ne s'ouvre que si le site ouvre des comptes.
@@ -71,7 +71,7 @@ const nomPlan = (cle) => {
 const cadenas = () => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
   + 'stroke-width="2" stroke-linecap="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/>'
   + '<path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg>';
-import { t, localize, pick, pickT, numberLocale } from '../../../engine/lib/i18n.mjs';   // 🔴 LOT 213 — la TABLE de locales (pas une fonction) pour grouper le chiffre de l'accroche
+import { t, localize, pick, pickT, numberLocale } from '../../../moteur/lib/i18n.mjs';   // 🔴 LOT 213 — la TABLE de locales (pas une fonction) pour grouper le chiffre de l'accroche
 
 // ⭐ LA LANGUE ARRIVE EN PROP, ELLE NE SE DEVINE PLUS.
 // La version précédente faisait `locales().def` : la page n'existait donc qu'en

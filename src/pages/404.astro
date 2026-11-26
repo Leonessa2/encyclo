@@ -14,8 +14,8 @@
 // ici elle a juste a etre accueillante.
 // ⛔ LA POSE N'EST PAS CHOISIE : `floora('404')` la rend. Voir engine/lib/floora.mjs.
 import Base from '../layouts/Base.astro';
-import { locales, t, localize } from '../../engine/lib/i18n.mjs';
-import { activeSections, sectionMeta } from '../../engine/lib/editorial_pages.mjs';
+import { locales, t, localize } from '../../moteur/lib/i18n.mjs';
+import { activeSections, sectionMeta } from '../../moteur/lib/editorial_pages.mjs';
 import { blogEnabled } from '../../engine/lib/blog.mjs';
 import { floora } from '../../engine/lib/floora.mjs';
 const lang = locales().def;

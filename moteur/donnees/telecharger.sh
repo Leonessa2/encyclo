@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Dépôt : Leonessa2/encyclo — fichier : outils/donnees_scrapeur.sh
-# Lancé par : .github/workflows/construire.yml (lot 3, 26/11/2026)
+# Moteur commun — fichier : moteur/donnees/telecharger.sh
+# Lancé par le workflow de construction du site (né au lot 3 du premier site).
 #
 # Télécharge les fichiers publiés par le scrapeur dont la construction a besoin,
 # dans .donnees/ (gardé d'une exécution à l'autre par le cache de GitHub).
@@ -16,17 +16,13 @@
 set -u
 DOSSIER="${DONNEES_DOSSIER:-.donnees}"
 mkdir -p "$DOSSIER"
-J=https://github.com/Leonessa2/jetonveve/releases/download
-S=https://github.com/Leonessa2/scrapeur-veve/releases/download
-# variable | fichier local | adresse de la release
-LISTE="CATALOGUE_URL|catalogue.csv.gz|$J/catalogue/catalogue.csv.gz
-PRICES_URL|prices.csv.gz|$J/prices-full/prices.csv.gz
-BASELINES_URL|prices_baselines.csv.gz|$J/prices-full/prices_baselines.csv.gz
-RELEVES_URL|releves.csv|$J/etat-floor-watch/releves.csv
-EXTREMES_STACKR_URL|extremes_stackr.csv|$J/etat-floor-watch/extremes_stackr.csv
-OMI_USD_URL|omi_usd.csv|$J/etat-floor-watch/omi_usd.csv
-FICHES_STACKR_URL|fiches_stackr.csv|$J/etat-fiches-stackr/fiches_stackr.csv
-VENTES_URL|ventes_stackr.csv|$S/etat-ventes-stackr/ventes_stackr.csv"
+# La LISTE est un réglage du site : sites/<site>/donnees.txt, une ligne par
+# fichier « variable | fichier local | adresse », « # » = commentaire.
+: "${SITE:?SITE doit désigner le dossier du site dans sites/}"
+FICHIER_LISTE="${DONNEES_LISTE:-sites/$SITE/donnees.txt}"
+[ -f "$FICHIER_LISTE" ] || { echo "::error::liste des données absente : $FICHIER_LISTE"; exit 1; }
+LISTE=$(grep -v '^[[:space:]]*#' "$FICHIER_LISTE" | grep -v '^[[:space:]]*$')
+[ -n "$LISTE" ] || { echo "::error::liste des données vide : $FICHIER_LISTE"; exit 1; }
 
 # Contre-épreuve : DONNEES_PANNE=1 simule un scrapeur qui ne publie plus
 # (toutes les adresses deviennent injoignables).

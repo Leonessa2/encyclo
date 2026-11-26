@@ -26,10 +26,10 @@
 // qui n'a pas d'index. Une boite de recherche qui ne trouve rien est pire
 // qu'une absence de boite : elle fait conclure au visiteur que le site est vide.
 import Base from '../../layouts/Base.astro';
-import { manifest } from '../../../engine/lib/manifest.mjs';
-import { pick, localize, t, dateLocale } from '../../../engine/lib/i18n.mjs';
-import { activeSections, sectionMeta } from '../../../engine/lib/editorial_pages.mjs';
-import { collection } from '../../../engine/lib/editorial.mjs';
+import { manifest } from '../../../moteur/lib/manifest.mjs';
+import { pick, localize, t, dateLocale } from '../../../moteur/lib/i18n.mjs';
+import { activeSections, sectionMeta } from '../../../moteur/lib/editorial_pages.mjs';
+import { collection } from '../../../engine/lib/contenu.mjs';
 import { blogEnabled, postsFor } from '../../../engine/lib/blog.mjs';
 import { ancreJalon } from '../../../engine/lib/editorial_entries.mjs';
 import { searchEnabled } from '../../../engine/lib/features.mjs';

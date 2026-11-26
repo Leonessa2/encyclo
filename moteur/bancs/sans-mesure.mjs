@@ -1,4 +1,4 @@
-// Dépôt : Leonessa2/encyclo — fichier : outils/sans-mesure.mjs
+// Moteur commun — fichier : moteur/bancs/sans-mesure.mjs
 // Lancé par : outils/bancs.sh apres (lot 4, 26/11/2026)
 //
 // Le wiki ne mesure plus son audience (Umami retiré au lot 4). Ce banc lit le
@@ -25,7 +25,7 @@ parcourir(DIST);
 // Le banc doit d'abord prouver qu'il regarde quelque chose.
 if (pages.length < 250) { console.log(`❌ seulement ${pages.length} pages HTML : banc creux`); process.exit(1); }
 
-const MOTIFS = [/data-website-id/i, /["'(]\/stats\//, /stats\.veveprice\.com/i, /umami/i, /plausible/i];
+const MOTIFS = [/data-website-id/i, /["'(]\/stats\//, /\bstats\.[a-z0-9-]+\.[a-z]{2,}\//i, /umami/i, /plausible/i];
 const fautes = [];
 for (const p of pages) {
   const t = readFileSync(p, 'utf8');

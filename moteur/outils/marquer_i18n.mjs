@@ -1,9 +1,9 @@
-// ⚠️ Leonessa2/veve-sites — outils/marquer_i18n.mjs   (FICHIER NEUF — lot 129)
+// ⚠️ Moteur commun — moteur/outils/marquer_i18n.mjs   (FICHIER NEUF — lot 129)
 // ═══════════════════════════════════════════════════════════════════════════
 //  LE POST-TRAITEMENT QUI TRANSFORME LES SENTINELLES EN `data-i18n`
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// `t()` (engine/lib/i18n.mjs) enrobe chaque libellé de trois caractères de
+// `t()` (moteur/lib/i18n.mjs) enrobe chaque libellé de trois caractères de
 // contrôle quand `I18N_MARQUAGE=1` :   ␑clé␒texte␓
 // Ce fichier les relit dans `dist/` et décide, POUR CHAQUE OCCURRENCE, ce
 // qu'elle devient. ⛔ Il ne devine rien : il regarde OÙ elle est tombée.
@@ -41,6 +41,12 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = process.env.PROJECT_ROOT || process.cwd();
+// ⛔ Aucun site par défaut (le moteur ne connaît aucun site par son nom).
+const SITE_ACTIF = () => {
+  const s = String(process.env.SITE || '').trim();
+  if (!s) throw new Error('[i18n] la variable SITE est obligatoire.');
+  return s;
+};
 const DIST = join(ROOT, 'dist');
 const RACINE = existsSync(join(DIST, 'client')) ? join(DIST, 'client') : DIST;
 
@@ -98,13 +104,13 @@ const clesDeformees = new Set();
 // strict produit exactement le même symptôme qu'une vraie panne » — écrite
 // pour le `_` de `mod.price_history`. Elle a été apprise sur un cas et n'a pas
 // été généralisée : le cas suivant a coûté 1 199 libellés.*
-// ⇒ Le prédicat vit désormais dans `engine/lib/cle_i18n.mjs`, importé ICI **et**
+// ⇒ Le prédicat vit désormais dans `moteur/lib/cle_i18n.mjs`, importé ICI **et**
 //   par `test:i18n` §2 : le marqueur ÉCRIT `data-i18n=`, le banc le RELIT, et
 //   deux copies de la même règle finissent toujours par diverger.
 // ⛔ La forme SURVIT comme repêchage des clés neuves — voir le module. Ce qui
 //   reste refusé échoue au dictionnaire ET à la forme : c'est le profil exact
 //   d'un `t()` transformé par un gabarit, et rien d'autre.
-import { estUneCle } from '../engine/lib/cle_i18n.mjs';
+import { estUneCle } from '../lib/cle_i18n.mjs';
 
 // ⚠️ CHARGÉ AVANT LA BOUCLE, ET SON ABSENCE SE DIT TOUT HAUT. Un dictionnaire
 // muet ferait retomber `estUneCle` sur la forme seule — c'est-à-dire remettre
@@ -112,8 +118,8 @@ import { estUneCle } from '../engine/lib/cle_i18n.mjs';
 // *Un repli silencieux est un repli qu'on découvre trois lots plus tard.*
 let DICT_REF = null;
 try {
-  const { locales: loc0 } = await import(join(ROOT, 'engine', 'lib', 'i18n.mjs'));
-  DICT_REF = JSON.parse(readFileSync(join(ROOT, 'engine', 'i18n', `${loc0().def}.json`), 'utf8'));
+  const { locales: loc0, dossierDictionnaires: dd0 } = await import(join(ROOT, 'moteur', 'lib', 'i18n.mjs'));
+  DICT_REF = JSON.parse(readFileSync(join(dd0(), `${loc0().def}.json`), 'utf8'));
 } catch (e) {
   console.warn(`[i18n] ⚠️ dictionnaire de référence ILLISIBLE (${e.message}) — `
     + 'le juge retombe sur la FORME seule : les clés à segment majuscule '
@@ -241,7 +247,7 @@ const clesVues = new Set();
 const clesAttribut = new Set();
 
 // ⚠️⚠️ `[^<]*?` ET PAS `[\s\S]*?`, ET CETTE DIFFÉRENCE A COÛTÉ UN `<head>`.
-// MESURÉ le 10/08 sur vevewiki : un `<meta description>` portait DEUX libellés
+// MESURÉ le 10/08 sur le site à cinq langues : un `<meta description>` portait DEUX libellés
 // marqués ; la passe des attributs n'en consommait qu'un et laissait le second
 // AMPUTÉ de sa sentinelle de fin. La passe suivante trouvait ce `␑` orphelin et
 // cherchait son `␓` — qu'elle finissait par trouver 7 000 octets plus loin,
@@ -347,12 +353,12 @@ for (const f of html) {
   // ═══════════════════════════════════════════════════════════════════════════
   // 🔴🔴🔴 LOT M — UN `<span>` DANS UN SVG ÉJECTE TOUT CE QUI SUIT
   // ═══════════════════════════════════════════════════════════════════════════
-  // 🔬 MESURÉ SUR LA PRODUCTION LE 08/09/2026, `https://vevewiki.com/brands/007/` :
+  // 🔬 MESURÉ SUR LA PRODUCTION LE 08/09/2026, `https://<domaine du site>/brands/007/` :
   // la page SERVIE porte **16 `<text>`** dans sa figure ; le SVG rendu n'en garde
   // qu'**UN**. Ses enfants réels : `title, desc, rect, rect, text` — cinq au lieu
   // de seize. Les quinze autres, et leurs `<span>`, sont reparentés **APRÈS
   // `</svg>`**. La figure occupe toujours 751×260 à l'écran : elle est vide.
-  // Dans le build : **145 SVG fautifs sur 170 pages** de vevewiki.
+  // Dans le build : **145 SVG fautifs sur 170 pages** du site à cinq langues.
   //
   // ⭐⭐⭐ LA CAUSE EST UNE RÈGLE D'ANALYSE, PAS UNE FAUTE DE CSS NI DE DONNÉES.
   // À l'intérieur d'un SVG, l'analyseur HTML est en « contenu étranger ». La
@@ -433,7 +439,7 @@ for (const f of html) {
 // 442 clés quand 60 sont échangeables ferait payer sept fois le poids utile —
 // et ferait croire, à qui lit le fichier, que tout est échangé.
 const ICI = dirname(fileURLToPath(import.meta.url));
-const { languesInterface, locales } = await import(join(ICI, '..', 'engine', 'lib', 'i18n.mjs'));
+const { languesInterface, locales, dossierDictionnaires } = await import(join(ICI, '..', 'lib', 'i18n.mjs'));
 const { def } = locales();
 const dossier = join(RACINE, 'i18n');
 mkdirSync(dossier, { recursive: true });
@@ -463,14 +469,14 @@ const manifesteBrut = await (async () => {
     // travail : dire qu'il ne pouvait pas, au lieu de rendre zéro clé en silence.
     const mod = await import('js-yaml');
     const yaml = mod.load ? mod : mod.default;
-    return yaml.load(readFileSync(join(ROOT, 'sites', process.env.SITE || 'veveprice', 'manifest.yml'), 'utf8'));
+    return yaml.load(readFileSync(join(ROOT, 'sites', SITE_ACTIF(), 'manifest.yml'), 'utf8'));
   } catch (e) {
     console.warn(`[i18n] ⚠️ manifeste ILLISIBLE (${e.message}) — aucune clé « mf. » ne sera résolue.`);
     return null;
   }
 })();
 const legalBrut = (lang) => {
-  try { return JSON.parse(readFileSync(join(ROOT, 'engine', 'legal', `${lang}.json`), 'utf8')); } catch { return null; }
+  try { return JSON.parse(readFileSync(join(ROOT, 'moteur', 'legal', `${lang}.json`), 'utf8')); } catch { return null; }
 };
 const nonResolues = new Set();
 function horsDictionnaire(cle, lang) {
@@ -523,7 +529,7 @@ const poids = [];
 let nHors = 0;
 for (const lang of languesInterface()) {
   if (lang === def) continue;
-  const complet = JSON.parse(readFileSync(join(ROOT, 'engine', 'i18n', `${lang}.json`), 'utf8'));
+  const complet = JSON.parse(readFileSync(join(dossierDictionnaires(), `${lang}.json`), 'utf8'));
   const partiel = {};
   for (const k of new Set([...clesVues, ...clesAttribut])) {
     if (complet[k] !== undefined) { partiel[k] = complet[k]; continue; }

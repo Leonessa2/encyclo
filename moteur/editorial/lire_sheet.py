@@ -1,7 +1,7 @@
 """
 Lecteur du Google Sheet éditorial du site — copie AUTONOME (lot 2, 26/11/2026).
 
-Dépôt : Leonessa2/encyclo — fichier : outils/lire_sheet.py
+Moteur commun — fichier : moteur/editorial/lire_sheet.py
 Lancé par : .github/workflows/lire-sheet.yml
 
 Origine : copie de `scraper/editorial_pull.py` du dépôt Leonessa2/scrapeur-veve
@@ -20,8 +20,8 @@ Règles (inchangées) :
     Droit demandé : LECTURE SEULE du Sheet.
 
 Usage :
-    python outils/lire_sheet.py --site vevewiki
-    python outils/lire_sheet.py --site vevewiki --dry-run   # lire sans écrire
+    python moteur/editorial/lire_sheet.py --site <site>
+    python moteur/editorial/lire_sheet.py --site <site> --dry-run   # lire sans écrire
 """
 
 from __future__ import annotations
@@ -42,8 +42,8 @@ except Exception as e:                  # noqa: BLE001
 
 
 # ---------------------------------------------------------------------------
-# Conventions RÉSEAU (pas vevewiki-spécifiques) — la spec du Sheet éditorial est
-# la même pour tous les sites (bible/sheet-vevewiki-spec.md). Un site peut TOUT
+# Conventions RÉSEAU (propres à aucun site) — la spec du Sheet éditorial est
+# la même pour tous les sites (bible/sheet-<site>-spec.md). Un site peut TOUT
 # redéfinir dans son manifeste (`editorial.tabs`, `editorial.keys`,
 # `editorial.allow_empty`) ; ces valeurs ne sont que des défauts raisonnables.
 #

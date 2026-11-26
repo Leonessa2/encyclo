@@ -84,9 +84,9 @@ const indecis = (quoi, pourquoi) => {
 // ⭐ Le socle est EXTRAIT du module et non recopié : un socle recopié ici
 // divergerait du socle servi, et un banc qui juge une feuille qui n'est pas la
 // vraie ne juge rien.
-const SRC_FEUILLE = join(R, 'engine/lib/feuille_theme.mjs');
+const SRC_FEUILLE = join(R, 'moteur/lib/feuille_theme.mjs');
 if (!existsSync(SRC_FEUILLE)) {
-  indecis('la feuille servie', 'engine/lib/feuille_theme.mjs introuvable');
+  indecis('la feuille servie', 'moteur/lib/feuille_theme.mjs introuvable');
   console.log('\n⚠️  rien n\'a été mesuré\n'); process.exit(2);
 }
 const mSocle = readFileSync(SRC_FEUILLE, 'utf8').match(/const SOCLE = `([\s\S]*?)`;/);

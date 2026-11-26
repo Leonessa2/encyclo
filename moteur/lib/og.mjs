@@ -1,6 +1,6 @@
 // =============================================================================
 //  og.mjs — quelle IMAGE DE PARTAGE pour cette page ?
-//  ⚠️ Leonessa2/veve-sites — engine/lib/og.mjs
+//  ⚠️ Moteur commun — moteur/lib/og.mjs
 //
 //  Les 83 pages du site partageaient la MÊME vignette (`/og.png`) : un article
 //  publié sur X ou Discord s'affichait exactement comme la page d'accueil. Or

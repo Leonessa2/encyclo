@@ -492,7 +492,7 @@ export const vuLe = (name) => (VU_LE.has(name) ? VU_LE.get(name) : null);
 
 async function fetchTable(url) {
   // LOT 3 (26/11/2026, encyclo) : DERNIÈRE BONNE COPIE.
-  // `outils/donnees_scrapeur.sh` télécharge les releases dans `.donnees/` et
+  // `moteur/donnees/telecharger.sh` télécharge les releases dans `.donnees/` et
   // y garde la dernière bonne copie quand le scrapeur ne publie plus ; il
   // pointe les variables `*_URL` sur ces fichiers (`file://…`). La date de la
   // donnée est celle du fichier, que `curl -R` a calée sur la date de la

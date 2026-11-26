@@ -1,10 +1,10 @@
-// ⚠️ Leonessa2/veve-sites — engine/lib/jour_du_build.mjs   (FICHIER NEUF — lot 161)
+// ⚠️ Moteur commun — moteur/lib/jour_du_build.mjs   (FICHIER NEUF — lot 161)
 // ═══════════════════════════════════════════════════════════════════════════
 //  LE JOUR DU BUILD — écrit UNE fois, parce qu'il l'était déjà DEUX
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // `buildDay()` existait à l'identique dans `engine/lib/blog.mjs` (l. 49) et
-// `engine/lib/editorial.mjs` (l. 37) : même corps, même commentaire, aucune des
+// `moteur/lib/editorial.mjs` (l. 37) : même corps, même commentaire, aucune des
 // deux exportée. Le lot 161 en aurait écrit une TROISIÈME pour l'image du jour
 // de l'accueil. ⭐⭐ « Deux endroits qui font la même chose divergent en
 // silence » est déjà la leçon de `_dom_banc.mjs` ; trois, c'est une habitude.

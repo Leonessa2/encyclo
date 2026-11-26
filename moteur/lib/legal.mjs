@@ -11,7 +11,7 @@ export const DOCS = ['mentions', 'privacy', 'terms', 'contact'];
 function legalDict(lang) {
   if (cache.has(lang)) return cache.get(lang);
   let d = {};
-  try { d = JSON.parse(readFileSync(join(ROOT, 'engine', 'legal', `${lang}.json`), 'utf8')); } catch {}
+  try { d = JSON.parse(readFileSync(join(ROOT, 'moteur', 'legal', `${lang}.json`), 'utf8')); } catch {}
   cache.set(lang, d);
   return d;
 }
@@ -46,11 +46,11 @@ export function legalDoc(lang, doc) {
 // 🔴 LOT 161 — LE TITRE SE DIT ÉCHANGEABLE (point `s` de Preda).
 // Mesuré le 24/08 : « Legal notice », « Privacy policy », « Terms of use » et
 // « Contact » restaient en anglais sur **156 pages sur 158**, dans toutes les
-// langues. Les traductions existaient pourtant dans `engine/legal/<lang>.json`
+// langues. Les traductions existaient pourtant dans `moteur/legal/<lang>.json`
 // depuis toujours : elles étaient simplement choisies AU BUILD, sans sentinelle,
 // donc le navigateur n'avait rien à échanger.
-// ⭐ La clé `lg.<doc>` est MÉCANIQUE : `outils/marquer_i18n.mjs` la résout en
-// relisant `engine/legal/<lang>.json`. Aucune valeur n'est recopiée ailleurs.
+// ⭐ La clé `lg.<doc>` est MÉCANIQUE : `moteur/outils/marquer_i18n.mjs` la résout en
+// relisant `moteur/legal/<lang>.json`. Aucune valeur n'est recopiée ailleurs.
 // ⚠️ Le `<title>` de la page reste anglais : le marqueur retire les sentinelles
 // des balises de tête, c'est voulu, et c'est le SEO de Preda qui le demande.
 export const legalTitle = (lang, doc) => {
@@ -73,8 +73,8 @@ export function languesLegales(candidates) {
   const def = locales().def;
   const out = [];
   for (const l of candidates) {
-    if (l === def || existsSync(join(ROOT, 'engine', 'legal', `${l}.json`))) out.push(l);
-    else console.warn(`[legal] engine/legal/${l}.json absent — aucune page légale ne sera publiée en « ${l} ».`);
+    if (l === def || existsSync(join(ROOT, 'moteur', 'legal', `${l}.json`))) out.push(l);
+    else console.warn(`[legal] moteur/legal/${l}.json absent — aucune page légale ne sera publiée en « ${l} ».`);
   }
   return out;
 }

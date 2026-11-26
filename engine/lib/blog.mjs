@@ -17,7 +17,7 @@
 //      Colonnes lues (alias tolérés) : slug · translation_key · lang · titre|title ·
 //      excerpt|description|chapeau · body|corps|contenu · tags|mots_cles|etiquette ·
 //      date · items · publish · statut · publie.
-//      → le corps (`body`) est du Markdown rendu par `engine/lib/markdown.mjs`.
+//      → le corps (`body`) est du Markdown rendu par `moteur/lib/markdown.mjs`.
 //      → ⚠️ UNE LIGNE SANS CORPS EST IGNORÉE (et journalisée) : un article a
 //        besoin d'une colonne `body` (ou `body_fr`/`body_en`) dans l'onglet.
 //      → PUBLICATION PROGRAMMÉE : `publish` (date de sortie) ≤ jour du build ;
@@ -33,13 +33,13 @@
 //  Le reste du réseau ne bouge pas : un site sans onglet Blog (veveprice) n'a
 //  pas de `editorial/blog.json` → source 1 vide, comportement identique à avant.
 // =============================================================================
-import { locales, languesDeclareesBlog } from './i18n.mjs';
-import { manifest } from './manifest.mjs';
-import { collection, parseDay, estRepli } from './editorial.mjs';
-import { renderMarkdown, stripMarkdown } from './markdown.mjs';
-import { localize } from './i18n.mjs';
+import { locales, languesDeclareesBlog } from '../../moteur/lib/i18n.mjs';
+import { manifest } from '../../moteur/lib/manifest.mjs';
+import { collection, parseDay, estRepli } from './contenu.mjs';
+import { renderMarkdown, stripMarkdown } from '../../moteur/lib/markdown.mjs';
+import { localize } from '../../moteur/lib/i18n.mjs';
 import { figureParId } from './figures.mjs';
-import { jourDuBuild } from './jour_du_build.mjs';
+import { jourDuBuild } from '../../moteur/lib/jour_du_build.mjs';
 
 let _cache = null;
 
@@ -48,7 +48,7 @@ let _cache = null;
 // jamais des heures (le cron GitHub a 2-3 h de retard). BUILD_DATE pour rejouer.
 // -----------------------------------------------------------------------------
 // 🗑️ LOT 161 — `buildDay()` vivait ICI et, mot pour mot, dans l'autre fichier.
-// Elle est partie dans `engine/lib/jour_du_build.mjs`, avec sa raison d'etre.
+// Elle est partie dans `moteur/lib/jour_du_build.mjs`, avec sa raison d'etre.
 // ⛔ Ne pas la recopier « pour eviter un import » : c'est ce raisonnement qui
 //    en avait deja fait deux, et le lot 161 allait en ecrire une troisieme.
 const buildDay = jourDuBuild;
@@ -374,7 +374,7 @@ export const allLangs = async () => [...new Set((await loadAll()).map((p) => p.l
 /**
  * Les langues dans lesquelles le BLOG est publiable.
  *
- * ⭐ Le blog ne passe PAS par la mesure de couverture d'engine/lib/langues.mjs,
+ * ⭐ Le blog ne passe PAS par la mesure de couverture d'moteur/lib/langues.mjs,
  * et c'est délibéré : ses articles viennent de DEUX sources (onglet Sheet et
  * fichiers .md du dépôt). Mesurer le seul snapshot `blog.json` ferait tomber à
  * zéro un site qui n'a que des .md — veveprice, dont les articles français

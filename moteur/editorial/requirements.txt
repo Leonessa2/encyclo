@@ -1,4 +1,4 @@
-# Dépendances du lecteur de Sheet (outils/lire_sheet.py) et des cartes de partage.
+# Dépendances du lecteur de Sheet (moteur/editorial/lire_sheet.py) et des cartes de partage.
 # Versions reprises de Leonessa2/scrapeur-veve (requirements.txt, 26/11/2026).
 gspread==6.1.2
 google-auth==2.32.0

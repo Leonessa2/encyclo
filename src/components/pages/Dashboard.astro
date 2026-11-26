@@ -91,11 +91,11 @@ import Base from '../../layouts/Base.astro';
 //   redirection, effacé ensuite par `astro_features.mjs`.
 //   ⛔ UN SCRIPT SERVI SANS SON HÔTE NE FAIT PAS D'ERREUR — il ne fait RIEN,
 //   et c'est ce qui rend ce genre d'oubli invisible pendant six mois.
-import { t, localize, numberLocale, dateLocale, pick } from '../../../engine/lib/i18n.mjs';
+import { t, localize, numberLocale, dateLocale, pick } from '../../../moteur/lib/i18n.mjs';
 // ⭐ LA PASTILLE DE RARETÉ VIENT DE LA FABRIQUE COMMUNE — pas d'un second
 //   balisage écrit ici, qui divergerait au premier ajout de rareté.
 import { rar } from '../../../engine/lib/vitrine.mjs';
-import { manifest } from '../../../engine/lib/manifest.mjs';
+import { manifest } from '../../../moteur/lib/manifest.mjs';
 import { catalogueModules, porte, plages, PALIERS, profondeur as profondeurAccordee } from '../../../engine/lib/access.mjs';
 import { priceEnabled } from '../../../engine/lib/features.mjs';
 import { lireMarche } from '../../../engine/lib/cote.mjs';

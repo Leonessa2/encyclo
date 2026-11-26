@@ -7,6 +7,15 @@
 #  ⚠️ À CONFIRMER par Preda : `domain` (supposé vevewiki.com) et le `sheet_id`
 #  (repris de bible/architecture-generateur-sites.md).
 # =============================================================================
+# ═══ LE MOTEUR COMMUN (RESEAU.md v3.5, lot 4 du 26/11/2026) ═══
+# `version` : la version du moteur que ce site utilise (moteur/VERSION).
+#   Tant que le moteur vit dans ce dépôt, elle doit être ÉGALE à moteur/VERSION :
+#   le banc moteur-neutre le vérifie.
+# `dictionnaires` : où le moteur lit les libellés de ce site.
+moteur:
+  version: "0.1.0"
+  dictionnaires: engine/i18n
+
 site:
   domain: vevewiki.com
   brand: "VeVe Wiki"
@@ -42,7 +51,7 @@ site:
 # --- Langues : EN pivot, les autres en sous-dossier (/fr/, /es/, /it/, /de/) ---
 #
 # ⭐⭐ `active` NE VEUT PAS DIRE « tout le site sort dans cette langue ».
-# C'est la liste des langues CANDIDATES. Le moteur (engine/lib/langues.mjs)
+# C'est la liste des langues CANDIDATES. Le moteur (moteur/lib/langues.mjs)
 # mesure, section par section, la part réellement traduite dans les snapshots
 # du Sheet, et ne publie que ce qui atteint `seuil_traduction`. Au 28/07/2026 :
 #     glossary  87/87  ·  acronyms  65/65   -> publiés en es, it, de
@@ -86,7 +95,7 @@ features:
 
 # --- CONSTRUCTEUR ÉDITORIAL (le cœur de vevewiki) ---------------------------
 # Ces pages sont générées depuis le Sheet éditorial (récolté par editorial_pull.py
-# -> sites/vevewiki/editorial/*.json) puis rendues par engine/lib/editorial.mjs +
+# -> sites/vevewiki/editorial/*.json) puis rendues par moteur/lib/editorial.mjs +
 # src/components/pages/Editorial.astro. Un site n'active QUE ce qu'il liste ici.
 editorial:
   sheet_id: "1TJLGK4i6a7-UPQYNdTqLPCAjyqQ5NdSxoA8gju8-DjI"   # Sheet éditorial vevewiki (27/07)
@@ -107,7 +116,7 @@ editorial:
       title: { en: "Articles", fr: "Articles" }
       # ⚠️ 70 caractères minimum (audit SEO) : en dessous, Google n'affiche pas
       # la description et fabrique son propre extrait. Cf. DESC_MIN dans
-      # engine/lib/editorial_pages.mjs — le build journalise tout écart.
+      # moteur/lib/editorial_pages.mjs — le build journalise tout écart.
       description:
         en: "Long-form articles on VeVe: the history of the platform, how drops and rarity work, the licences, and how to read the market without guessing."
         fr: "Les articles de fond sur VeVe : l'histoire de la plateforme, le fonctionnement des drops et de la rareté, les licences, et comment lire le marché."

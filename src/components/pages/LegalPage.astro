@@ -1,9 +1,9 @@
 ---
 import Base from '../../layouts/Base.astro';
-import { legalDoc, languesLegales } from '../../../engine/lib/legal.mjs';
-import { languesDuSite } from '../../../engine/lib/editorial_pages.mjs';
-import { t, localize } from '../../../engine/lib/i18n.mjs';
-import { manifest } from '../../../engine/lib/manifest.mjs';
+import { legalDoc, languesLegales } from '../../../moteur/lib/legal.mjs';
+import { languesDuSite } from '../../../moteur/lib/editorial_pages.mjs';
+import { t, localize } from '../../../moteur/lib/i18n.mjs';
+import { manifest } from '../../../moteur/lib/manifest.mjs';
 const { lang, doc, updatedAt } = Astro.props;
 const { title, body } = legalDoc(lang, doc);
 const descLegal = t(lang, `legal.desc.${doc}`, { brand: manifest().site.brand });

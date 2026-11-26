@@ -44,9 +44,9 @@
 
 import { priceEnabled, editorialEnabled } from '../../engine/lib/features.mjs';
 import { dataset } from '../../engine/lib/dataset.mjs';
-import { locales } from '../../engine/lib/i18n.mjs';
-import { activeSections } from '../../engine/lib/editorial_pages.mjs';
-import { collection } from '../../engine/lib/editorial.mjs';
+import { locales } from '../../moteur/lib/i18n.mjs';
+import { activeSections } from '../../moteur/lib/editorial_pages.mjs';
+import { collection } from '../../engine/lib/contenu.mjs';
 import { fichesDe, cheminFiche, ancreJalon, ancreTerme, ancresAnnuaire } from '../../engine/lib/editorial_entries.mjs';
 import { blogEnabled, postsFor, languesBlog } from '../../engine/lib/blog.mjs';
 

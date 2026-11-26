@@ -8,7 +8,10 @@ const yaml = require('js-yaml');
 
 // Racine du projet : process.cwd() survit au bundling (import.meta.url non).
 const ROOT = process.env.PROJECT_ROOT || process.cwd();
-export const SITE = process.env.SITE || 'veveprice';
+// ⛔ Aucun site par défaut : le moteur ne connaît aucun site par son nom.
+//    Oublier SITE doit arrêter tout de suite, pas construire un autre site.
+export const SITE = String(process.env.SITE || '').trim();
+if (!SITE) throw new Error('[moteur] la variable SITE est obligatoire (le dossier du site dans sites/).');
 
 let _m = null;
 export function manifest() {

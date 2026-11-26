@@ -21,7 +21,7 @@
 // il n'y a rien à garder.
 
 import { DatabaseSync } from 'node:sqlite';
-import { manifest } from './manifest.mjs';
+import { manifest } from '../../moteur/lib/manifest.mjs';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ⑴ LES CONSTANTES DE LA CHAÎNE — publiques, vérifiables par quiconque

@@ -60,7 +60,7 @@
 // n'est ni contourné ni élargi.
 
 import { floora } from '../../engine/lib/floora.mjs';
-import { t, nu } from '../../engine/lib/i18n.mjs';
+import { t, nu } from '../../moteur/lib/i18n.mjs';
 
 interface Props {
   /** Le titre, DÉJÀ traduit par l'appelant. Il devient le `<h1>` de la page. */
@@ -124,7 +124,7 @@ const f = perche ? floora(perche, 176) : null;
           🔴🔴🔴 `nu()` EST OBLIGATOIRE ICI, ET C'EST UNE PANNE MESURÉE, PAS UNE
           PRÉCAUTION. Sous `I18N_MARQUAGE=1` — posé par le Dockerfile, donc EN
           PRODUCTION — `t()` rend le texte entouré de sentinelles invisibles, et
-          `outils/marquer_i18n.mjs` les remplace ensuite par un `span data-i18n`.
+          `moteur/outils/marquer_i18n.mjs` les remplace ensuite par un `span data-i18n`.
           Il ne sait le faire que sur du TEXTE SIMPLE. Ici la valeur contient du
           balisage : le marqueur a retiré les sentinelles et laissé la CLÉ dans
           la phrase. La bulle servait, mot pour mot :

@@ -1,4 +1,4 @@
-// ⚠️ Leonessa2/veve-sites — engine/lib/robots.mjs  (FICHIER NEUF, lot 96)
+// ⚠️ Moteur commun — moteur/lib/robots.mjs  (FICHIER NEUF, lot 96)
 // ═══════════════════════════════════════════════════════════════════════════
 // LES GARDE-FOUS ANTI-ROBOTS DU FORMULAIRE D'INSCRIPTION
 // ═══════════════════════════════════════════════════════════════════════════

@@ -31,10 +31,10 @@
 // catalogue du 16/07, la réparation a tourné le 22/07, et le garde-fou
 // n'était posé que sur UN des deux chemins d'export). Un min/max lu sur la
 // série observée ne peut pas être incohérent avec la courbe qu'il annote.
-import { t, nu, numberLocale, dateLocale, localize } from '../../engine/lib/i18n.mjs';   // 🔴 LOT 213 — `localize` pour le lien du teasing
+import { t, nu, numberLocale, dateLocale, localize } from '../../moteur/lib/i18n.mjs';   // 🔴 LOT 213 — `localize` pour le lien du teasing
 import { porte, PALIERS, plages } from '../../engine/lib/access.mjs';
-import { manifest } from '../../engine/lib/manifest.mjs';
-import { pick } from '../../engine/lib/i18n.mjs';
+import { manifest } from '../../moteur/lib/manifest.mjs';
+import { pick } from '../../moteur/lib/i18n.mjs';
 
 // 🔴 LOT 123 — `svgPublic` A QUITTÉ LES PROPS. Il portait la courbe publique
 // jusque dans le fond flouté du panneau verrouillé, c'est-à-dire dans le HTML

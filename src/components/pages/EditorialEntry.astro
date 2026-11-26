@@ -16,13 +16,13 @@
 //  licence trop petite garde sa ligne d'index et n'obtient PAS de page.
 // =============================================================================
 import Base from '../../layouts/Base.astro';
-import { sectionMeta, languesDeSection } from '../../../engine/lib/editorial_pages.mjs';
+import { sectionMeta, languesDeSection } from '../../../moteur/lib/editorial_pages.mjs';
 import { cheminFiche, collecteEntrepot } from '../../../engine/lib/editorial_entries.mjs';
 import { figureHTML } from '../../../engine/lib/figures.mjs';
-import { manifest } from '../../../engine/lib/manifest.mjs';
+import { manifest } from '../../../moteur/lib/manifest.mjs';
 import { breadcrumbLd, jsonld, pageAProposLd } from '../../../engine/lib/seo.mjs';
-import { t, localize, dateLocale , nu } from '../../../engine/lib/i18n.mjs';
-import { siteUrl } from '../../../engine/lib/manifest.mjs';
+import { t, localize, dateLocale , nu } from '../../../moteur/lib/i18n.mjs';
+import { siteUrl } from '../../../moteur/lib/manifest.mjs';
 
 const { lang, fiche, voisinesPoids = [] } = Astro.props;
 const m = manifest();

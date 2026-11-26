@@ -25,7 +25,7 @@
 // ⚠️ ETAT AU 21/07/2026 : aucun compte n'existe, `franchit()` est donc toujours
 // faux sur une porte active. Le cas 1 est ecrit, teste, et ne se declenche
 // jamais en production — c'est ce qui rend ce lot a comportement constant.
-import { t, numberLocale, dateLocale } from '../../engine/lib/i18n.mjs';
+import { t, numberLocale, dateLocale } from '../../moteur/lib/i18n.mjs';
 import { porte, cibleOffre, restant, franchit } from '../../engine/lib/access.mjs';
 
 const { lang, gate, total, shown, since = null } = Astro.props;

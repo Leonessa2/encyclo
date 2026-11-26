@@ -59,7 +59,7 @@ const dit = (bon, quoi, detail) => {
 
 console.log(`\n═══ LOT 104 — la vente n'ouvre pas sur un module absent (site : ${process.env.SITE}) ═══`);
 
-const { manifest } = await import(join(R, 'engine/lib/manifest.mjs'));
+const { manifest } = await import(join(R, 'moteur/lib/manifest.mjs'));
 const { catalogueModules, palierPayant } = await import(join(R, 'engine/lib/access.mjs'));
 
 const m = manifest();

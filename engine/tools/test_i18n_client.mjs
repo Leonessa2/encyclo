@@ -22,7 +22,7 @@
 // LES QUATRE PANNES QU'IL GARDE
 // ═══════════════════════════════════════════════════════════════════════════
 //  ① UNE SENTINELLE SURVIVANTE. `t()` enrobe chaque libellé de caractères de
-//     contrôle au build ; `outils/marquer_i18n.mjs` les convertit. Si ce
+//     contrôle au build ; `moteur/outils/marquer_i18n.mjs` les convertit. Si ce
 //     post-traitement ne tourne pas — oublié dans le Dockerfile, déplacé après
 //     la précompression — les pages partent avec des caractères invisibles
 //     collés à chaque libellé. ⛔ Rien ne casse, rien n'est vide, et le texte
@@ -86,7 +86,7 @@ const sales = pages.filter((f) => SENTINELLES.test(readFileSync(f, 'utf8')));
 verifie('⛔ zéro caractère de contrôle dans les pages servies',
   sales.length === 0,
   sales.length === 0 ? `${pages.length} page(s) propres`
-    : `🔴 ${sales.length} page(s) portent encore ␑␒␓ : \`outils/marquer_i18n.mjs\` n'a pas tourné, `
+    : `🔴 ${sales.length} page(s) portent encore ␑␒␓ : \`moteur/outils/marquer_i18n.mjs\` n'a pas tourné, `
       + `ou il a tourné APRÈS la précompression. Ex. ${sales.slice(0, 3).map((f) => f.replace(RACINE, '')).join(', ')}`);
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -247,10 +247,10 @@ verifie('⛔ ni <title>, ni <meta description>, ni <script> ne portent de marqua
 // le message aurait accusé un gabarit qui n'a rien fait. *Le marqueur ÉCRIT
 // `data-i18n=`, ce § le RELIT : c'est une chaîne à deux morceaux, et un banc
 // suit la chaîne, pas le fichier.*
-// ⇒ Le prédicat est importé de `engine/lib/cle_i18n.mjs`. Il n'y en a plus
+// ⇒ Le prédicat est importé de `moteur/lib/cle_i18n.mjs`. Il n'y en a plus
 //   qu'un, et c'est le même octet des deux côtés.
-const { estUneCle } = await import('../lib/cle_i18n.mjs');
-const { locales: locRef } = await import('../lib/i18n.mjs');
+const { estUneCle } = await import('../../moteur/lib/cle_i18n.mjs');
+const { locales: locRef } = await import('../../moteur/lib/i18n.mjs');
 // ⚠️ LE DICTIONNAIRE DE RÉFÉRENCE, ET SON ABSENCE EST **INDÉCIDABLE**, PAS
 // VERTE. Sans lui `estUneCle` retombe sur la forme seule : le banc jugerait
 // alors selon une règle plus stricte que celle qui a marqué les pages, et
@@ -322,7 +322,7 @@ console.log('\n2 bis. le prédicat de clé : 6 cas fabriqués, dont 2 témoins i
 }
 
 console.log('\n3. les dictionnaires servis couvrent-ils ce qui est marqué ?');
-const { languesInterface, locales } = await import('../lib/i18n.mjs');
+const { languesInterface, locales } = await import('../../moteur/lib/i18n.mjs');
 const { def } = locales();
 const langues = languesInterface().filter((l) => l !== def);
 
@@ -358,7 +358,7 @@ for (const lang of langues) {
   // c'est justifié : une clé de `engine/i18n/` peut n'exister qu'en anglais.
   // ⛔ CE N'EST PAS VRAI DES NOUVELLES. `mf.<chemin>` et `lg.<doc>` sont
   // RÉSOLUES mécaniquement par `marquer_i18n.mjs` en relisant le manifeste et
-  // `engine/legal/`. Une seule raison de manquer : le chemin ne mène nulle part
+  // `moteur/legal/`. Une seule raison de manquer : le chemin ne mène nulle part
   // — une faute de frappe dans un gabarit, ou une clé du manifeste renommée.
   // ⭐⭐⭐ ET LE SYMPTÔME SERAIT INVISIBLE : le `data-i18n` est posé, la page
   //     s'affiche parfaitement, et le libellé reste anglais pour toujours.
@@ -370,7 +370,7 @@ for (const lang of langues) {
   verifie(`...et les ${horsDict.length} clé(s) « mf./lg. » sont TOUTES résolues (${lang})`,
     morts.length === 0,
     morts.length === 0 ? ''
-      : `🔴 ${morts.join(', ')} — le chemin ne mène nulle part dans le manifeste ou engine/legal/`);
+      : `🔴 ${morts.join(', ')} — le chemin ne mène nulle part dans le manifeste ou moteur/legal/`);
 }
 
 // ⛔ ET IL DOIT Y EN AVOIR. Un gabarit qui cesserait d'appeler `pickT()` ferait

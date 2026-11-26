@@ -19,7 +19,7 @@
 // reconstruite depuis `publication:`. Aucun site existant ne change de
 // comportement — c'est verifie par engine/tools/test_access.mjs.
 
-import { manifest } from './manifest.mjs';
+import { manifest } from '../../moteur/lib/manifest.mjs';
 // 🔴 LOT 164 — la surcharge d'exploitation. ⛔ Ce module n'importe PAS
 //   celui-ci en retour : ce serait un cycle. Voir son en-tête.
 import { lireSurcharges } from './portes_surcharge.mjs';

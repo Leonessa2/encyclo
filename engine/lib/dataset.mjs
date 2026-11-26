@@ -26,7 +26,7 @@ import { getCatalogue, getBaselines, getReleves, getFichesStackr, getOmiUsd, get
 //    Toute la règle (péremption, refus du zéro) vit dans le module ; ici il
 //    n'y a qu'un chargement et un dépôt.
 import { lireCsv as lireTauxCsv, deposerTaux } from './taux_omi.mjs';
-import { manifest, SITE } from './manifest.mjs';
+import { manifest, SITE } from '../../moteur/lib/manifest.mjs';
 // 🔴 LOT 193 — LA RÈGLE DU PLANCHER ÉCARTÉ EST IMPORTÉE, PAS RECOPIÉE. Écrite
 // dans `marche_selection.mjs` parce que c'est le seul endroit où elle est
 // éprouvable sans construire un dataset. ⛔ Deux écritures de « ce plancher

@@ -1,4 +1,4 @@
-// ⚠️ Leonessa2/veve-sites — engine/lib/theme.mjs   (FICHIER NEUF — lot 217)
+// ⚠️ Moteur commun — moteur/lib/theme.mjs   (FICHIER NEUF — lot 217)
 // ═══════════════════════════════════════════════════════════════════════════
 // LE THÈME SUIT LE COMPTE — la dernière préférence restée dans le navigateur
 // ═══════════════════════════════════════════════════════════════════════════

@@ -46,7 +46,7 @@
 // sont licence, marque, série, rareté, édition, année, tirage. Le plancher, la
 // variation et le rendement restent sur `/market/`, derrière la porte. *On ne
 // cache pas un champ, on ne le projette pas.*
-import { t } from '../../engine/lib/i18n.mjs';
+import { t } from '../../moteur/lib/i18n.mjs';
 
 // ⭐⭐ `pas` ET `cadenas` VIENNENT DE L'APPELANT, ILS NE SONT PAS ÉCRITS ICI.
 //   · `pas` est le `PAR_PAGE` de `Rayon.astro` : une tranche filtrée doit faire
@@ -164,7 +164,7 @@ const ONGLETS = [
       C'EST UNE PANNE MESURÉE, PAS UNE PRÉCAUTION.
       Première version : `data-cadenas={cadenas}`, avec le SVG dans la valeur.
       Ça rendait un HTML parfaitement valide… jusqu'à `I18N_MARQUAGE=1`, qui
-      n'est posé QUE dans le Dockerfile (l. 273). `outils/marquer_i18n.mjs`
+      n'est posé QUE dans le Dockerfile (l. 273). `moteur/outils/marquer_i18n.mjs`
       cherche alors la fin de la balise pour y écrire `data-i18n-attr` : les `>`
       et les `&quot;` du SVG l'ont désynchronisé, et il a inséré son attribut
       **AU MILIEU** de la valeur de `data-cadenas`.

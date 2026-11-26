@@ -276,8 +276,8 @@ dit(iScript > 0 && iStyle > iScript, 'le script précède les règles qui lisent
 // « sans objet », et on l'imprime.
 console.log('\n── 5. la chaîne du sélecteur de langue d\'interface ──');
 {
-  const { manifest } = await import('../lib/manifest.mjs');
-  const { langueUiDansEntete, languesInterface, COOKIE_LANGUE } = await import('../lib/i18n.mjs');
+  const { manifest } = await import('../../moteur/lib/manifest.mjs');
+  const { langueUiDansEntete, languesInterface, COOKIE_LANGUE } = await import('../../moteur/lib/i18n.mjs');
   const reglage = manifest().identity?.langue_interface_dans || 'compte';
   const actif = langueUiDansEntete();
   console.log(`     identity.langue_interface_dans = « ${reglage} »`

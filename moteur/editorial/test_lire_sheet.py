@@ -1,7 +1,7 @@
 """
 Banc hors réseau du lecteur de Sheet (lot 2, 26/11/2026).
 
-Dépôt : Leonessa2/encyclo — fichier : outils/test_lire_sheet.py
+Moteur commun — fichier : moteur/editorial/test_lire_sheet.py
 Lancé par : .github/workflows/lire-sheet.yml, AVANT la vraie lecture.
 
 On fabrique un faux Sheet à partir de la copie actuelle (sites/<SITE>/editorial)
@@ -24,11 +24,13 @@ import sys
 import tempfile
 
 ICI = os.path.dirname(os.path.abspath(__file__))
-RACINE = os.path.dirname(ICI)
+RACINE = os.path.dirname(os.path.dirname(ICI))   # moteur/editorial/ -> racine du dépôt
 sys.path.insert(0, ICI)
 import lire_sheet as L  # noqa: E402
 
-SITE = os.environ.get("SITE", "vevewiki")
+SITE = os.environ.get("SITE", "").strip()
+if not SITE:
+    sys.exit("La variable SITE est obligatoire (le dossier du site dans sites/).")
 ecarts: list[str] = []
 
 

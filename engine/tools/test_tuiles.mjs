@@ -1835,10 +1835,10 @@ console.log('\n8. la couverture et les extrêmes, dans le tableau (lot I ① ⑤
   //   SUFFIXE ne suffisait pas : en mode marquage, `t()` rend
   //   `SENT_DEB + clé + SENT_MIL + texte + SENT_FIN` — il y a une sentinelle
   //   APRÈS le texte, donc `endsWith('ATL')` est faux sur une page juste.
-  //   ⭐⭐ Le dépôt a déjà l'outil : `nu()` dans `engine/lib/i18n.mjs`. *Quand on
+  //   ⭐⭐ Le dépôt a déjà l'outil : `nu()` dans `moteur/lib/i18n.mjs`. *Quand on
   //   mesure une chaîne que le site a réécrite, on la lit avec la fonction du
   //   site, pas avec une règle qu'on se donne.*
-  const { nu } = await import(join(R_I18N, 'engine', 'lib', 'i18n.mjs').replace(/^/, 'file://'));
+  const { nu } = await import(join(R_I18N, 'moteur', 'lib', 'i18n.mjs').replace(/^/, 'file://'));
   const DOSSIER_DICOS = join(ROOT, 'engine', 'i18n');
   const dicos = {};
   for (const f of readdirSync(DOSSIER_DICOS).filter((x) => x.endsWith('.json'))) {

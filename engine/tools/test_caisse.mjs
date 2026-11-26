@@ -372,7 +372,7 @@ if (Object.keys(c.grille()).length === 0) {
 //   qu'il a lu et le montant n'est **jamais reconnu** — le paiement disparaît
 //   dans les orphelins, sans erreur nulle part.
 {
-  const { manifest } = await import(pathToFileURL(join(ROOT, 'engine/lib/manifest.mjs')).href);
+  const { manifest } = await import(pathToFileURL(join(ROOT, 'moteur/lib/manifest.mjs')).href);
   const m = manifest();
   const remise = m.offer?.annual_discount ?? 0.20;
   const g = c.grille();

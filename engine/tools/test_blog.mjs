@@ -32,7 +32,7 @@ import { spawnSync } from 'node:child_process';
 
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BLOG = JSON.stringify(join(RACINE, 'engine', 'lib', 'blog.mjs'));
-const MD = JSON.stringify(join(RACINE, 'engine', 'lib', 'markdown.mjs'));
+const MD = JSON.stringify(join(RACINE, 'moteur', 'lib', 'markdown.mjs'));
 const base = mkdtempSync(join(tmpdir(), 'blog-'));
 let echecs = 0;
 
@@ -61,6 +61,8 @@ content:
 editorial:
   sheet_id: "TEST"
   pages: [${pages.join(', ')}]
+moteur:
+  dictionnaires: engine/i18n
 `;
 
 /** Prépare une racine de projet jetable : manifeste + snapshot blog.json. */
@@ -345,7 +347,7 @@ console.log('\n9. History : la chronologie ne se melange pas');
       { id: 'e', date: 'un jour',    precision: 'jour', titre_en: 'Illisible' },
     ]));
   const r = dans(root, `
-    const { collection } = await import(${JSON.stringify(join(RACINE, "engine", "lib", "editorial.mjs"))});
+    const { collection } = await import(${JSON.stringify(join(RACINE, "engine", "lib", "contenu.mjs"))});
     const { items } = await collection('history', 'en');
     const tri = items.slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
     console.log(JSON.stringify({ dates: items.map((x) => [x.id, x.date]), ordre: tri.map((x) => x.id) }));
@@ -367,7 +369,7 @@ console.log('\n10. Sources : « toute information porte un lien vers sa source �
 {
   const root = racine('sources', { pages: ['history'], lignes: [] });
   const r = dans(root, `
-    const { parseSources } = await import(${JSON.stringify(join(RACINE, "engine", "lib", "editorial.mjs"))});
+    const { parseSources } = await import(${JSON.stringify(join(RACINE, "engine", "lib", "contenu.mjs"))});
     console.log(JSON.stringify({
       url:    parseSources('https://www.veve.me/blog/veve/updates/omi-to-gems/'),
       duo:    parseSources('blog VeVe https://a.test/x ; Infos VeVe.docx'),
@@ -472,8 +474,8 @@ console.log('\n12. LE MEME INVARIANT, SUR LE SITE REEL (lot 162)');
 // ⭐ SANS OBJET quand le site n'a pas d'onglet Blog, et il le DIT.
 {
   const { postsFor } = await import('../lib/blog.mjs');
-  const { collection, estRepli } = await import('../lib/editorial.mjs');
-  const { languesDeclareesBlog } = await import('../lib/i18n.mjs');
+  const { collection, estRepli } = await import('../lib/contenu.mjs');
+  const { languesDeclareesBlog } = await import('../../moteur/lib/i18n.mjs');
   const site = process.env.SITE || 'veveprice';
   let mesurees = 0;
   for (const l of languesDeclareesBlog()) {
@@ -504,8 +506,8 @@ rmSync(base, { recursive: true, force: true });
 console.log('\n8. La peau du blog et la duree de lecture');
 {
   const { blogSkin, dureeLecture, postsFor } = await import('../lib/blog.mjs');
-  const { manifest } = await import('../lib/manifest.mjs');
-  const { locales } = await import('../lib/i18n.mjs');
+  const { manifest } = await import('../../moteur/lib/manifest.mjs');
+  const { locales } = await import('../../moteur/lib/i18n.mjs');
   const site = process.env.SITE || 'veveprice';
   const peau = blogSkin();
   verifier(`blogSkin() rend une peau connue (${site} -> ${peau})`,

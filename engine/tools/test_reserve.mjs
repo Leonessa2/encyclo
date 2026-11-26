@@ -376,7 +376,7 @@ await cas('le dossier de réserve est HORS de public/, src/ et dist/', () => {
 });
 
 // ── 5. LE CONTRAT GABARIT ↔ THÈME, POUR CE SITE SEULEMENT ─────────────────
-// ⛔ CE CONTRÔLE NE VA PAS DANS `outils/css-mort.mjs`, ET C'EST DÉLIBÉRÉ. Son
+// ⛔ CE CONTRÔLE NE VA PAS DANS `moteur/bancs/css-mort.mjs`, ET C'EST DÉLIBÉRÉ. Son
 // SOCLE est ce que les TROIS thèmes doivent rendre ; y mettre le vocabulaire
 // de la vitrine redonnerait les 172 griefs du 31/07 sur `encyclopedie`, à qui
 // on réclamerait un vocabulaire qu'il ne rendra jamais. Ici la question est
@@ -392,7 +392,7 @@ const theme = readFileSync(join(R, 'themes/vitrine/theme.css'), 'utf8').replace(
 // garder du CSS mort — et le prochain qui le nettoie fera rougir un banc en
 // ayant raison.
 // ⛔ Les règles restent dans le thème (elles servent au verrou d'autres pages
-//    et `outils/css-mort.mjs` dira si ce n'est plus vrai) : c'est le CONTRÔLE
+//    et `moteur/bancs/css-mort.mjs` dira si ce n'est plus vrai) : c'est le CONTRÔLE
 //    qui change, pas la feuille.
 for (const c of ['graph-hote', 'ref', 'ref--td',
                  'info-bulle', 'cadran', 'cadran-pt', 'axe', 'axe--d', 'pt-haut', 'pt-bas',

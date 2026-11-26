@@ -19,8 +19,8 @@ import Carte from '../Carte.astro';
 //   commentaire au point d'appel, plus bas. Cinquième occurrence.
 import CarteSet from '../CarteSet.astro';
 import { dataset } from '../../../engine/lib/dataset.mjs';
-import { manifest } from '../../../engine/lib/manifest.mjs';
-import { t, pick, localize, numberLocale } from '../../../engine/lib/i18n.mjs';
+import { manifest } from '../../../moteur/lib/manifest.mjs';
+import { t, pick, localize, numberLocale } from '../../../moteur/lib/i18n.mjs';
 import { pli, delta, gemsM } from '../../../engine/lib/vitrine.mjs';
 import { coteFermee as coteEstFermee, lireMarche } from '../../../engine/lib/cote.mjs';
 import { priceEnabled } from '../../../engine/lib/features.mjs';   // 🔴 LOT 205 — le titre de la boîte 002
@@ -30,7 +30,7 @@ import AVenir from '../AVenir.astro';   // ⏳ LOT 113 — les drops annoncés (
 // ⭐ AJOUT SEUL (lot 45). `serie` rend les articles d'une etiquette dans leur
 // ordre de lecture ; `dureeLecture` donne les minutes, dites ou calculees.
 import { serie, dureeLecture, SEUIL_PAGE_TAG } from '../../../engine/lib/blog.mjs';
-import { choisirDuJour } from '../../../engine/lib/jour_du_build.mjs';
+import { choisirDuJour } from '../../../moteur/lib/jour_du_build.mjs';
 
 const { lang } = Astro.props;
 const m = manifest();

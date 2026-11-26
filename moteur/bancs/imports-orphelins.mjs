@@ -12,7 +12,7 @@
    n'est pas un défaut sournois : c'est un contrôle qui manque.
    ⭐ Celui-ci coûte 40 ms et lit tout le dépôt.
 
-   Usage :  node outils/imports-orphelins.mjs
+   Usage :  node moteur/bancs/imports-orphelins.mjs
 */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -31,7 +31,7 @@ function fichiers(d, acc = []) {
 }
 
 let ko = 0, vus = 0;
-for (const f of fichiers(path.join(RACINE, 'src')).concat(fichiers(path.join(RACINE, 'engine')))) {
+for (const f of fichiers(path.join(RACINE, 'src')).concat(fichiers(path.join(RACINE, 'engine')), fichiers(path.join(RACINE, 'moteur')))) {
   const src = fs.readFileSync(f, 'utf8');
   // ⚠️ On ne regarde QUE les chemins relatifs : les paquets npm ont leur propre
   // résolution, et `npm ci` les garantit. Ici on traque nos propres fichiers.

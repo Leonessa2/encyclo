@@ -1,0 +1,32 @@
+# Dépôt : Leonessa2/encyclo — fichier : sites/reseau.txt   (lot 4, 26/11/2026)
+#
+# Les noms et domaines de TOUS les sites du réseau (RESEAU.md, « Domaines »).
+# Lu par le banc moteur/bancs/moteur-neutre.mjs : aucune de ces valeurs ne doit
+# apparaître dans moteur/. Les noms, domaines, Sheets et couleurs des sites qui
+# ont un dossier dans sites/ sont lus en plus dans leur manifest.yml.
+# Une ligne = un domaine ou un nom ; « # » commence un commentaire.
+# ⚠️ Un nouveau site, ou un nouveau domaine : l'ajouter ici.
+
+# Domaines avec un site
+veveprice.com
+vevewiki.com
+vevefrance.fr
+id.digitalcollectible.net
+digitalcollectible.net
+# Redirigé vers vevefrance.fr
+vevefrance.com
+# Domaines sans site (aujourd'hui)
+vevecollectors
+vevemightys
+vevecoach
+omifrance.fr
+veveversenews
+vevenews
+vevenft
+vevemarket
+veveguide
+vevetracker
+# Noms de marque
+VeVe Price
+VeVe Wiki
+VeVe France

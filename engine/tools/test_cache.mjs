@@ -50,7 +50,7 @@ import {
 // `/it/alertes/` se retrouvait accusé d'être une page non éteinte alors qu'il
 // est la version italienne d'une adresse déjà comptée. *Une liste recopiée dans
 // un banc est une seconde vérité, et elle vieillit sans que personne la relise.*
-import { languesInterface } from '../lib/i18n.mjs';
+import { languesInterface } from '../../moteur/lib/i18n.mjs';
 
 const ICI = dirname(fileURLToPath(import.meta.url));
 

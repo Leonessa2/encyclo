@@ -19,7 +19,7 @@
    Il contrôlait le mauvais côté du contrat, et notait 92,9 % pendant que le
    site s'affichait en Times.
 
-   Usage :  node outils/css-mort.mjs [racine]
+   Usage :  node moteur/bancs/css-mort.mjs [racine]
 */
 import fs from 'node:fs';
 import path from 'node:path';

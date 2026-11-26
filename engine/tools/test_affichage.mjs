@@ -29,7 +29,7 @@ import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 //   d'édition — c'est le même sujet, au bon moment.
 import { BUDGETS } from '../lib/vignette.mjs';
 import { clen, texteVu } from '../lib/seo.mjs';
-import { nu } from '../lib/i18n.mjs';
+import { nu } from '../../moteur/lib/i18n.mjs';
 import { coteFermee } from '../lib/cote.mjs';
 import { SEUILS, largeursABalayer, seuilsDe, estSeuilDeclare } from '../lib/seuils.mjs';
 import { priceEnabled } from '../lib/features.mjs';
@@ -682,7 +682,7 @@ console.log('\n3 ter. les repères de navigation : un nom, un repère');
 if (!pageMenu) {
   console.log('  ⏸️  `dist/` absent — les repères se comptent dans la page SERVIE, pas dans le gabarit.');
 } else {
-  const { nu } = await import('../lib/i18n.mjs');
+  const { nu } = await import('../../moteur/lib/i18n.mjs');
   const htmlMenu = readFileSync(pageMenu, 'utf8');
   // ⚠️ `nu()` AVANT DE COMPARER. Sous `I18N_MARQUAGE=1` — que le Dockerfile de
   //   production pose — `t()` enrobe sa valeur de sentinelles invisibles. Deux
@@ -1422,7 +1422,7 @@ console.log('\n7. le pied de page : quatre colonnes, quatre titres, quatre liste
 //    sans jamais savoir ce qu'elle rend. Les deux, ou rien.
 {
   console.log('\n8. l\'image du héros change chaque jour');
-  const { choisirDuJour, numeroDuJour } = await import('../lib/jour_du_build.mjs');
+  const { choisirDuJour, numeroDuJour } = await import('../../moteur/lib/jour_du_build.mjs');
   const memo = process.env.BUILD_DATE;
   const LISTE = ['a', 'b', 'c', 'd', 'e'];
   const auJour = (d) => { process.env.BUILD_DATE = d; return choisirDuJour(LISTE); };

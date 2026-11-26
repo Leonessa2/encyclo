@@ -5,7 +5,7 @@
 // `/brands/` vient de l'un, `/brands/marvel/` de l'autre.
 import EditorialEntry from '../../components/pages/EditorialEntry.astro';
 import { ficheParamsDefault, fichesDe } from '../../../engine/lib/editorial_entries.mjs';
-import { locales } from '../../../engine/lib/i18n.mjs';
+import { locales } from '../../../moteur/lib/i18n.mjs';
 export const getStaticPaths = ficheParamsDefault;
 const lang = locales().def;
 const { section, entree } = Astro.params;

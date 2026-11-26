@@ -15,7 +15,7 @@ import Carte from '../Carte.astro';
 import CarteSet from '../CarteSet.astro';
 import AVenir from '../AVenir.astro';
 import { dataset } from '../../../engine/lib/dataset.mjs';
-import { t, localize, numberLocale } from '../../../engine/lib/i18n.mjs';
+import { t, localize, numberLocale } from '../../../moteur/lib/i18n.mjs';
 
 const { lang } = Astro.props;
 const ds = await dataset();

@@ -527,7 +527,7 @@ td.num, th.num{text-align:right;font-variant-numeric:tabular-nums;
    la préférence de chacun sans qu'il l'ait demandé. ⇒ **on garde la valeur,
    on écrit ce qu'elle veut dire, et le LIBELLÉ montré à l'utilisateur, lui, se
    DÉDUIT de la luminance des deux palettes** (voir `theme.switchTo` et
-   `motPalette()` dans `engine/lib/feuille_theme.mjs`) — il ne se code plus en
+   `motPalette()` dans `moteur/lib/feuille_theme.mjs`) — il ne se code plus en
    dur, précisément pour qu'il ne puisse plus mentir sur l'un des deux sites.
 
    ⭐⭐⭐ LA LEÇON, ET ELLE A FAILLI COÛTER LA FONCTIONNALITÉ : j'avais conclu
@@ -962,7 +962,7 @@ main{padding:var(--s7) 0 var(--s8);display:block;position:relative}
    Le remède monte la spécificité à (0,1,1) et RESTE UN PADDING SUR `main` —
    l'interdit du 06/08 tient : ⛔ jamais en `margin-top` sur `.site-f`, qui
    laisserait revoir la bande noire du `body`. `.wrap` garde gauche/droite.
-   🔬 Contrôlé par `outils/cascade-resolue.mjs`, banc `test_feuille.mjs`. */
+   🔬 Contrôlé par `moteur/bancs/cascade-resolue.mjs`, banc `test_feuille.mjs`. */
 main.wrap{padding-top:var(--s7);padding-bottom:var(--s8)}
 /* ② MÊME SIGNATURE, SENS INVERSE : `.site-f{padding:var(--s7) 0}` (0,1,0) est
    battu par `footer.site{padding:var(--s6) 0}` (0,1,1) de la feuille du
@@ -1642,7 +1642,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
    contenu — il ne reste aucun doublon a comparer. C'est l'autre moitie de la
    meme famille, et l'outil posait deja la bonne question sans y repondre en
    entier : « quelle FRACTION de sa famille j'attrape ? ».
-   ➡️ Le pendant statique vit dans `outils/css-mort.mjs` : un `opacity:0` pose
+   ➡️ Le pendant statique vit dans `moteur/bancs/css-mort.mjs` : un `opacity:0` pose
    a la racine que rien ne ramene au-dessus de zero rend l'element
    DEFINITIVEMENT invisible — et ca, ca se mesure sans navigateur. */
 @media (prefers-reduced-motion: no-preference){
@@ -2210,7 +2210,7 @@ dl.fiche-tbl + dl.fiche-tbl{border-top:1px solid var(--rule);padding-top:2px}
    sans règle est exactement aussi cassée qu'une classe absente, et elle coûte
    plus cher parce qu'elle a l'air d'être là.
    ⛔ Avant d'ajouter une classe dans un gabarit : lui écrire sa règle, ou ne
-   pas l'ajouter. `node outils/css-mort.mjs` refuse désormais l'oubli.
+   pas l'ajouter. `node moteur/bancs/css-mort.mjs` refuse désormais l'oubli.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ─── La grille d'articles (Articles, accueil éditorial) ─────────────────── */
@@ -3137,7 +3137,7 @@ body > main{ background:var(--bg); }
    même : une règle écrite, commentée, défendue, et BATTUE EN SPÉCIFICITÉ par
    une règle plus ancienne que personne ne relit. « Est-ce écrit ? » et « est-ce
    ce qui gagne ? » sont deux questions, et le dépôt ne posait que la première.
-   🔬 Il pose la seconde depuis ce lot : `outils/cascade-resolue.mjs` la calcule,
+   🔬 Il pose la seconde depuis ce lot : `moteur/bancs/cascade-resolue.mjs` la calcule,
    `test:feuille` la surveille.
 
    ⭐ ARBITRAGE DE PREDA, 24/08, sur trois formes montrées côte à côte : **on

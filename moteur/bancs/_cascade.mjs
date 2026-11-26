@@ -1,4 +1,4 @@
-// ⚠️ Leonessa2/veve-sites — engine/tools/_cascade.mjs   (FICHIER NEUF — lot 161)
+// ⚠️ Moteur commun — moteur/bancs/_cascade.mjs   (FICHIER NEUF — lot 161)
 // ═══════════════════════════════════════════════════════════════════════════
 //  QUI GAGNE ? — la question qu'aucun de nos instruments ne posait
 // ═══════════════════════════════════════════════════════════════════════════
@@ -13,8 +13,8 @@
 // ⇒ La règle était écrite, lisible, commentée, et elle n'a jamais peint.
 //
 // ⭐⭐⭐ « EST-CE ÉCRIT ? » ET « EST-CE CE QUI GAGNE ? » SONT DEUX QUESTIONS.
-//   · `outils/css-mort.mjs`       demande « cette règle EXISTE-t-elle ? »   → oui
-//   · `outils/cascade-aplatie.mjs` demande « la version mobile FUIT-elle ? » → non
+//   · `moteur/bancs/css-mort.mjs`       demande « cette règle EXISTE-t-elle ? »   → oui
+//   · `moteur/bancs/cascade-aplatie.mjs` demande « la version mobile FUIT-elle ? » → non
 //   Aucun des deux ne pouvait voir le défaut. Celui-ci pose la troisième.
 //
 // ⛔ CE QU'IL NE FAIT PAS, ET IL FAUT LE LIRE AVANT DE S'EN SERVIR :

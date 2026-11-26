@@ -2,13 +2,13 @@
 //  editorial_pages.mjs — les TYPES DE PAGE éditoriaux activables par manifeste
 //
 //  ⚠️ CE FICHIER VA DANS LE DÉPÔT  Leonessa2/veve-sites , dans  engine/lib/
-//     (chemin exact : engine/lib/editorial_pages.mjs)
+//     (chemin exact : moteur/lib/editorial_pages.mjs)
 //
 //  Étape 3 du constructeur générique (bible/architecture-generateur-sites.md).
 //  Un site n'active QUE ses pages, via `manifest.editorial.pages`. Ce module dit
 //  quelles sections « index » existent, leur adresse et leur titre multilingue —
 //  et sert les listes de `getStaticPaths` (défaut + localisé). UN SEUL code pour
-//  les 15 sites ; rien de vevewiki-spécifique.
+//  les 15 sites ; rien de propre à un site.
 //
 //  blog & submit ne sont PAS ici : le blog a son rendu propre (engine/lib/blog.mjs)
 //  et « submit » est un formulaire, pas une page-liste de contenu.
@@ -94,7 +94,7 @@ const editorialCfg = () => manifest().editorial || {};
  *  canonique.
  *
  *  ⭐ AVEC UNE LANGUE, la liste se RESSERRE : on ne garde que les sections dont
- *  la traduction atteint le seuil (engine/lib/langues.mjs). Sans langue, on
+ *  la traduction atteint le seuil (moteur/lib/langues.mjs). Sans langue, on
  *  renvoie la liste du site — c'est ce que veulent le sitemap, la 404 et tout
  *  ce qui raisonne « sections de ce site », pas « sections de cette page ».
  *  ⚠️ Appeler `activeSections()` sans langue dans un rendu de PAGE republierait
@@ -139,7 +139,7 @@ export function languesDuSite() {
   // filtre ci-dessous ne laissait passer que la langue pivot.
   //
   // MESURE, PAS SUPPOSITION : en branchant `editorial: {pages: [blog]}` sur
-  // veveprice, le build est passe de 439 a 424 pages. Disparues :
+  // le site de prix, le build est passe de 439 a 424 pages. Disparues :
   // /fr/, /es/, /de/ et leurs 12 pages legales. Sans une erreur, sans un
   // warning, et les 16 bancs seraient restes verts.
   //

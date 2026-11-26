@@ -1,6 +1,6 @@
 import { postsFor } from '../../../engine/lib/blog.mjs';
-import { manifest, siteUrl } from '../../../engine/lib/manifest.mjs';
-import { locales, localize, pick } from '../../../engine/lib/i18n.mjs';
+import { manifest, siteUrl } from '../../../moteur/lib/manifest.mjs';
+import { locales, localize, pick } from '../../../moteur/lib/i18n.mjs';
 import { languesBlog } from '../../../engine/lib/blog.mjs';
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

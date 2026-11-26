@@ -1,7 +1,7 @@
 ---
 import { priceEnabled } from '../../../engine/lib/features.mjs';
 import Orientation from '../../components/pages/Orientation.astro';
-import { locales } from '../../../engine/lib/i18n.mjs';
+import { locales } from '../../../moteur/lib/i18n.mjs';
 export function getStaticPaths() {
   if (!priceEnabled()) return [];
   const { active, def } = locales();

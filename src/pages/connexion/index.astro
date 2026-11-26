@@ -49,14 +49,14 @@ export const prerender = true;
 
 import Base from '../../layouts/Base.astro';
 import { sessionDe } from '../../../engine/lib/access.mjs';
-import { t, localize, locales, languesInterface, choisirLangue, COOKIE_LANGUE } from '../../../engine/lib/i18n.mjs';
+import { t, localize, locales, languesInterface, choisirLangue, COOKIE_LANGUE } from '../../../moteur/lib/i18n.mjs';
 import { comptesActifs } from '../../../engine/lib/features.mjs';
-import { sceau, champPiegeHtml } from '../../../engine/lib/robots.mjs';
+import { sceau, champPiegeHtml } from '../../../moteur/lib/robots.mjs';
 import { retourSur, COOKIE_RETOUR, RETOUR_DUREE } from '../../../engine/lib/retour.mjs';
 import { getCatalogue } from '../../../engine/data/warehouse.mjs';
 import { lireMarche } from '../../../engine/lib/cote.mjs';
 import { priceEnabled } from '../../../engine/lib/features.mjs';
-import { numberLocale } from '../../../engine/lib/i18n.mjs';
+import { numberLocale } from '../../../moteur/lib/i18n.mjs';
 
 // ⭐ CETTE PAGE EST RENDUE À LA DEMANDE : elle peut lire `Accept-Language`, ce
 // qu'une page pré-générée ne peut pas faire. On ne fait confiance qu'aux

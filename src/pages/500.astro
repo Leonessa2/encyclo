@@ -19,7 +19,7 @@
 //    serait au mieux perime, au pire faux, et personne ne pourrait le verifier.
 //    Le texte dit ce qui est INTACT (le releve) et ce qui ne l'est pas (la page).
 import Base from '../layouts/Base.astro';
-import { locales, t, localize } from '../../engine/lib/i18n.mjs';
+import { locales, t, localize } from '../../moteur/lib/i18n.mjs';
 import { floora } from '../../engine/lib/floora.mjs';
 const lang = locales().def;
 const f = floora('500');

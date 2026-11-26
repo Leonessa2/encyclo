@@ -411,7 +411,7 @@ for (const [ou, ...p] of [
 }
 
 console.log('\n1 quinquies. le masquage des tuiles fermées est-il branché sur la CAISSE ?');
-const { manifest } = await import('../lib/manifest.mjs');
+const { manifest } = await import('../../moteur/lib/manifest.mjs');
 const { PALIERS } = await import('../lib/access.mjs');
 const branche = /const\s+caisse\s*=\s*Boolean\(\s*manifest\(\)\.offer\?\.url\s*\)/.test(nu);
 verifie('la caisse est LUE au manifeste (`Boolean(manifest().offer?.url)`)',

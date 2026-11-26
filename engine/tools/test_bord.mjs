@@ -191,7 +191,7 @@ verifie('…et le journal du serveur ne porte aucune erreur de rendu',
 //   collected », que mon motif ne reconnaissait pas.
 //   ⭐⭐ *Une injection qui ne mord pas accuse le BANC.* Et la règle de lecture
 //   est celle du SITE (`nu()`), jamais celle qu'on se donne.
-const { nu } = await import('../lib/i18n.mjs');
+const { nu } = await import('../../moteur/lib/i18n.mjs');
 const { monterDOM } = await import('./_dom_banc.mjs');
 const dom = await monterDOM(html);
 const propre = (n) => nu(n ? n.textContent : '').replace(/\s+/g, ' ').trim();

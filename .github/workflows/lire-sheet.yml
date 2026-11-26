@@ -1,7 +1,7 @@
 # Dépôt : Leonessa2/encyclo — fichier : .github/workflows/lire-sheet.yml
 #
 # LOT 2 (26/11/2026) : le wiki lit LUI-MÊME son Google Sheet éditorial.
-# 1. banc hors réseau du lecteur (outils/test_lire_sheet.py) ;
+# 1. banc hors réseau du lecteur (moteur/editorial/test_lire_sheet.py) ;
 # 2. lecture du Sheet -> sites/vevewiki/editorial/*.json ;
 # 3. cartes de partage des articles + dates de dernière modification ;
 # 4. dépôt des fichiers s'ils ont changé ; la construction suit
@@ -41,10 +41,10 @@ jobs:
           python-version: '3.11'
 
       - name: Dépendances
-        run: pip install -r outils/requirements-sheet.txt
+        run: pip install -r moteur/editorial/requirements.txt
 
       - name: Banc du lecteur (hors réseau)
-        run: python outils/test_lire_sheet.py
+        run: python moteur/editorial/test_lire_sheet.py
 
       - name: Le secret Google est-il là ?
         id: garde
@@ -62,7 +62,7 @@ jobs:
         if: steps.garde.outputs.actif == 'true'
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-        run: python outils/lire_sheet.py --site "$SITE"
+        run: python moteur/editorial/lire_sheet.py --site "$SITE"
 
       - name: Cartes de partage des articles
         if: steps.garde.outputs.actif == 'true'

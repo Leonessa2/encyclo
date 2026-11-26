@@ -4,7 +4,7 @@
 // manifeste déclare des modules de données prix (content.data_modules non vide),
 // sauf override explicite `content.price: true|false`. Un wiki (data_modules vide)
 // -> AUCUNE page de prix, ni dans le sitemap, ni dans la recherche.
-import { manifest } from './manifest.mjs';
+import { manifest } from '../../moteur/lib/manifest.mjs';
 export function priceEnabled() {
   const m = manifest();
   if (m.content && typeof m.content.price === 'boolean') return m.content.price;
