@@ -1,4 +1,4 @@
-# Envoi d’un site au VPS (moteur 0.4.0)
+# Envoi d’un site au VPS (moteur 0.4.1)
 
 Le site est **construit par GitHub Actions**. Le VPS ne construit rien : il
 reçoit des fichiers et un serveur web les sert.
@@ -38,6 +38,13 @@ que la clé ne peut rien faire d'autre (12 refus).
   version existante, faire le ménage, dire l'état. Le dossier du site est
   écrit dans cette ligne, côté serveur : l'envoi ne le choisit pas.
   Il refuse une version qui contient un lien symbolique.
+  Pour rsync, il n'accepte **qu'une forme** : celle qu'envoie `envoyer.sh`
+  (`-a --delete`, et `--link-dest ../../courant/` à partir du 2ᵉ envoi) ;
+  toute autre option (`-K`, `-L`, `--temp-dir`…) est refusée. Si une version
+  de rsync change un jour cette forme, l'envoi échoue sans rien toucher.
+  ⚠️ À chaque changement de `serveur/recevoir-site.sh` (noté dans
+  `CHANGEMENTS.md`), le projet Serveur & domaines doit **recopier** le script
+  sur le VPS : la copie installée ne se met pas à jour seule.
   Prérequis : Linux avec les outils GNU (Ubuntu, Debian), rsync.
 - L'envoi écrit une nouvelle version, puis bascule `courant` d'un seul coup :
   un visiteur ne voit jamais un site à moitié envoyé.

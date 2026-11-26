@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Moteur commun — fichier : moteur/bancs/envoi-essai.sh   (version 0.4.0)
+# Moteur commun — fichier : moteur/bancs/envoi-essai.sh   (version 0.4.1)
 #
 # Essai complet de l'envoi SANS VPS. La « machine distante » est un dossier
 # temporaire :
@@ -88,11 +88,18 @@ refus() {  # $1 = commande demandée, $2 = libellé
 refus "rm -rf /" "une commande quelconque"
 refus "sh -c id" "un interpréteur"
 refus "rsync --server --sender -logDtpre.iLsfxCIvu . /etc/" "lire des fichiers du serveur (rsync --sender)"
-refus "rsync --server -logDtpre.iLsfxCIvu . ../../tmp/x/" "écrire hors de versions/"
-refus "rsync --server -logDtpre.iLsfxCIvu . versions/../../x/" "un nom de version piégé"
-refus "rsync --server -logDtpre.iLsfxCIvu --link-dest /etc/ . versions/20260101-000000-abcdef0/" "un --link-dest ailleurs"
-refus "rsync --server -logDtpre.iLsfxCIvu . $EN_LIGNE/" "écraser une version existante"
+refus "rsync --server -logDtpre.iLsfxCIvu --delete . ../../tmp/x/" "écrire hors de versions/"
+refus "rsync --server -logDtpre.iLsfxCIvu --delete . versions/../../x/" "un nom de version piégé"
+refus "rsync --server -logDtpre.iLsfxCIvu --delete --link-dest /etc/ . versions/20260101-000000-abcdef0/" "un --link-dest ailleurs"
+refus "rsync --server -logDtpre.iLsfxCIvu --delete . $EN_LIGNE/" "écraser une version existante"
 refus "basculer ../x" "basculer vers un nom invalide"
+refus "rsync --server -logDtprKe.iLsfxCIvu --delete . versions/20260101-000000-abcdef0/" "-K caché dans les lettres (suivre un lien vers un dossier du serveur)"
+refus "rsync --server -logDtpre.iLsfxCIvu -K --delete . versions/20260101-000000-abcdef0/" "-K à part"
+refus "rsync --server -logDtpre.iLsfxCIvu --delete -L . versions/20260101-000000-abcdef0/" "-L (copier ce que pointent les liens)"
+refus "rsync --server -logDtpre.iLsfxCIvu --delete --temp-dir /tmp . versions/20260101-000000-abcdef0/" "--temp-dir (écrire ailleurs)"
+refus "rsync --server -logDtpre.iLsfxCIvu . versions/20260101-000000-abcdef0/" "rsync sans --delete (pas la forme d'envoyer.sh)"
+refus "rsync --server -logDtpre.iLsfxCIvu --delete --link-dest ../../courant/ --link-dest ../../courant/ . versions/20260101-000000-abcdef0/" "--link-dest en double"
+refus "rsync --server -logDtpre.iLsfxCIvuZ --delete . versions/20260101-000000-abcdef0/" "une capacité rsync inconnue"
 refus "revenir /etc" "revenir vers une cible hors de versions/"
 refus "revenir versions/20260101-000000-abcdef0" "revenir vers une version inexistante"
 refus "menage 0" "un ménage qui effacerait tout"

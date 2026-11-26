@@ -1,5 +1,5 @@
 #!/bin/sh
-# Moteur commun — fichier : moteur/envoi/serveur/recevoir-site.sh   (version 0.4.0)
+# Moteur commun — fichier : moteur/envoi/serveur/recevoir-site.sh   (version 0.4.1)
 #
 # LA SEULE CHOSE QUE LA CLÉ D'ENVOI PEUT FAIRE SUR LE VPS.
 # Installé sur le VPS (par exemple /usr/local/bin/recevoir-site, propriétaire
@@ -50,21 +50,27 @@ set +f
 
 case "$1" in
   rsync)
-    # Forme exacte attendue (rsync 3.x côté envoi) :
-    #   rsync --server -<lettres> [--delete] [--link-dest ../../courant/] . versions/<id>/
+    # SEULE forme acceptée : celle qu'envoie `rsync -a --delete [--link-dest=…]`
+    # de moteur/envoi/envoyer.sh (rsync 3.2.7 des machines GitHub, mesuré le
+    # 26/11/2026), dans cet ordre exact :
+    #   rsync --server -logDtpre.<capacités> --delete [--link-dest ../../courant/] . versions/<id>/
+    # -logDtpr = -a ; « e. » ouvre la liste des capacités du protocole (pas des
+    # options) : lettres connues seulement. Toute autre option (-K, -L, -k,
+    # --temp-dir, --partial-dir…) est refusée. Si rsync change un jour cette
+    # forme, l'envoi échoue sans rien toucher : adapter ICI et dans
+    # moteur/bancs/envoi-essai.sh.
     [ "${2:-}" = "--server" ] || refuser "rsync sans --server"
-    shift 2
-    opts=""
+    printf '%s\n' "${3:-}" | grep -Eq '^-logDtpre\.[iLsfxCIvu]*$' || refuser "option rsync inattendue : ${3:-}"
+    drapeaux="$3"
+    [ "${4:-}" = "--delete" ] || refuser "rsync sans --delete, ou option inattendue : ${4:-}"
+    shift 4
     lien=""
-    while [ $# -gt 2 ]; do
-      case "$1" in
-        --delete) opts="$opts --delete" ;;
-        --link-dest) [ "${2:-}" = "../../courant/" ] || refuser "--link-dest inattendu"; lien="--link-dest ../../courant/"; shift ;;
-        -*) printf '%s\n' "$1" | grep -Eq '^-[A-Za-z.]+$' || refuser "option rsync inattendue : $1"; opts="$opts $1" ;;
-        *) refuser "argument rsync inattendu : $1" ;;
-      esac
-      shift
-    done
+    if [ "${1:-}" = "--link-dest" ]; then
+      [ "${2:-}" = "../../courant/" ] || refuser "--link-dest inattendu"
+      lien="--link-dest ../../courant/"
+      shift 2
+    fi
+    [ $# -eq 2 ] || refuser "rsync : arguments en trop ou manquants"
     [ "${1:-}" = "." ] || refuser "rsync : source inattendue"
     cible="${2:-}"
     case "$cible" in versions/*/) ;; *) refuser "rsync : destination hors de versions/" ;; esac
@@ -73,7 +79,7 @@ case "$1" in
     [ -d versions ] || refuser "versions/ absent : lancer « preparer » d'abord"
     [ ! -e "versions/$id" ] || refuser "la version $id existe déjà"
     # shellcheck disable=SC2086
-    exec rsync --server $opts $lien . "versions/$id/"
+    exec rsync --server "$drapeaux" --delete $lien . "versions/$id/"
     ;;
   preparer)
     [ $# -eq 1 ] || refuser "preparer ne prend pas d'argument"

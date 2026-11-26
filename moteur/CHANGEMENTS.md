@@ -1,5 +1,26 @@
 # Changements du moteur
 
+## 0.4.1 — 26/11/2026
+
+- **`envoi/serveur/recevoir-site.sh` n'accepte plus qu'une seule forme de
+  réception rsync** : exactement celle qu'envoie `envoi/envoyer.sh`
+  (`rsync --server -logDtpre.<capacités> --delete [--link-dest ../../courant/]
+  . versions/<id>/`, mesurée le 26/11 avec rsync 3.2.7, celui des machines
+  GitHub). Avant, il laissait passer toute option courte, dont `-K` (suivre un
+  lien vers un dossier du serveur) et `-L` — faille signalée par Serveur &
+  domaines le 26/11, neutralisée de leur côté en attendant.
+- `bancs/envoi-essai.sh` : 7 refus de plus (19 en tout) : `-K` dans les
+  lettres et à part, `-L`, `--temp-dir`, sans `--delete`, `--link-dest` en
+  double, capacité inconnue. Contre-épreuve faite le 26/11 : l'ancien script
+  laissait passer 6 de ces 7 formes jusqu'à rsync ; le nouveau les refuse
+  toutes, et les deux vrais envois (sans puis avec `--link-dest`) passent.
+- **Ce que les sites doivent adapter** : rien dans le site.
+- **⚠️ Ce que Serveur & domaines doit faire** : **recopier** le script sur le
+  VPS — `moteur/envoi/serveur/recevoir-site.sh` (dépôt `Leonessa2/encyclo`,
+  ce commit) → `/usr/local/bin/recevoir-site`, propriétaire root, droits 755.
+  Rien d'autre ne change (même ligne dans `authorized_keys`, même image nginx,
+  même `nginx-site.conf`).
+
 ## 0.4.0 — 26/11/2026
 
 - **La clé d'envoi est limitée à une commande forcée** :
