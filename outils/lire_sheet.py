@@ -131,7 +131,21 @@ def _open_spreadsheet(sheet_id: str):
     import gspread
     from google.oauth2.service_account import Credentials
     scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]   # lecture seule
-    creds = Credentials.from_service_account_info(json.loads(raw), scopes=scopes)
+    try:
+        info = json.loads(raw)
+    except json.JSONDecodeError:
+        # ⛔ On n'affiche JAMAIS le contenu du secret, seulement sa forme.
+        raise EditorialError(
+            f"Le secret GOOGLE_SERVICE_ACCOUNT_JSON n'est pas un fichier de clé JSON "
+            f"({len(raw.strip())} caractères ; il devrait commencer par « {{ » : "
+            f"{'oui' if raw.strip().startswith('{') else 'non'}). Coller le contenu "
+            f"COMPLET du fichier .json téléchargé depuis Google Cloud. Aucun snapshot touché.")
+    if not isinstance(info, dict) or info.get("type") != "service_account":
+        raise EditorialError(
+            "Le secret GOOGLE_SERVICE_ACCOUNT_JSON est bien du JSON, mais pas une clé de "
+            "compte de service (champ \"type\" différent de \"service_account\"). "
+            "Aucun snapshot touché.")
+    creds = Credentials.from_service_account_info(info, scopes=scopes)
     return gspread.authorize(creds).open_by_key(sheet_id)
 
 
