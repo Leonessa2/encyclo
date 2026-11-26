@@ -1,11 +1,13 @@
-// ⚠️ DEPOT : Leonessa2/veve-sites  ·  CHEMIN : engine/data/warehouse.mjs
+// ⚠️ DEPOT : Leonessa2/encyclo  ·  CHEMIN : engine/data/warehouse.mjs
+// (copie de Leonessa2/veve-sites ; lot 3 du 26/11/2026 : lecture `file://`)
 //
 // Accès à l'entrepôt de données jetonveve.
 // Lit les releases publiques (CSV.gz par URL). Repli automatique sur la
 // release N-1 (`-prev`), puis sur un échantillon local (build hors-ligne).
 import { gunzipSync } from 'node:zlib';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const ROOT = process.env.PROJECT_ROOT || process.cwd();
 const SAMPLE_DIR = join(ROOT, 'engine', 'data', 'sample');
@@ -476,12 +478,34 @@ const VU_LE = new Map();
 //    de lignes, et lui faire rendre un couple obligerait ses deux appelants à
 //    déballer — dont celui du secours N-1, qui n'en a pas l'usage.
 let DERNIERE_DATE = null;
+// LOT 3 (26/11/2026, encyclo) : la date est AUSSI rangée par adresse.
+// 🔴 Mesuré : les sources se chargent EN PARALLÈLE ; entre le moment où
+//    `fetchTable` pose DERNIERE_DATE et celui où `load()` la lit, une autre
+//    lecture peut l'avoir écrasée. Avec des fichiers locaux (lecture
+//    immédiate), les 8 sources affichaient toutes la date de la dernière lue.
+//    `load()` lit donc la date de SON adresse, jamais celle du voisin.
+const DATE_PAR_URL = new Map();
 
 /** L'instant (epoch SECONDES) où la source a été observée, ou `null`.
  *  ⛔ Jamais un repli sur l'heure courante — cf. le bloc ci-dessus. */
 export const vuLe = (name) => (VU_LE.has(name) ? VU_LE.get(name) : null);
 
 async function fetchTable(url) {
+  // LOT 3 (26/11/2026, encyclo) : DERNIÈRE BONNE COPIE.
+  // `outils/donnees_scrapeur.sh` télécharge les releases dans `.donnees/` et
+  // y garde la dernière bonne copie quand le scrapeur ne publie plus ; il
+  // pointe les variables `*_URL` sur ces fichiers (`file://…`). La date de la
+  // donnée est celle du fichier, que `curl -R` a calée sur la date de la
+  // release : une vieille copie garde donc sa vraie date.
+  if (url.startsWith('file://')) {
+    const p = fileURLToPath(url);
+    const buf = readFileSync(p);
+    const lm = statSync(p).mtimeMs;
+    const text = p.endsWith('.gz') ? gunzipSync(buf).toString('utf8') : buf.toString('utf8');
+    DERNIERE_DATE = Number.isFinite(lm) ? Math.floor(lm / 1000) : null;
+    DATE_PAR_URL.set(url, DERNIERE_DATE);
+    return parseCSV(text);
+  }
   const res = await fetch(url, { redirect: 'follow' });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   // ⭐ On le lit AVANT le corps : un `arrayBuffer()` qui échoue laisserait
@@ -490,6 +514,7 @@ async function fetchTable(url) {
   const buf = Buffer.from(await res.arrayBuffer());
   const text = url.endsWith('.gz') ? gunzipSync(buf).toString('utf8') : buf.toString('utf8');
   DERNIERE_DATE = Number.isFinite(lm) ? Math.floor(lm / 1000) : null;
+  DATE_PAR_URL.set(url, DERNIERE_DATE);
   return parseCSV(text);
 }
 
@@ -527,9 +552,10 @@ export async function load(name) {
         if (lues.length) {
           rows = lues;
           rangLu = i;
-          VU_LE.set(name, DERNIERE_DATE);
+          const dateLue = DATE_PAR_URL.has(url) ? DATE_PAR_URL.get(url) : null;
+          VU_LE.set(name, dateLue);
           console.log(`[entrepot] ${name}: ${rows.length} lignes depuis ${url}`
-            + (DERNIERE_DATE ? ` — observé le ${new Date(DERNIERE_DATE * 1000).toISOString()}` : ''));
+            + (dateLue ? ` — observé le ${new Date(dateLue * 1000).toISOString()}` : ''));
           break;
         }
       } catch (e) {
@@ -665,9 +691,18 @@ export async function streamPrices(onRow) {
     for (let i = 0; i < urls.length; i++) {
       const url = urls[i];
       try {
-        const res = await fetch(url, { redirect: 'follow' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        let stream = Readable.fromWeb(res.body);
+        // LOT 3 (26/11/2026, encyclo) : la dernière bonne copie locale
+        // (`file://`, cf. fetchTable) se lit aussi en flux. Sans ça, `fetch`
+        // refusait le fichier et la lecture partait EN SILENCE sur la release
+        // N-1 du réseau — mesuré par la panne simulée.
+        let stream;
+        if (url.startsWith('file://')) {
+          stream = createReadStream(fileURLToPath(url));
+        } else {
+          const res = await fetch(url, { redirect: 'follow' });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          stream = Readable.fromWeb(res.body);
+        }
         if (url.endsWith('.gz')) stream = stream.pipe(createGunzip());
         lues = await consumeStream(stream, onRow);
         rangLu = i;

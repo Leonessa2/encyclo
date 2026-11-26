@@ -6,3 +6,4 @@ dist/
 .chrono.json
 .rendering
 __pycache__/
+.donnees/
