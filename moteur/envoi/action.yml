@@ -80,7 +80,20 @@ runs:
       run: |
         set -eu
         mkdir -p ~/.ssh && chmod 700 ~/.ssh
-        printf '%s\n' "$CLE" > ~/.ssh/envoi && chmod 600 ~/.ssh/envoi
+        # Nettoyer la clé collée : retours à la ligne Windows, espaces en tête/fin.
+        printf '%s\n' "$CLE" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d' > ~/.ssh/envoi
+        chmod 600 ~/.ssh/envoi
+        # Contrôler la clé AVANT de se connecter, sans jamais l'afficher.
+        if grep -q '^ssh-' ~/.ssh/envoi; then
+          echo "::error title=Clé d'envoi::le secret VPS_CLE_SSH contient la clé PUBLIQUE (elle commence par « ssh-ed25519 »). Il faut la clé PRIVÉE : le fichier du même nom SANS « .pub »."; exit 1
+        fi
+        if ! head -1 ~/.ssh/envoi | grep -q '^-----BEGIN .*PRIVATE KEY-----$' || ! tail -1 ~/.ssh/envoi | grep -q '^-----END .*PRIVATE KEY-----$'; then
+          echo "::error title=Clé d'envoi::le secret VPS_CLE_SSH doit commencer par la ligne « -----BEGIN OPENSSH PRIVATE KEY----- » et finir par « -----END OPENSSH PRIVATE KEY----- », ces deux lignes comprises."; exit 1
+        fi
+        if ! ssh-keygen -y -P '' -f ~/.ssh/envoi >/dev/null 2>&1; then
+          echo "::error title=Clé d'envoi::la clé privée est illisible : soit elle est protégée par une phrase de passe (il la faut SANS), soit elle a été abîmée au copier-coller (recoller le fichier entier)."; exit 1
+        fi
+        echo "Clé d'envoi lisible : $(ssh-keygen -l -f ~/.ssh/envoi | awk '{print $2}')"
         printf '%s\n' "$EMPREINTE" > ~/.ssh/known_hosts_envoi
 
     - name: Envoyer, basculer, vérifier

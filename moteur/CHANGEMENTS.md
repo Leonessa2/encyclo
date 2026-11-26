@@ -1,5 +1,19 @@
 # Changements du moteur
 
+## 0.4.2 — 26/11/2026
+
+- **`envoi/action.yml` contrôle la clé d'envoi avant de se connecter** :
+  elle est d'abord nettoyée (retours à la ligne Windows, espaces et lignes
+  vides en trop), puis vérifiée sans jamais être affichée. Un message clair
+  dit si c'est la clé publique, s'il manque les lignes BEGIN/END, ou si la
+  clé est protégée par une phrase de passe ou abîmée. Quand tout va bien, le
+  journal affiche son empreinte publique (SHA256:…), à comparer avec celle
+  que Serveur & domaines a installée. Né du premier essai d'envoi du 26/11 :
+  « Load key … error in libcrypto », clé collée illisible.
+- Vérifié le 26/11 sur 8 collages (bon, Windows, espaces, clé publique,
+  phrase de passe, abîmé, sans début, sur une seule ligne).
+- **Ce que les sites doivent adapter** : rien. Serveur & domaines : rien.
+
 ## 0.4.1 — 26/11/2026
 
 - **`envoi/serveur/recevoir-site.sh` n'accepte plus qu'une seule forme de
