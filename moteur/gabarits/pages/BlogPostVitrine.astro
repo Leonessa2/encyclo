@@ -1,11 +1,11 @@
 ---
-// ⚠️ Leonessa2/veve-sites — src/components/pages/BlogPostVitrine.astro (NEUF)
+// Moteur commun — fichier : moteur/gabarits/pages/BlogPostVitrine.astro (partie 2b, 26/11/2026)
 // ═══════════════════════════════════════════════════════════════════════════
 // L'ARTICLE, PEAU VITRINE — porté de `ecranArticle()` de la maquette.
 // ═══════════════════════════════════════════════════════════════════════════
 // Même raison d'être que BlogIndexVitrine : `avec-aside`, `panneau`, `etiq`,
 // `carte`, `h-page`, `num` n'existent QUE dans le thème `vitrine`. Le gabarit
-// partagé `BlogPost.astro` n'a pas bougé d'un octet — vevewiki rend exactement
+// partagé `BlogPost.astro` n'a pas bougé d'un octet — le site à 5 langues rend exactement
 // ce qu'il rendait ce matin.
 //
 // ⭐⭐ CE QUE LE MOTEUR TIENT ET QUE JE N'AI PAS TOUCHÉ : le JSON-LD Article,
@@ -28,13 +28,14 @@
 //    build (`figureParId`), sourcée, et l'auteur ne recopie aucun chiffre. Le
 //    graphique de l'article ne se porte pas : il s'écrit dans le texte.
 import { render } from 'astro:content';
-import Base from '../../layouts/Base.astro';
-import { translationPaths, tagsFor, postsFor, dureeLecture } from '../../../moteur/lib/blog.mjs';
-import { dataset } from '../../../engine/lib/dataset.mjs';
-import { manifest, siteUrl } from '../../../moteur/lib/manifest.mjs';
-import { jsonld, breadcrumbLd } from '../../../moteur/lib/seo.mjs';
-import { t, localize, dateLocale } from '../../../moteur/lib/i18n.mjs';
-import { carteArticle } from '../../../moteur/lib/og.mjs';
+import Base from '#site/gabarit';
+import { translationPaths, tagsFor, postsFor, dureeLecture } from '../../lib/blog.mjs';
+// Ce que le SITE prête au moteur (contrat : moteur/LISEZMOI.md).
+import * as site from '#site/extensions';
+import { manifest, siteUrl } from '../../lib/manifest.mjs';
+import { jsonld, breadcrumbLd } from '../../lib/seo.mjs';
+import { t, localize, dateLocale } from '../../lib/i18n.mjs';
+import { carteArticle } from '../../lib/og.mjs';
 
 const { lang, post, updatedAt } = Astro.props;
 const m = manifest();
@@ -44,9 +45,10 @@ const Content = post.entry ? (await render(post.entry)).Content : null;
 const path = `/blog/${post.slug}/`;
 const alt = await translationPaths(post.data.translationKey);
 
-const ds = await dataset();
-const byUuid = new Map(ds.items.map((i) => [i.uuid, i]));
-const cited = (post.data.items || []).map((u) => byUuid.get(u)).filter(Boolean);
+// Les fiches citées (`items` : identifiants) : c'est le site qui sait les
+// retrouver. Sans `fichesCitees`, l'article ne montre aucun panneau.
+const cited = typeof site.fichesCitees === 'function'
+  ? await site.fichesCitees(post.data.items || []) : [];
 
 // « À lire ensuite » — les articles qui PARTAGENT un tag, à défaut les plus
 // récents. ⛔ Jamais un tirage au hasard : deux visites de la même page

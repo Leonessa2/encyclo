@@ -7,9 +7,9 @@
 // d'inventer un second mecanisme — deux facons de choisir un gabarit finiraient
 // par diverger, comme les quatre reglages ecrases de ce projet.
 //
-// 🔴 QUAND `blogSkin()` VAUT `sobre` (le DEFAUT, et le cas de vevewiki), CE QUI
+// 🔴 QUAND `blogSkin()` VAUT `sobre` (le DEFAUT, et celui du site à 5 langues), CE QUI
 // SUIT EST EXACTEMENT LE FICHIER D'AVANT, a l'enveloppe `<Fragment>` pres.
-// Le blog de vevewiki — 40 pages reelles — ne passe jamais par la branche
+// Le blog du site à 5 langues — 40 pages reelles — ne passe jamais par la branche
 // vitrine, donc il ne peut pas bouger.
 //
 // ⚠️ L'ENVELOPPE N'EST PAS COSMETIQUE. Le corps commence par un COMMENTAIRE
@@ -17,17 +17,18 @@
 // compilateur Astro rend « Expected `,` or `)` but found `Identifier` » — un
 // message qui ne nomme ni le commentaire ni la cause. Mesure, pas suppose.
 import BlogPostVitrine from './BlogPostVitrine.astro';
-import { blogSkin } from '../../../moteur/lib/blog.mjs';
+import { blogSkin } from '../../lib/blog.mjs';
 const _peau = blogSkin();
 
 import { render } from 'astro:content';
-import Base from '../../layouts/Base.astro';
-import { translationPaths, tagsFor } from '../../../moteur/lib/blog.mjs';
-import { dataset } from '../../../engine/lib/dataset.mjs';
-import { manifest, siteUrl } from '../../../moteur/lib/manifest.mjs';
-import { jsonld, breadcrumbLd } from '../../../moteur/lib/seo.mjs';
-import { t, localize, dateLocale } from '../../../moteur/lib/i18n.mjs';
-import { carteArticle } from '../../../moteur/lib/og.mjs';
+import Base from '#site/gabarit';
+import { translationPaths, tagsFor } from '../../lib/blog.mjs';
+// Ce que le SITE prête au moteur (contrat : moteur/LISEZMOI.md).
+import * as site from '#site/extensions';
+import { manifest, siteUrl } from '../../lib/manifest.mjs';
+import { jsonld, breadcrumbLd } from '../../lib/seo.mjs';
+import { t, localize, dateLocale } from '../../lib/i18n.mjs';
+import { carteArticle } from '../../lib/og.mjs';
 
 const { lang, post, updatedAt } = Astro.props;
 const m = manifest();
@@ -40,9 +41,10 @@ const path = `/blog/${post.slug}/`;
 const alt = await translationPaths(post.data.translationKey);
 
 // Maillage interne : les fiches citees par l'article
-const ds = await dataset();
-const byUuid = new Map(ds.items.map((i) => [i.uuid, i]));
-const cited = (post.data.items || []).map((u) => byUuid.get(u)).filter(Boolean);
+// Les fiches citées (`items` : identifiants) : c'est le site qui sait les
+// retrouver. Sans `fichesCitees`, l'article ne montre aucun panneau.
+const cited = typeof site.fichesCitees === 'function'
+  ? await site.fichesCitees(post.data.items || []) : [];
 
 const crumbs = [
   { name: t(lang, 'home.crumb'), url: localize(lang, '/') },

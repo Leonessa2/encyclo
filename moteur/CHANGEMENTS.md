@@ -1,5 +1,30 @@
 # Changements du moteur
 
+## 0.5.0 — 26/11/2026
+
+- **Les pages communes entrent dans le moteur** (rangement, partie 2b) :
+  `gabarits/pages/` reçoit les articles (`BlogPost`, `BlogPostVitrine`), la
+  liste d'articles (`BlogIndex`, `BlogIndexVitrine`), les étiquettes
+  (`BlogTag`), les pages légales (`LegalPage`), la 404 et la 500
+  (`Erreur404`, `Erreur500`) ; `lib/` reçoit le plan du site
+  (`plan_du_site.mjs`), les flux RSS (`flux_rss.mjs`) et le robots.txt
+  (`robots_txt.mjs`).
+- **Nouveau point d'entrée `#site/gabarit`** (obligatoire) : le gabarit du
+  site, dans lequel s'affichent les pages communes. Nouveaux points
+  facultatifs dans `#site/extensions` : `fichesCitees`, `illustrationEtat`,
+  `dateDesDonnees`, `adressesDuPlan`, `fichierDatesDuPlan` (contrat :
+  `LISEZMOI.md`).
+- Vérifié le 26/11 : site construit **identique** à celui du moteur 0.4.2
+  (451 fichiers, seules les mesures de `api/sante` diffèrent, comme d'une
+  construction à l'autre) ; 16 bancs avant, 15 après, tous verts ;
+  `moteur-neutre` vert (12 commentaires rendus neutres). Contre-épreuves : le
+  journal des dates débranché rougit `lastmod` ; sans `illustrationEtat`, la
+  comparaison voit la 404 et la 500 changer ; `fichesCitees` essayé à part
+  (aucun article ne cite de fiche aujourd'hui).
+- **Ce que les sites doivent adapter** : déclarer `#site/gabarit` dans
+  `package.json` ; garder dans `src/pages/` les routes de quelques lignes
+  (voir `LISEZMOI.md`, « Les routes que le site garde »).
+
 ## 0.4.2 — 26/11/2026
 
 - **`envoi/action.yml` contrôle la clé d'envoi avant de se connecter** :

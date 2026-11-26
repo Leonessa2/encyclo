@@ -1,5 +1,5 @@
 ---
-// ⚠️ Leonessa2/veve-sites — src/components/pages/BlogIndexVitrine.astro (NEUF)
+// Moteur commun — fichier : moteur/gabarits/pages/BlogIndexVitrine.astro (partie 2b, 26/11/2026)
 // ═══════════════════════════════════════════════════════════════════════════
 // L'INDEX DU BLOG, PEAU VITRINE — porté de `ecranBlog()` de la maquette.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -9,8 +9,8 @@
 // `boite`, `boites`, `bloc__os`, `etiq`, `carte`, `sect-t`, `filtres`, `num-s`…
 // Seules `prose`, `crumbs`, `lead` et `wrap` sont dans les trois thèmes.
 // ⛔ Porter ce balisage dans le gabarit PARTAGÉ aurait rendu inerte le blog de
-//    vevewiki — 40 pages réelles, 5 articles × 5 langues — pour embellir celui
-//    de veveprice, qui en a UN.
+//    du site à 5 langues — 40 pages réelles, 5 articles × 5 langues — pour
+//    embellir celui du site de prix, qui en a UN.
 // ⭐ C'est le miroir exact de la panne du 31/07 : on avait alors réclamé à
 //    `encyclopedie` le vocabulaire de la vitrine via `css-mort`, 172 griefs.
 //    Ici c'est le GABARIT qui l'aurait réclamé — et rien n'aurait crié.
@@ -37,9 +37,9 @@
 //   vers les pages de tag qui existent déjà (`/blog/tag/<tag>/`). Un bouton
 //   sans JS ne filtre rien ; un lien, si. Et le seuil `SEUIL_INDEX_TAG` du
 //   moteur continue de décider lesquels ont une page.
-import Base from '../../layouts/Base.astro';
-import { postsFor, tagsFor, blogMeta, languesBlog, dureeLecture } from '../../../moteur/lib/blog.mjs';
-import { t, localize, dateLocale } from '../../../moteur/lib/i18n.mjs';
+import Base from '#site/gabarit';
+import { postsFor, tagsFor, blogMeta, languesBlog, dureeLecture } from '../../lib/blog.mjs';
+import { t, localize, dateLocale } from '../../lib/i18n.mjs';
 
 const { lang, updatedAt } = Astro.props;
 const posts = await postsFor(lang);
@@ -49,7 +49,7 @@ const meta = blogMeta(lang, { title: t(lang, 'blog.title'), description: t(lang,
 const languesArticles = await languesBlog();
 
 // ⭐⭐ LE SEUIL DE LA « UNE » — LA DÉCISION LA PLUS IMPORTANTE DE CE FICHIER.
-// Le dessin de la maquette suppose 42 articles. veveprice en a UN. Avec un
+// Le dessin de la maquette suppose 42 articles. Le site de prix en a UN. Avec un
 // seul, « à la une » EST l'article, et la grille « derniers articles » est
 // vide : la page a l'air cassée alors que tout marche.
 // ⛔ Une page qui a l'air en panne coûte plus cher qu'une page sobre.
@@ -116,7 +116,7 @@ const VARIANTE = [' boite--os', '', ' boite--sect', '', ''];
   {posts.length === 0 && <p class="lead">{t(lang, 'blog.empty')}</p>}
 
   {/* LA UNE — champ noir + panneau os, le motif de l'accueil.
-      ⚠️ `cover` peut être vide (mesuré : 13 articles sans image sur vevewiki).
+      ⚠️ `cover` peut être vide (mesuré : 13 articles sans image sur le site à 5 langues).
       Le bloc doit tenir SANS image, sinon on publie un cadre creux. */}
   {/* 🔴 LOT 206 (M2) — LES STYLES DE LA UNE QUITTENT LE GABARIT. En ligne,
       ils gagnaient sur toute media query : la carte gardait 340px et sa

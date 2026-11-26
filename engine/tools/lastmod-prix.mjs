@@ -183,7 +183,7 @@ async function main() {
   writeFileSync(FICHIER, `${JSON.stringify({
     _note: fichier._note || ('Date du dernier changement REEL de chaque famille de pages, '
       + 'et de chaque fiche pour un site a prix. Produit par engine/tools/lastmod.py '
-      + 'et engine/tools/lastmod-prix.mjs, lu par src/pages/sitemap.xml.js. '
+      + 'et engine/tools/lastmod-prix.mjs, lu par moteur/lib/plan_du_site.mjs. '
       + 'Ne pas editer a la main : la date suivrait le fichier, pas le contenu.'),
     site: SITE,
     // ⭐ Compte les passages REELS de cet outil. Le premier passage date tout

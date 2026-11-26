@@ -7,9 +7,9 @@
 // d'inventer un second mecanisme — deux facons de choisir un gabarit finiraient
 // par diverger, comme les quatre reglages ecrases de ce projet.
 //
-// 🔴 QUAND `blogSkin()` VAUT `sobre` (le DEFAUT, et le cas de vevewiki), CE QUI
+// 🔴 QUAND `blogSkin()` VAUT `sobre` (le DEFAUT, et celui du site à 5 langues), CE QUI
 // SUIT EST EXACTEMENT LE FICHIER D'AVANT, a l'enveloppe `<Fragment>` pres.
-// Le blog de vevewiki — 40 pages reelles — ne passe jamais par la branche
+// Le blog du site à 5 langues — 40 pages reelles — ne passe jamais par la branche
 // vitrine, donc il ne peut pas bouger.
 //
 // ⚠️ L'ENVELOPPE N'EST PAS COSMETIQUE. Le corps commence par un COMMENTAIRE
@@ -17,12 +17,12 @@
 // compilateur Astro rend « Expected `,` or `)` but found `Identifier` » — un
 // message qui ne nomme ni le commentaire ni la cause. Mesure, pas suppose.
 import BlogIndexVitrine from './BlogIndexVitrine.astro';
-import { blogSkin } from '../../../moteur/lib/blog.mjs';
+import { blogSkin } from '../../lib/blog.mjs';
 const _peau = blogSkin();
 
-import Base from '../../layouts/Base.astro';
-import { postsFor, tagsFor, blogMeta, languesBlog } from '../../../moteur/lib/blog.mjs';
-import { t, localize, dateLocale } from '../../../moteur/lib/i18n.mjs';
+import Base from '#site/gabarit';
+import { postsFor, tagsFor, blogMeta, languesBlog } from '../../lib/blog.mjs';
+import { t, localize, dateLocale } from '../../lib/i18n.mjs';
 const { lang, updatedAt } = Astro.props;
 const posts = await postsFor(lang);
 const tags = await tagsFor(lang);

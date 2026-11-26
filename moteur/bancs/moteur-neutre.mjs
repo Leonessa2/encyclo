@@ -141,7 +141,7 @@ for (const x of sorties) console.log(`     ${x}`);
 // Les seuls chemins par lesquels le moteur touche du code du site : les
 // points d'entrée déclarés (moteur/LISEZMOI.md), résolus par le package.json
 // du site. Tout autre « #… » serait une dépendance cachée.
-const ENTREES = new Set(['#site/extensions', '#site/socle']);
+const ENTREES = new Set(['#site/extensions', '#site/socle', '#site/gabarit']);
 const autresEntrees = [];
 for (const f of fichiers.filter((x) => /\.(mjs|js|astro|ts)$/.test(x))) {
   for (const m of readFileSync(f, 'utf8').matchAll(/(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(['"])(#[^'"]+)\1/g)) {

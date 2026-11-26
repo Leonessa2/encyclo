@@ -4,7 +4,8 @@
   "type": "module",
   "imports": {
     "#site/extensions": "./engine/lib/extensions.mjs",
-    "#site/socle": "./engine/lib/socle_site.mjs"
+    "#site/socle": "./engine/lib/socle_site.mjs",
+    "#site/gabarit": "./src/layouts/Base.astro"
   },
   "private": true,
   "scripts": {

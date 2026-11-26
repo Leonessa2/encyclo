@@ -153,8 +153,15 @@ console.log('\n5. Le sitemap est vraiment BRANCHÉ sur ce fichier');
 // servait à rien, sans une ligne de journal différente.
 // Un `grep` sur la source est laid ; il est surtout le seul contrôle qui
 // tombe le jour où quelqu'un retire le câblage.
-const SM = readFileSync(F('../../src/pages/sitemap.xml.js'), 'utf8');
-dit(/lastmod\.\$\{SITE\}\.json/.test(SM),
+// Depuis la partie 2b du rangement (26/11/2026), le plan du site est dans le
+// moteur et le wiki lui désigne son journal : on lit les deux, et la route.
+const SM = readFileSync(F('../../moteur/lib/plan_du_site.mjs'), 'utf8');
+const EXT = readFileSync(F('../lib/extensions.mjs'), 'utf8');
+const ROUTE = readFileSync(F('../../src/pages/sitemap.xml.js'), 'utf8');
+dit(/planDuSite\(\)/.test(ROUTE) && /site\.fichierDatesDuPlan\(\)/.test(SM),
+  'la route sert le plan du moteur, qui demande au site son journal des dates',
+  'sans ce câblage, le journal existe et n\'est jamais lu');
+dit(/lastmod\.\$\{SITE\}\.json/.test(EXT),
   'le sitemap lit `lastmod.${SITE}.json`, pas un fichier commun',
   'un fichier commun à tout le dépôt fait lire à un site les dates d\'un autre');
 dit(/if\s*\(I\[p\]\)\s*return\s+I\[p\]/.test(SM),

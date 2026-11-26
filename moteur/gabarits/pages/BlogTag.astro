@@ -1,7 +1,7 @@
 ---
-import Base from '../../layouts/Base.astro';
-import { postsByTag, SEUIL_INDEX_TAG } from '../../../moteur/lib/blog.mjs';
-import { t, localize, dateLocale } from '../../../moteur/lib/i18n.mjs';
+import Base from '#site/gabarit';
+import { postsByTag, SEUIL_INDEX_TAG } from '../../lib/blog.mjs';
+import { t, localize, dateLocale } from '../../lib/i18n.mjs';
 const { lang, tag, updatedAt } = Astro.props;
 const posts = await postsByTag(lang, tag);
 const df = dateLocale[lang] || 'en-GB';
