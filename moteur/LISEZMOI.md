@@ -1,6 +1,6 @@
 # Moteur commun des sites statiques
 
-Version : voir `VERSION` (0.6.0). Historique : `CHANGEMENTS.md`.
+Version : voir `VERSION` (0.7.0). Historique : `CHANGEMENTS.md`.
 Règles : `RESEAU.md`, section « Le moteur commun des sites ».
 
 Le moteur ne connaît **aucun site**. Tout ce qui est propre à un site
@@ -10,7 +10,7 @@ fait échouer la construction si un nom, un domaine, un Sheet ou une couleur
 de n'importe quel site apparaît ici, ou si le moteur importe un fichier
 hors de ce dossier.
 
-## Ce qu'il contient (0.6.0)
+## Ce qu'il contient (0.7.0)
 
 | Dossier | Rôle |
 |---|---|
@@ -30,7 +30,7 @@ hors de ce dossier.
 - `sites/<site>/manifest.yml`, avec le bloc :
   ```yaml
   moteur:
-    version: "0.6.0"          # = moteur/VERSION
+    version: "0.7.0"          # = moteur/VERSION
     dictionnaires: <dossier>  # où sont les libellés du site (<langue>.json)
   ```
 - dans son dossier de libellés, pour chaque langue d'interface : **les

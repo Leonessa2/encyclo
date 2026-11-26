@@ -1,4 +1,4 @@
-# Moteur commun — fichier : moteur/envoi/_headers   (version 0.4.0)
+# Moteur commun — fichier : moteur/envoi/_headers   (version 0.7.0)
 #
 # Les mêmes règles que moteur/envoi/nginx-site.conf, au format des hébergeurs
 # de fichiers (Cloudflare Pages et équivalents). Copié dans le site construit
@@ -36,6 +36,19 @@
   Cache-Control: public, max-age=2592000, immutable
 /*.woff2
   Cache-Control: public, max-age=2592000, immutable
+
+# Icônes au nom fixe : un jour (moteur 0.7.0). « ! Cache-Control » retire la
+# valeur de 30 jours posée plus haut (/*.svg, /*.png), sinon les deux seraient
+# collées l'une à l'autre.
+/favicon.ico
+  ! Cache-Control
+  Cache-Control: public, max-age=86400
+/favicon.svg
+  ! Cache-Control
+  Cache-Control: public, max-age=86400
+/apple-touch-icon.png
+  ! Cache-Control
+  Cache-Control: public, max-age=86400
 
 /sitemap.xml
   Cache-Control: public, max-age=3600

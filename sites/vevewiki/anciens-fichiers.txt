@@ -1,0 +1,18 @@
+# Dépôt : Leonessa2/encyclo — fichier : sites/vevewiki/anciens-fichiers.txt
+# (ajouté le 26/11/2026, à la demande de Serveur & domaines, accord du propriétaire)
+#
+# Deux fichiers de l'ANCIEN site vevewiki.com (dépôt veve-sites, figé au 23/10),
+# recopiés tels quels depuis la production le 26/11/2026 dans public/ (liste
+# en bas de ce fichier, une ligne par fichier : le banc `feuille` les met de
+# côté, car ce ne sont pas des feuilles du nouveau site).
+# Pourquoi : une ancienne page restée dans un cache (navigateur, Cloudflare)
+# réclamerait ces deux fichiers après la bascule ; sans eux elle s'afficherait
+# sans mise en forme. Aucune page du nouveau site ne les utilise.
+#
+# DATE DE RETRAIT : 30 jours après la bascule de vevewiki.com (lot 6).
+# ⚠️ Le jour de la bascule, écrire ici la date exacte, puis les retirer à cette
+#    date (supprimer les deux fichiers de public/ et ce fichier).
+# Retirer le : (à écrire le jour de la bascule)
+
+theme-9077d950d1b0.css
+socle-0ee5b2c83168.js

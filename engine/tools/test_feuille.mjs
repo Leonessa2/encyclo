@@ -137,7 +137,13 @@ if (!existsSync(DIST)) {
 }
 
 // ── 0. LA FEUILLE EXISTE, ET SON NOM DIT SON CONTENU ──────────────────────
-const feuilles = readdirSync(DIST).filter((f) => /^theme-[0-9a-f]{12}\.css$/.test(f));
+// ⭐ 26/11/2026 : les fichiers de l'ANCIEN site gardés 30 jours après la
+//    bascule (sites/<site>/anciens-fichiers.txt) ne sont pas la feuille du site.
+const ANCIENS = (() => {
+  const f = join(R, 'sites', process.env.SITE || '', 'anciens-fichiers.txt');
+  return existsSync(f) ? new Set(readFileSync(f, 'utf8').split('\n').map((x) => x.replace(/#.*/, '').trim()).filter(Boolean)) : new Set();
+})();
+const feuilles = readdirSync(DIST).filter((f) => /^theme-[0-9a-f]{12}\.css$/.test(f) && !ANCIENS.has(f));
 if (feuilles.length !== 1) {
   console.error(`\n❌ ${feuilles.length} feuille(s) « theme-<empreinte>.css » à la racine de ${DIST} `
     + `— il en faut exactement une. Trouvé : ${feuilles.join(', ') || '(aucune)'}`);

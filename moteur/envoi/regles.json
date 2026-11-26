@@ -10,6 +10,11 @@
       "extensions": ["css", "js", "svg", "png", "jpg", "jpeg", "webp", "avif", "woff2"],
       "valeur": "public, max-age=2592000, immutable"
     },
+    "icones": {
+      "chemins": ["/favicon.ico", "/favicon.svg", "/apple-touch-icon.png"],
+      "valeur": "public, max-age=86400",
+      "_pourquoi": "Leur nom ne change jamais (les navigateurs et les appareils Apple les cherchent sous ce nom) : 1 jour au lieu de 30, pour qu'une nouvelle icône se voie vite (moteur 0.7.0)."
+    },
     "index": {
       "chemins": ["/sitemap.xml", "/robots.txt", "/search-index.json"],
       "valeur": "public, max-age=3600"

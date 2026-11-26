@@ -49,6 +49,7 @@ dit(pages.length >= 250, `${fichiers.length} fichiers, dont ${pages.length} page
 // Ce que les règles attendent pour une adresse servie avec succès.
 const EXT = new Set(R.cache.statiques.extensions.map((e) => '.' + e));
 const cacheAttendu = (chemin) => {
+  if (R.cache.icones?.chemins.includes(chemin)) return R.cache.icones.valeur;
   if (R.cache.index.chemins.includes(chemin)) return R.cache.index.valeur;
   if (EXT.has(extname(chemin).toLowerCase())) return R.cache.statiques.valeur;
   return R.cache.pages.valeur;
@@ -61,6 +62,7 @@ let courant = null;
 for (const brute of readFileSync(join(ENVOI, '_headers'), 'utf8').split('\n')) {
   if (/^\s*#/.test(brute) || !brute.trim()) continue;
   if (!/^\s/.test(brute)) { courant = brute.trim(); blocs[courant] = blocs[courant] || {}; continue; }
+  if (/^!\s*/.test(brute.trim()) && courant) { blocs[courant]['!' + brute.trim().slice(1).trim()] = true; continue; }
   const m = brute.trim().match(/^([^:]+):\s*(.*)$/);
   if (m && courant) blocs[courant][m[1]] = m[2];
 }
@@ -71,7 +73,10 @@ dit(R.cache.statiques.extensions.every((e) => blocs[`/*.${e}`]?.['Cache-Control'
   `fichiers statiques : ${R.cache.statiques.extensions.length} extensions à « ${R.cache.statiques.valeur} »`);
 dit(R.cache.index.chemins.every((c) => blocs[c]?.['Cache-Control'] === R.cache.index.valeur),
   `index : ${R.cache.index.chemins.join(', ')} à « ${R.cache.index.valeur} »`);
-const enTrop = Object.keys(blocs).filter((b) => b !== '/*' && !R.cache.index.chemins.includes(b)
+const icones = R.cache.icones?.chemins || [];
+dit(icones.every((c) => blocs[c]?.['Cache-Control'] === R.cache.icones.valeur && blocs[c]?.['!Cache-Control']),
+  `icônes : ${icones.join(', ')} à « ${R.cache.icones?.valeur} », valeur de 30 jours retirée (« ! Cache-Control »)`);
+const enTrop = Object.keys(blocs).filter((b) => b !== '/*' && !R.cache.index.chemins.includes(b) && !icones.includes(b)
   && !R.cache.statiques.extensions.some((e) => b === `/*.${e}`));
 dit(enTrop.length === 0, 'aucune règle en plus de celles de regles.json', enTrop.join(', '));
 const copie = join(DIST, '_headers');
