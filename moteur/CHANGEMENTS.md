@@ -9,8 +9,8 @@
   mois à se voir. Demandé par Serveur & domaines le 26/11.
 - `bancs/envoi.mjs` vérifie la nouvelle règle (nginx réel + `_headers`, où
   « ! Cache-Control » retire la valeur de 30 jours avant de poser la nouvelle).
-- Vérifié le 26/11 : site construit = celui de 0.6.0 + les fichiers ajoutés
-  par le wiki (voir plus bas) + `_headers` ; 17 bancs avant, 16 après,
+- Vérifié le 26/11 : site construit = celui de 0.6.0, avec le nouveau `_headers`
+  (les autres fichiers ajoutés dans ce dépôt viennent du site) ; 17 bancs avant, 16 après,
   verts ; contre-épreuves : règle nginx retirée → `envoi` rouge ; « ! » retiré
   de `_headers` → `envoi` rouge.
 - **Ce que les sites doivent adapter** : rien.
@@ -19,11 +19,6 @@
   sha256 `72640738…9aeda`) dans `/etc/nginx/conf.d/default.conf` de
   l'application nginx du wiki, puis la redémarrer. Tant que ce n'est pas fait,
   les icônes restent gardées 30 jours (le reste ne change pas).
-
-(Dans le même dépôt, côté wiki et hors moteur : `public/favicon.ico` ajouté,
-fabriqué depuis l'icône « VW » ; deux fichiers de l'ancien site gardés
-30 jours après la bascule, liste et date de retrait dans
-`sites/vevewiki/anciens-fichiers.txt` ; le banc `feuille` les met de côté.)
 
 ## 0.6.0 — 26/11/2026
 
