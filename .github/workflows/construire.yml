@@ -99,12 +99,11 @@ jobs:
       - name: Préparer le service (règles pour les hébergeurs de fichiers)
         run: cp moteur/envoi/_headers dist/_headers
 
-      - name: Installer nginx et rsync pour les bancs d'envoi
+      - name: Préparer les bancs d'envoi (image nginx figée du VPS, rsync)
         timeout-minutes: 5
         run: |
-          command -v nginx >/dev/null && command -v rsync >/dev/null || {
-            sudo apt-get update -q && sudo apt-get install -y -q nginx rsync; }
-          nginx -v
+          command -v rsync >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q rsync; }
+          docker pull -q "$(tr -d '[:space:]' < moteur/envoi/image-nginx.txt)"
 
       - name: Bancs sur le site construit
         run: outils/bancs.sh apres
@@ -154,6 +153,5 @@ jobs:
           port: ${{ vars.VPS_PORT || '22' }}
           utilisateur: ${{ vars.VPS_UTILISATEUR }}
           empreinte: ${{ vars.VPS_EMPREINTE }}
-          dossier: ${{ vars.VPS_DOSSIER }}
           adresse: ${{ vars.ADRESSE_VERIFICATION }}
           cle: ${{ secrets.VPS_CLE_SSH }}

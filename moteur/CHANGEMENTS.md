@@ -1,5 +1,21 @@
 # Changements du moteur
 
+## 0.4.0 — 26/11/2026
+
+- **La clé d'envoi est limitée à une commande forcée** :
+  `envoi/serveur/recevoir-site.sh`, installé sur le VPS, ne sait que
+  recevoir une version par rsync dans `versions/`, basculer `courant`,
+  revenir en arrière, faire le ménage et dire l'état ; le dossier du site
+  est fixé côté serveur ; une version qui contient un lien symbolique est
+  refusée. `envoyer.sh` ne parle plus au VPS qu'à travers ces commandes.
+- **Image nginx figée** (`envoi/image-nginx.txt` : nginx 1.28.3-alpine +
+  empreinte) : la même pour les bancs et pour le VPS. Les bancs `envoi` et
+  `envoi-essai` la font tourner dans Docker (ils échouent sans Docker).
+- `envoi-essai` passe par le vrai `recevoir-site.sh` et vérifie 12 refus.
+- **Ce que les sites doivent adapter** : retirer le réglage `VPS_DOSSIER`
+  (le dossier est dans la ligne de la clé, sur le VPS) ; avoir Docker sur la
+  machine des bancs.
+
 ## 0.3.0 — 26/11/2026
 
 - **Gabarit de page** (`gabarits/Page.astro`), **blog** (`lib/blog.mjs`),

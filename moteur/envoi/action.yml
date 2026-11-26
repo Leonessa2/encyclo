@@ -1,23 +1,21 @@
-# Moteur commun — fichier : moteur/envoi/action.yml   (version 0.2.0)
+# Moteur commun — fichier : moteur/envoi/action.yml   (version 0.4.0)
 #
 # ENVOYER UN SITE CONSTRUIT AU VPS. Action appelée par le workflow de chaque
 # site, après sa construction, avec ses propres réglages (rien ici n'est propre
 # à un site). Ce qu'elle fait, dans l'ordre :
 #   1. vérifie que tous les réglages sont là (sinon : échec clair, rien envoyé) ;
 #   2. pose /version.txt (commit + heure) dans le site, pour la vérification ;
-#   3. envoie le site dans <dossier>/versions/<date>-<commit>/ (rsync par SSH ;
-#      les fichiers inchangés depuis la version en ligne ne sont pas recopiés) ;
-#   4. bascule le lien <dossier>/courant vers cette version, d'un seul coup
-#      (le serveur web sert toujours <dossier>/courant) ;
+#   3. envoie le site dans versions/<date>-<commit>/ (rsync par SSH ; les
+#      fichiers inchangés depuis la version en ligne ne sont pas recopiés) ;
+#   4. bascule le lien `courant` vers cette version, d'un coup (le serveur web
+#      sert toujours `courant`) ;
 #   5. vérifie la page réellement servie : /version.txt à l'adresse donnée doit
 #      porter ce commit. Sinon : remet le lien sur la version d'avant, et échoue ;
 #   6. garde les <garder> dernières versions, efface les plus anciennes.
-# Revenir en arrière à la main = remettre le lien `courant` sur une version
-# précédente de <dossier>/versions/.
 #
-# Commandes lancées sur le VPS par SSH (pour qui règle les droits du compte) :
-#   test, mkdir -p, readlink, ln -sfn, mv -Tf, ls, rm -rf (dans <dossier>/versions
-#   seulement), et rsync (côté serveur).
+# ⛔ Sur le VPS, la clé d'envoi est limitée par une COMMANDE FORCÉE au script
+#    moteur/envoi/serveur/recevoir-site.sh, qui fixe le dossier du site et ne
+#    sait faire que les étapes 3 à 6. Voir moteur/envoi/LISEZMOI.md.
 
 name: Envoyer le site au VPS
 description: Envoie un site statique construit au VPS, bascule d'un coup, vérifie, garde les versions précédentes.
@@ -41,9 +39,6 @@ inputs:
   empreinte:
     description: Ligne known_hosts du VPS (vérifie qu'on parle au bon serveur)
     required: true
-  dossier:
-    description: Dossier du site sur le VPS (contient versions/ et le lien courant)
-    required: true
   adresse:
     description: Adresse publique où vérifier le site envoyé (https://…, sans / final)
     required: true
@@ -61,19 +56,16 @@ runs:
         UTIL: ${{ inputs.utilisateur }}
         CLE: ${{ inputs.cle }}
         EMPREINTE: ${{ inputs.empreinte }}
-        DOSSIER: ${{ inputs.dossier }}
         ADRESSE: ${{ inputs.adresse }}
         SITE_CONSTRUIT: ${{ inputs.site-construit }}
         GARDER: ${{ inputs.garder }}
       run: |
         set -eu
         manque=""
-        for v in HOTE UTIL CLE EMPREINTE DOSSIER ADRESSE; do
+        for v in HOTE UTIL CLE EMPREINTE ADRESSE; do
           [ -n "${!v}" ] || manque="$manque $v"
         done
         [ -z "$manque" ] || { echo "::error title=Envoi impossible::réglage(s) absent(s) :$manque. Rien n'a été envoyé."; exit 1; }
-        case "$DOSSIER" in /*) ;; *) echo "::error::le dossier du VPS doit être un chemin absolu"; exit 1 ;; esac
-        case "$DOSSIER" in *" "*|*".."*) echo "::error::dossier du VPS refusé : $DOSSIER"; exit 1 ;; esac
         case "$ADRESSE" in https://*) ;; *) echo "::error::l'adresse de vérification doit commencer par https://"; exit 1 ;; esac
         [[ "$GARDER" =~ ^[1-9][0-9]*$ ]] || { echo "::error::garder doit être un nombre ≥ 1"; exit 1; }
         test -f "$SITE_CONSTRUIT/index.html" || { echo "::error::pas de site construit dans $SITE_CONSTRUIT"; exit 1; }
@@ -97,7 +89,6 @@ runs:
         HOTE: ${{ inputs.hote }}
         PORT: ${{ inputs.port }}
         UTIL: ${{ inputs.utilisateur }}
-        DOSSIER: ${{ inputs.dossier }}
         ADRESSE: ${{ inputs.adresse }}
         SITE_CONSTRUIT: ${{ inputs.site-construit }}
         GARDER: ${{ inputs.garder }}

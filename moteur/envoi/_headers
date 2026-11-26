@@ -1,4 +1,4 @@
-# Moteur commun — fichier : moteur/envoi/_headers   (version 0.2.0)
+# Moteur commun — fichier : moteur/envoi/_headers   (version 0.4.0)
 #
 # Les mêmes règles que moteur/envoi/nginx-site.conf, au format des hébergeurs
 # de fichiers (Cloudflare Pages et équivalents). Copié dans le site construit

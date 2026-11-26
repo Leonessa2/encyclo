@@ -1,4 +1,4 @@
-// Moteur commun — fichier : moteur/bancs/envoi.mjs   (version 0.2.0)
+// Moteur commun — fichier : moteur/bancs/envoi.mjs   (version 0.4.0)
 //
 // Les règles de service (moteur/envoi/regles.json) sont-elles vraiment
 // appliquées ? Ce banc :
@@ -8,9 +8,10 @@
 //   3. demande CHAQUE fichier de dist/, chaque dossier avec et sans « / »,
 //      une adresse absente, un dossier sans page et /_headers, et compare
 //      code, Cache-Control, en-têtes de sécurité, redirections et types.
-// Il échoue si nginx est absent : sans lui, il ne prouverait rien.
+// nginx tourne dans l'IMAGE FIGÉE de moteur/envoi/image-nginx.txt, la même que
+// sur le VPS. Il échoue si Docker est absent : sans lui, il ne prouverait rien.
 //
-// Usage : node moteur/bancs/envoi.mjs   (après la construction ; NGINX=chemin)
+// Usage : node moteur/bancs/envoi.mjs   (après la construction)
 import { readFileSync, readdirSync, statSync, existsSync, mkdtempSync, writeFileSync, symlinkSync, rmSync } from 'node:fs';
 import { join, resolve, relative, extname, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -77,51 +78,35 @@ const copie = join(DIST, '_headers');
 dit(existsSync(copie) && readFileSync(copie).equals(readFileSync(join(ENVOI, '_headers'))),
   'dist/_headers est la copie exacte de moteur/envoi/_headers');
 
-// ── 2. nginx, pour de vrai ─────────────────────────────────────────────────
+// ── 2. nginx, pour de vrai : la MÊME image que sur le VPS ──────────────────
 console.log('\n2. nginx sert le site construit selon les règles');
-const NGINX = process.env.NGINX || 'nginx';
-const v = spawnSync(NGINX, ['-v'], { encoding: 'utf8' });
-if (v.error || v.status !== 0) { dit(false, 'nginx est installé', 'introuvable : ce banc ne peut rien prouver sans lui'); process.exit(1); }
-const MIME = ['/etc/nginx/mime.types', '/usr/local/etc/nginx/mime.types', '/opt/homebrew/etc/nginx/mime.types'].find(existsSync);
-if (!MIME) { dit(false, 'types MIME de nginx trouvés'); process.exit(1); }
-
+const IMAGE = readFileSync(join(ENVOI, 'image-nginx.txt'), 'utf8').trim();
+dit(/^nginx:[0-9.]+-alpine@sha256:[0-9a-f]{64}$/.test(IMAGE), `image figée : ${IMAGE.split('@')[0]}`, IMAGE);
+const docker = (args, opts = {}) => spawnSync('docker', args, { encoding: 'utf8', timeout: 180000, ...opts });
+const dv = docker(['version', '--format', '{{.Server.Version}}']);
+if (dv.error || dv.status !== 0) { dit(false, 'Docker est disponible', 'introuvable : ce banc ne peut rien prouver sans lui'); process.exit(1); }
+if (docker(['image', 'inspect', IMAGE]).status !== 0) {
+  const p = docker(['pull', '-q', IMAGE]);
+  if (p.status !== 0) { dit(false, `image ${IMAGE} téléchargée`, (p.stderr || '').trim()); process.exit(1); }
+}
+// Le dossier du site comme sur le VPS : versions/<id>/ et le lien relatif `courant`.
 const tmp = mkdtempSync(join(tmpdir(), 'envoi-'));
-symlinkSync(DIST, join(tmp, 'courant'));
-const PORT = 18000 + Math.floor(Math.random() * 2000);
-const site = readFileSync(join(ENVOI, 'nginx-site.conf'), 'utf8')
-  .replace('listen 80 default_server;', `listen 127.0.0.1:${PORT} default_server;`)
-  .replace('root /srv/site/courant;', `root ${join(tmp, 'courant')};`);
-if (!site.includes(`127.0.0.1:${PORT}`) || !site.includes(join(tmp, 'courant'))) {
-  dit(false, 'nginx-site.conf a la forme attendue (listen 80, root /srv/site/courant)'); process.exit(1);
-}
-writeFileSync(join(tmp, 'site.conf'), site);
-for (const d of ['corps', 'proxy', 'fcgi', 'uwsgi', 'scgi']) spawnSync('mkdir', ['-p', join(tmp, d)]);
-// Lancé en administrateur (machine d'essai), nginx passerait ses ouvriers sous
-// un compte qui ne peut pas lire dist/ : on les garde sous le même compte.
-const utilisateur = typeof process.getuid === 'function' && process.getuid() === 0 ? 'user root;\n' : '';
-writeFileSync(join(tmp, 'nginx.conf'), `${utilisateur}worker_processes 1;
-error_log ${join(tmp, 'erreurs.log')} warn;
-pid ${join(tmp, 'nginx.pid')};
-events { worker_connections 256; }
-http {
-  include ${MIME};
-  default_type application/octet-stream;
-  access_log off;
-  client_body_temp_path ${join(tmp, 'corps')};
-  proxy_temp_path ${join(tmp, 'proxy')};
-  fastcgi_temp_path ${join(tmp, 'fcgi')};
-  uwsgi_temp_path ${join(tmp, 'uwsgi')};
-  scgi_temp_path ${join(tmp, 'scgi')};
-  include ${join(tmp, 'site.conf')};
-}
-`);
-const t = spawnSync(NGINX, ['-t', '-p', tmp, '-c', join(tmp, 'nginx.conf')], { encoding: 'utf8' });
-dit(t.status === 0, 'la configuration est acceptée par nginx', t.status === 0 ? v.stderr.trim() : t.stderr.trim().split('\n').pop());
+const SITE = join(tmp, 'site');
+spawnSync('mkdir', ['-p', join(SITE, 'versions')]);
+spawnSync('cp', ['-a', DIST, join(SITE, 'versions', 'essai')]);
+symlinkSync('versions/essai', join(SITE, 'courant'));
+spawnSync('chmod', ['-R', 'a+rX', tmp]);
+const site = readFileSync(join(ENVOI, 'nginx-site.conf'), 'utf8');
+const montages = ['-v', `${SITE}:/srv/site:ro`, '-v', `${join(ENVOI, 'nginx-site.conf')}:/etc/nginx/conf.d/default.conf:ro`];
+const t = docker(['run', '--rm', ...montages, IMAGE, 'nginx', '-t']);
+dit(t.status === 0, 'la configuration est acceptée par nginx', t.status === 0 ? (t.stderr.match(/nginx\/[0-9.]+/) || [IMAGE])[0] : t.stderr.trim().split('\n').pop());
 if (t.status !== 0) process.exit(1);
-const lancer = spawnSync(NGINX, ['-p', tmp, '-c', join(tmp, 'nginx.conf')], { encoding: 'utf8' });
+const PORT = 18000 + Math.floor(Math.random() * 2000);
+const NOM = `envoi-banc-${PORT}`;
+const lancer = docker(['run', '-d', '--rm', '--name', NOM, '-p', `127.0.0.1:${PORT}:80`, ...montages, IMAGE]);
 if (lancer.status !== 0) { dit(false, 'nginx démarre', lancer.stderr.trim()); process.exit(1); }
 const arreter = () => {
-  spawnSync(NGINX, ['-p', tmp, '-c', join(tmp, 'nginx.conf'), '-s', 'stop']);
+  docker(['stop', '-t', '2', NOM]);
   try { rmSync(tmp, { recursive: true, force: true }); } catch {}
 };
 
