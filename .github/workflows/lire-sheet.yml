@@ -12,6 +12,14 @@
 # Horaire : 04:17 UTC, loin de la récolte de veve-sites (09:37 UTC), pour ne
 # pas lire le même Sheet en même temps (quota Google).
 # Pas de mise en ligne ni d'IndexNow ici : ils viendront avec la bascule.
+# 27/11/2026 (go de Preda) :
+# - le cron de GitHub part avec ~9 h 30 de retard (26 et 27/11) : déclencheur
+#   extérieur (cron-job.org, repository_dispatch « lire-sheet »), comme le
+#   pinger de floor-watch ; le cron reste en secours ;
+# - secours sans doublon : un passage planifié s'arrête si le Sheet a déjà
+#   été lu aujourd'hui (commit « contenu : lecture du Sheet du <jour> ») ;
+# - checkout du DERNIER main (sinon course : le 27/11, le passage #7 parti de
+#   99376ee a buté sur le dépôt du #6).
 
 name: Lire le Sheet
 
@@ -19,6 +27,8 @@ on:
   schedule:
     - cron: '17 4 * * *'
   workflow_dispatch:
+  repository_dispatch:
+    types: [lire-sheet]
 
 permissions:
   contents: write
@@ -35,18 +45,34 @@ jobs:
       SITE: vevewiki
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 20
+
+      - name: Déjà lu aujourd'hui ? (passage planifié de secours)
+        id: deja
+        if: github.event_name == 'schedule'
+        run: |
+          if git log -20 --format=%s | grep -qx "contenu : lecture du Sheet du $(date -u +%F)"; then
+            echo "lu=true" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Déjà lu::le Sheet a déjà été lu aujourd'hui ; passage de secours arrêté."
+          fi
 
       - uses: actions/setup-python@v5
+        if: steps.deja.outputs.lu != 'true'
         with:
           python-version: '3.11'
 
       - name: Dépendances
+        if: steps.deja.outputs.lu != 'true'
         run: pip install -r moteur/editorial/requirements.txt
 
       - name: Banc du lecteur (hors réseau)
+        if: steps.deja.outputs.lu != 'true'
         run: python moteur/editorial/test_lire_sheet.py
 
       - name: Le secret Google est-il là ?
+        if: steps.deja.outputs.lu != 'true'
         id: garde
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
