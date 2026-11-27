@@ -10,10 +10,8 @@
 // Les pages continuent d'importer CE fichier, avec les mêmes propriétés.
 import Page from '../../moteur/gabarits/Page.astro';
 import Figures from '../components/Figures.astro';
-import { degradesSpark } from '../../engine/lib/vitrine.mjs';
 ---
 <Page {...Astro.props}>
   <Figures slot="tete" />
-  <Fragment slot="debut-corps" set:html={degradesSpark()} />
   <slot />
 </Page>

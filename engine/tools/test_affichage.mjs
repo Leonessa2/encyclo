@@ -271,6 +271,11 @@ if (!existsSync(dossierClient)) {
 // ⭐⭐⭐ *Deux seuils qui doivent coïncider et qui vivent loin l'un de l'autre
 // finissent par diverger.* Ce contrôle est la seule chose qui empêche que ça
 // recommence, et il vaut plus que le commentaire qui le dit.
+// Lot 7 (27/11/2026) : les §3 jugent le menu de la feuille `vitrine`, thème de
+// veveprice, que le wiki ne sert pas. Feuille retirée du dépôt : sans objet.
+if (!existsSync(join(ROOT, 'themes/vitrine/theme.css'))) {
+  console.log('\n3. le menu (feuille `vitrine`)\n  ⏸️  sans objet ici — la feuille `vitrine` est celle de veveprice ; ce site sert `encyclopedie`.');
+} else {
 console.log('\n3. le menu : un seul seuil, et un tiroir qui s\'ouvre à gauche');
 const css = lire('themes/vitrine/theme.css');
 
@@ -1269,6 +1274,7 @@ verifie(`${CAS.length} cas fabriques : le §5 sait encore rougir`, ce === 0,
 
 
 
+} // fin des §3 (feuille `vitrine` de veveprice)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 7. LE PIED DE PAGE — QUATRE COLONNES DÉCLARÉES, QUATRE COLONNES ÉMISES
@@ -1508,6 +1514,11 @@ console.log('\n7. le pied de page : quatre colonnes, quatre titres, quatre liste
 //    `06/10/2021 14:00:00` (lot 68 : 800 fiches sur 1 200). Le corpus de test
 //    ne ressemble pas au sujet — alors on interroge la fonction directement,
 //    avec les valeurs RÉELLEMENT mesurées en production.
+// Lot 7 (27/11/2026) : les §11 à §13 jugent la fiche d'item de veveprice
+// (`Item.astro`), que le wiki ne rend pas ; le composant a quitté le dépôt.
+if (!existsSync(join(ROOT, 'src/components/pages/Item.astro'))) {
+  console.log('\n11 à 13. fiches d\'item\n  ⏸️  sans objet ici — ce site ne rend pas de fiches d\'item (composant de veveprice retiré).');
+} else {
 console.log('\n11. la date de sortie : la date, et plus l\'heure');
 {
   const { dateSeule } = await import('../lib/vitrine.mjs');
@@ -1980,6 +1991,8 @@ console.log('\n13. 🛰️ les chiffres StackR : « 0 » et « — » ne disent 
     }
   }
 }
+
+} // fin des §11 à §13 (fiches d'item de veveprice)
 
 console.log(`\n${ko === 0 ? '✅ affichage : tout est conforme' : `❌ affichage : ${ko} écart(s)`}`);
 process.exit(ko === 0 ? 0 : 1);

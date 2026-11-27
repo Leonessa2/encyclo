@@ -17,3 +17,8 @@
 
 theme-9077d950d1b0.css
 socle-0ee5b2c83168.js
+
+# Lot 7 (27/11/2026) : le JavaScript commun change de nom (favoris de veveprice
+# retirés). L'ancien, celui de vevewiki.com jusqu'au lot 7, est gardé 30 jours
+# pour une page restée en cache. Retirer le : 27/12/2026 (même geste).
+socle-130a30ec7a79.js

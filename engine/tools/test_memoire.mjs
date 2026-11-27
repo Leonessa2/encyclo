@@ -26,7 +26,7 @@
 //  code, jamais la machine. Ce banc prouve que l'instrument est branché et
 //  qu'il compte juste ; il ne prouve pas que le VPS tiendra.
 
-import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = process.env.PROJECT_ROOT || process.cwd();
@@ -489,6 +489,11 @@ dire(/await memoire\.plafond\(\)/.test(code),
   // fait le 03/08/2026, et le Dockerfile porte encore le commentaire.
   // ⭐ Le banc est volontairement GROSSIER : il refuse tout jalon qui n'est pas
   //   en tête. Un faux négatif ici rendrait un déploiement rouge invisible.
+  // Lot 7 (27/11/2026) : le Dockerfile de veve-sites a quitté le dépôt ; le wiki
+  // est construit par GitHub Actions (construire.yml). Ces contrôles sont sans objet.
+  if (!existsSync(join(ROOT, 'Dockerfile'))) {
+    console.log('  ⏸️  ⑧ jalons du Dockerfile : sans objet (pas de Dockerfile, construction par GitHub Actions)');
+  } else {
   const dock = readFileSync(join(ROOT, 'Dockerfile'), 'utf8').split('\n');
   const lignesJalon = dock.map((l, i) => [i + 1, l])
     .filter(([, l]) => l.includes('chrono_build.mjs'));
@@ -521,6 +526,7 @@ dire(/await memoire\.plafond\(\)/.test(code),
       '⑧ auto-contrôle : le détecteur mord sur un jalon fabriqué EN FIN de RUN',
       mord.length ? 'il voit le défaut qu\'il existe pour voir' : '🔴 le détecteur est aveugle, son vert ne vaut rien');
   }
+  } // fin des contrôles du Dockerfile
 
   delete process.env.CHRONO_FICHIER;
   try { rmSync(dossier, { recursive: true, force: true }); } catch { /* rien */ }

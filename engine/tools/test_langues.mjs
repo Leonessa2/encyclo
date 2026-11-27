@@ -254,7 +254,9 @@ console.log('\n🌍 les trois listes de langues');
   //   exactement le comportement voulu.
   const mode = (MANIF.rendering === 'server' || process.env.RENDERING === 'server')
     ? 'server' : 'static';
-  const fichier = join(ROOT, mode === 'server' ? 'nginx.server.conf' : 'nginx.conf');
+  // Lot 7 (27/11/2026) : le wiki est servi par moteur/envoi/nginx-site.conf
+  // (VPS) ; nginx.conf et nginx.server.conf de veve-sites ont quitté le dépôt.
+  const fichier = join(ROOT, 'moteur/envoi/nginx-site.conf');
   const conf = existsSync(fichier) ? [fichier] : [];
   dit(conf.length === 1, `la configuration nginx du mode « ${mode} » est lisible`,
     conf.length ? fichier.split(/[\\/]/).pop() : `${fichier} introuvable`);

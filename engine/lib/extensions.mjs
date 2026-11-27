@@ -17,7 +17,6 @@ export { priceEnabled as publiePrix } from './features.mjs';
 
 // ── Pages communes du moteur (partie 2b du rangement, 26/11/2026) ───────────
 import { dataset } from './dataset.mjs';
-import { floora } from './floora.mjs';
 
 // Un article cite des objets par leur identifiant (`items`) : le moteur affiche
 // leur nom, leur série et un lien. Seul le wiki sait les retrouver.
@@ -28,7 +27,8 @@ export async function fichesCitees(ids) {
 }
 
 // L'illustration des pages d'erreur (404, 500) : { src, width, height, cle }.
-export const illustrationEtat = (usage) => floora(usage);
+// Lot 7 (27/11/2026) : plus d'illustration Floora (mascotte de veveprice) sur
+// les pages 404 et 500 ; le moteur rend alors ces pages sans image.
 
 // ── Plan du site (moteur/lib/plan_du_site.mjs) ─────────────────────────────
 import { join } from 'node:path';

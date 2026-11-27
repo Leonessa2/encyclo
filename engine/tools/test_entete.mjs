@@ -574,7 +574,10 @@ console.log('\n── 5. la chaîne du sélecteur de langue d\'interface ──'
 
   const THEME_V = join(R, 'themes/vitrine/theme.css');
   const cssV = existsSync(THEME_V) ? readFileSync(THEME_V, 'utf8') : '';
-  dit(/\.globe--adr\{display:none\}/.test(cssV),
+  // Lot 7 (27/11/2026) : la feuille `vitrine` est celle de veveprice ; le wiki
+  // ne la sert pas et elle a quitté le dépôt. Ses contrôles sont sans objet.
+  if (!cssV) console.log('  ⏸️  §6 masquage du sélecteur et halo d\'inscription : sans objet (feuille `vitrine` de veveprice absente)');
+  if (cssV) dit(/\.globe--adr\{display:none\}/.test(cssV),
     '§6 …et la feuille `vitrine` le masque',
     // ⭐⭐ LA CLASSE SANS LA RÈGLE NE MASQUE RIEN, ET INVERSEMENT. Les deux
     //    moitiés vivent dans deux fichiers ; n'en déposer qu'une donne un lot
@@ -642,6 +645,7 @@ console.log('\n── 5. la chaîne du sélecteur de langue d\'interface ──'
     'vevewiki n\'a pas `langues_dans: compte` — il n\'a aucun bouton sous lequel s\'ancrer');
 
   // ── ⑥ LE HALO DU BOUTON S'INSCRIRE ────────────────────────────────────────
+  if (cssV) {
   // 🖼️ Choix de Preda sur maquette (01/09), parmi six propositions montrées.
   dit(/@keyframes h-cta-halo/.test(cssV),
     '§6 le halo du bouton d\'inscription est déclaré');
@@ -658,6 +662,7 @@ console.log('\n── 5. la chaîne du sélecteur de langue d\'interface ──'
   dit(/@media \(prefers-reduced-motion:no-preference\)\{[\s\S]{0,120}h-cta-halo/.test(cssV),
     '§6 …et il est ABSENT pour qui a demandé moins d\'animations',
     'déclaré sous `no-preference` : absent est plus sûr qu\'instantané');
+  }
 }
 
 console.log(ko === 0 ? '\n✅ l\'en-tête est identique dans les deux modes de rendu\n'

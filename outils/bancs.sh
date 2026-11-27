@@ -18,6 +18,9 @@
 #   nginx, dockerfile : configurations que le nouvel hébergement n'utilise
 #     pas (à revoir au lot 4).
 # Lot 4 : `analytics` reste — il contrôle la page /analytics/, pas Umami.
+# Lot 7 (27/11/2026) : `analytics` retiré — la page /analytics/ est celle de
+#   veveprice, le wiki ne la publie pas ; bancs propres à veveprice retirés du
+#   dépôt avec le Dockerfile et nginx*.conf de veve-sites.
 # Lot 4 : `sans-mesure` ajouté — aucune page ne charge de script de mesure.
 # Moteur 0.6.0 (rangement 2c) : `libelles` ajouté — libellés du moteur
 #   (moteur/i18n/) et part fournie par le site (moteur/i18n/a-fournir.txt).
@@ -28,7 +31,7 @@ PHASE="${1:-}"
 : "${SITE:?SITE doit valoir vevewiki}"
 case "$PHASE" in
   avant) LISTE="moteur-neutre libelles memoire liens entrepot donnees blog figures fiches lastmod langues schema gabarits css-mort imports-orphelins cascade-aplatie renommage" ;;
-  apres) LISTE="cles routes fuite phrases entete feuille titres opacite tiroir affichage analytics indexnow i18n sans-mesure envoi envoi-essai" ;;
+  apres) LISTE="cles routes fuite phrases entete feuille titres opacite tiroir affichage indexnow i18n sans-mesure envoi envoi-essai" ;;
   *) echo "Usage : $0 avant|apres"; exit 2 ;;
 esac
 echecs=()
