@@ -14,10 +14,12 @@
 # Pas de mise en ligne ni d'IndexNow ici : ils viendront avec la bascule.
 # 27/11/2026 (go de Preda) :
 # - le cron de GitHub part avec ~9 h 30 de retard (26 et 27/11) : déclencheur
-#   extérieur (cron-job.org, repository_dispatch « lire-sheet »), comme le
-#   pinger de floor-watch ; le cron reste en secours ;
-# - secours sans doublon : un passage planifié s'arrête si le Sheet a déjà
-#   été lu aujourd'hui (commit « contenu : lecture du Sheet du <jour> ») ;
+#   extérieur = tâche cron-job.org (jeton PINGER_LIRESHEET, Actions seulement)
+#   qui lance ce fichier par workflow_dispatch à 5 h 17 (Paris) ; le cron
+#   reste en secours ;
+# - secours sans doublon : un passage PLANIFIÉ (schedule) s'arrête si le
+#   Sheet a déjà été lu aujourd'hui ; un lancement workflow_dispatch (pinger
+#   ou à la main) n'est jamais arrêté (commit « contenu : lecture du Sheet du <jour> ») ;
 # - checkout du DERNIER main (sinon course : le 27/11, le passage #7 parti de
 #   99376ee a buté sur le dépôt du #6).
 
@@ -27,8 +29,6 @@ on:
   schedule:
     - cron: '17 4 * * *'
   workflow_dispatch:
-  repository_dispatch:
-    types: [lire-sheet]
 
 permissions:
   contents: write
