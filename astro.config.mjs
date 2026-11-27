@@ -103,6 +103,13 @@ export default defineConfig({
     '/fr/movers/': { status: 301, destination: '/fr/market/' },
     '/es/movers/': { status: 301, destination: '/es/market/' },
     '/de/movers/': { status: 301, destination: '/de/market/' },
+    // 27/11/2026 : /offre/ (page « Pricing » de veveprice) retirée du wiki,
+    // décision de Preda : renvoi vers l'accueil du wiki, dans la même langue.
+    '/offre/':    { status: 301, destination: '/' },
+    '/fr/offre/': { status: 301, destination: '/fr/' },
+    '/es/offre/': { status: 301, destination: '/es/' },
+    '/it/offre/': { status: 301, destination: '/it/' },
+    '/de/offre/': { status: 301, destination: '/de/' },
   },
   build: { format: 'directory' },
   compressHTML: true,
