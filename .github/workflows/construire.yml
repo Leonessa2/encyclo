@@ -18,12 +18,24 @@
 # - job « envoyer » (moteur/envoi/action.yml) : ÉTEINT tant que la variable du
 #   dépôt ENVOI_VPS ne vaut pas « oui » (Settings > Secrets and variables >
 #   Actions > Variables). Réglages attendus : voir moteur/envoi/LISEZMOI.md.
+# ESSAI SÉPARÉ (27/11/2026, accord de Preda) — deux cibles :
+# - ESSAI (essai.vevewiki.com, clé VPS_CLE_SSH_ESSAI, dossier d'essai
+#   seulement) : tout dépôt sur main et tout lancement à la main.
+# - VRAI SITE (vevewiki.com, clé VPS_CLE_SSH) :
+#   · la branche « en-ligne », avancée après le go de Preda (son commit doit
+#     être sur main) : le code de « en-ligne » ;
+#   · chaque lecture du Sheet réussie : le code de « en-ligne » + les textes
+#     du Sheet les plus récents (seulement sites/vevewiki/editorial,
+#     public/og/vevewiki, engine/data/lastmod) : les textes ne restent pas
+#     bloqués, le code non validé ne part pas ;
+#   · sans branche « en-ligne » : la lecture du Sheet ne part que sur l'essai.
+#   (Branche et non étiquette : les étiquettes ne passent pas, RESEAU v3.21.)
 
 name: Construire le wiki
 
 on:
   push:
-    branches: [main]
+    branches: [main, en-ligne]
   workflow_dispatch:
     inputs:
       simuler_panne:
@@ -51,6 +63,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    outputs:
+      cible: ${{ steps.cible.outputs.cible }}
+      code: ${{ steps.cible.outputs.code }}
     env:
       SITE: vevewiki
       SITE_URL: https://vevewiki.com
@@ -58,6 +73,16 @@ jobs:
       NODE_OPTIONS: --max-old-space-size=3072
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Avant tout le reste : la cible décide du code construit.
+      - name: Choisir la cible (essai ou vrai site) et le code
+        id: cible
+        env:
+          EVENEMENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+        run: outils/choisir_cible.sh
 
       - uses: actions/setup-node@v4
         with:
@@ -132,12 +157,17 @@ jobs:
   envoyer:
     needs: construire
     if: >-
-      vars.ENVOI_VPS == 'oui' && github.ref == 'refs/heads/main'
+      vars.ENVOI_VPS == 'oui'
+      && (needs.construire.outputs.cible == 'essai' || needs.construire.outputs.cible == 'vrai')
       && !(github.event_name == 'workflow_dispatch' && inputs.simuler_panne)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # L'action d'envoi est prise dans le code construit (branche en-ligne
+      # pour le vrai site), pas forcément dans le dernier main.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.construire.outputs.code }}
 
       - name: Reprendre le site construit
         uses: actions/download-artifact@v4
@@ -145,7 +175,10 @@ jobs:
           name: site-construit
           path: dist
 
-      - name: Envoyer au VPS
+      # Deux étapes séparées (pas de « a && b || c ») : un secret vide ne peut
+      # jamais faire passer une cible sur la clé de l'autre.
+      - name: Envoyer sur l'ESSAI (essai.vevewiki.com)
+        if: needs.construire.outputs.cible == 'essai'
         uses: ./moteur/envoi
         with:
           site-construit: dist
@@ -153,9 +186,17 @@ jobs:
           port: ${{ vars.VPS_PORT || '22' }}
           utilisateur: ${{ vars.VPS_UTILISATEUR }}
           empreinte: ${{ vars.VPS_EMPREINTE }}
-          # Depuis la bascule du 26/11/2026 : le domaine ET l'adresse de test
-          # servent le même dossier ; les deux doivent porter le commit, sinon
-          # l'envoi revient à la version d'avant. (La variable GitHub
-          # ADRESSE_VERIFICATION n'est plus lue.)
-          adresse: https://vevewiki.com https://essai.vevewiki.com
+          adresse: https://essai.vevewiki.com
+          cle: ${{ secrets.VPS_CLE_SSH_ESSAI }}
+
+      - name: Envoyer sur le VRAI SITE (vevewiki.com)
+        if: needs.construire.outputs.cible == 'vrai'
+        uses: ./moteur/envoi
+        with:
+          site-construit: dist
+          hote: ${{ vars.VPS_HOTE }}
+          port: ${{ vars.VPS_PORT || '22' }}
+          utilisateur: ${{ vars.VPS_UTILISATEUR }}
+          empreinte: ${{ vars.VPS_EMPREINTE }}
+          adresse: https://vevewiki.com
           cle: ${{ secrets.VPS_CLE_SSH }}
