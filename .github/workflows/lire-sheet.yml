@@ -22,6 +22,9 @@
 #   ou à la main) n'est jamais arrêté (commit « contenu : lecture du Sheet du <jour> ») ;
 # - checkout du DERNIER main (sinon course : le 27/11, le passage #7 parti de
 #   99376ee a buté sur le dépôt du #6).
+# MOTEUR 1.0.0 (27/11/2026) : le lecteur du Sheet est dans le moteur commun,
+# qui n'est plus dans ce dépôt : « Prendre le moteur » le place dans moteur/
+# (ignoré par git, jamais déposé par le robot).
 
 name: Lire le Sheet
 
@@ -57,6 +60,10 @@ jobs:
             echo "lu=true" >> "$GITHUB_OUTPUT"
             echo "::notice title=Déjà lu::le Sheet a déjà été lu aujourd'hui ; passage de secours arrêté."
           fi
+
+      - name: Prendre le moteur commun (moteur.txt)
+        if: steps.deja.outputs.lu != 'true'
+        run: outils/prendre_moteur.sh
 
       - uses: actions/setup-python@v5
         if: steps.deja.outputs.lu != 'true'

@@ -9,11 +9,13 @@
 # =============================================================================
 # ═══ LE MOTEUR COMMUN (RESEAU.md v3.5, lot 4 du 26/11/2026) ═══
 # `version` : la version du moteur que ce site utilise (moteur/VERSION).
-#   Tant que le moteur vit dans ce dépôt, elle doit être ÉGALE à moteur/VERSION :
-#   le banc moteur-neutre le vérifie.
+#   Depuis 1.0.0 (27/11/2026), le moteur vit dans Leonessa2/charpente et
+#   moteur.txt fige son commit ; elle doit être ÉGALE à la version de
+#   moteur.txt et à moteur/VERSION (outils/prendre_moteur.sh et le banc
+#   moteur-neutre le vérifient).
 # `dictionnaires` : où le moteur lit les libellés de ce site.
 moteur:
-  version: "0.9.0"
+  version: "1.0.0"
   dictionnaires: engine/i18n
 
 site:

@@ -1,0 +1,10 @@
+# Dépôt : Leonessa2/encyclo — fichier : moteur.txt   (27/11/2026)
+#
+# La version du moteur commun que le wiki utilise. Le moteur vit dans son
+# propre dépôt ; outils/prendre_moteur.sh le télécharge dans moteur/ (dossier
+# ignoré par git) au commit écrit ici, et vérifie la version.
+# Changer de version : ces trois lignes + « moteur.version » de
+# sites/vevewiki/manifest.yml, un site à la fois (RESEAU.md).
+depot   = Leonessa2/charpente
+version = 1.0.0
+commit  = c93cb71d8966d7031d4cbe5e0f85d3cf307ba3d2

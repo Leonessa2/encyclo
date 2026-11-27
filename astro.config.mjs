@@ -90,19 +90,9 @@ export default defineConfig({
   //    plus (`@astrojs/markdown-remark`). On utilise donc le systeme de
   //    greffons de Satteri, deja installe. Cf. engine/lib/figures_markdown.mjs
   markdown: { processor: satteri({ mdastPlugins: [figuresMarkdown] }) },
-  // ⛔⛔ `/movers/` DEVIENT `/market/` — ET NE DOIT PAS DEVENIR UN 404.
-  // Les 4 adresses etaient PUBLIEES, indexees, et soumises a IndexNow (elles
-  // sont dans `engine/data/indexnow_veveprice.json`). Les supprimer sans rien
-  // laisser, c'est perdre leur referencement ET casser tout lien entrant.
-  // ⭐ Une redirection 301 TRANSMET l'autorite de l'ancienne adresse a la
-  // nouvelle. C'est la seule facon de renommer une page sans repartir de zero.
-  // ⚠️ Les 4 langues, pas seulement le francais : chaque locale a sa propre
-  // adresse et chacune etait indexee separement.
+  // 27/11/2026 : les renvois /movers/ -> /market/ (pages de veveprice) sont
+  // retirés : ils ne produisaient rien sur le wiki.
   redirects: {
-    '/movers/':    { status: 301, destination: '/market/' },
-    '/fr/movers/': { status: 301, destination: '/fr/market/' },
-    '/es/movers/': { status: 301, destination: '/es/market/' },
-    '/de/movers/': { status: 301, destination: '/de/market/' },
     // 27/11/2026 : /offre/ (page « Pricing » de veveprice) retirée du wiki,
     // décision de Preda : renvoi vers l'accueil du wiki, dans la même langue.
     '/offre/':    { status: 301, destination: '/' },

@@ -7,3 +7,7 @@ dist/
 .rendering
 __pycache__/
 .donnees/
+# Le moteur commun n'est pas dans ce dépôt (moteur 1.0.0, 27/11/2026) :
+# outils/prendre_moteur.sh le télécharge ici, à la version de moteur.txt.
+/moteur/
+/.moteur-pris
