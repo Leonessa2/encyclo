@@ -47,7 +47,6 @@ const dateLisible = (d) => {
 };
 
 // --- Rubriques -------------------------------------------------------------------
-const COULEUR = { glossary: '#f2c14e', acronyms: '#7db2ff', brands: '#ff8fa3', history: '#ffb38a', annuaire: '#c4a8ff', blog: '#b8c4d8' };
 const rubriques = [];
 for (const s of sections) {
   const meta = sectionMeta(s, lang);
@@ -288,7 +287,7 @@ if (blogEnabled()) libellesType.blog = nu(t(lang, 'blog.title'));
         <h2 id="acc-base" style="margin:0 0 6px;font-size:20px">{t(lang, 'wiki.browse')}</h2>
         <ul class="acc-rubriques">
           {rubriques.map((r) => (
-            <li><a href={localize(lang, r.path)} style={`--c:${COULEUR[r.cle] || 'var(--teal)'}`}>
+            <li><a href={localize(lang, r.path)}>
               <span class="acc-ico" aria-hidden="true"></span>
               <span><b>{r.titre}</b><small>{t(lang, `wiki.count.${r.cle}`, { n: nombre(r.n) })}</small>{r.desc && <span class="acc-desc">{r.desc}</span>}</span>
             </a></li>

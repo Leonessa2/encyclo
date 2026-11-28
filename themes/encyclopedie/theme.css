@@ -446,22 +446,26 @@ h2:hover .lien-ancre,h3:hover .lien-ancre,h2 .lien-ancre:focus-visible,h3 .lien-
 /* =============================================================================
    6 bis. PAGES DE RUBRIQUE (Editorial.astro) ET ARTICLES (gabarits du moteur)
    ============================================================================= */
-/* En-tête de rubrique : icône de couleur, titre, description, nombre. */
-.sec-tete{display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px 16px;align-items:start;margin:18px 0 6px}
-.sec-ico{width:52px;height:52px;border-radius:14px;background:var(--c,var(--teal));color:#13152b;display:flex;align-items:center;justify-content:center}
-.sec-ico::before{content:"";width:26px;height:26px;background:currentColor;-webkit-mask:var(--ico) center/contain no-repeat;mask:var(--ico) center/contain no-repeat}
-.sec-tete h1{margin:2px 0 6px}
-.sec-tete .lead{margin:0}
-.sec-compte{grid-column:1 / -1;margin:0;display:inline-flex;justify-self:start;align-items:center;min-height:30px;padding:0 10px;
-  border-radius:8px;background:var(--surface);border:1px solid var(--line);font-size:13.5px;font-weight:700;color:var(--soft)}
-@media (min-width:820px){ .sec-tete{grid-template-columns:auto minmax(0,1fr) auto;align-items:center} .sec-compte{grid-column:auto;justify-self:end} }
+/* En-tête de rubrique, TÉLÉPHONE : la bannière de l'ordinateur en compact
+   (28/11 : plus de carré d'icône coloré). Carte blanche, réseau hexagonal du
+   logo, filet d'or, nombre d'entrées marqué d'un hexagone d'or. L'éventail de
+   pièces reste réservé à l'ordinateur (rien n'est téléchargé sur téléphone). */
+.sec-tete{position:relative;overflow:hidden;display:block;margin:14px 0 6px;padding:18px 18px 20px;border-radius:16px;
+  border:1px solid var(--line);box-shadow:inset 0 -3px 0 var(--teal);background-color:var(--bann);
+  background-image:radial-gradient(70% 90% at 100% 0,rgba(242,193,78,.18),rgba(242,193,78,0) 70%),var(--bann-motif)}
+.sec-tete h1{margin:0;font-size:28px;line-height:1.08}
+.sec-tete .lead{margin:8px 0 0;font-size:15.5px;line-height:1.5;color:var(--soft)}
+.sec-compte{margin:12px 0 0;display:inline-flex;gap:8px;align-items:center;min-height:30px;padding:0 10px;
+  border-radius:8px;background:var(--surface);border:1px solid var(--line);font-size:13.5px;font-weight:700;color:var(--text)}
+.sec-compte::before{content:"";width:10px;height:11px;background:var(--or);clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
 .sec-eventail{display:none}
 
 /* Bannière ordinateur (≥ 1100 px) : fond blanc des cartes (surface sombre en
-   mode nuit), réseau hexagonal du logo en filigrane, lueur d'or, filet sarcelle en
+   mode nuit), réseau hexagonal du logo en filigrane, lueur d'or, filet d'or en
    bas (celui des cartes). Rubriques : éventail de quatre pièces à droite.
    Blog (gabarits du moteur, non modifiables) : même bandeau posé en CSS sur le
-   h1, avec le globe du logo à la place des pièces. Le mobile garde l'en-tête. */
+   h1, avec le globe du logo à la place des pièces. Le téléphone a sa version
+   compacte, plus haut. */
 @media (min-width:1100px){
   .sec-tete,main:has(> .cartes) > h1,.post > h1{position:relative;isolation:isolate;overflow:hidden;box-sizing:border-box;
     margin:18px 0 14px;padding:34px 36px;border-radius:22px;border:1px solid var(--line);color:var(--text);
@@ -471,12 +475,10 @@ h2:hover .lien-ancre,h3:hover .lien-ancre,h2 .lien-ancre:focus-visible,h3 .lien-
   .sec-tete{display:block;min-height:230px}
   .sec-tete::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
     background:linear-gradient(90deg,var(--bann) 0,color-mix(in srgb,var(--bann) 85%,transparent) 40%,color-mix(in srgb,var(--bann) 0%,transparent) 70%)}
-  .sec-ico{display:none}
   .sec-tete > div,.sec-compte{position:relative;z-index:2;max-width:min(620px,calc(100% - 450px))}
   .sec-tete h1{margin:0;color:var(--text);font-size:42px;line-height:1.05}
   .sec-tete .lead{margin:10px 0 0;color:var(--soft);font-size:16.5px}
   .sec-compte{display:inline-flex;gap:8px;margin-top:16px;background:var(--surface);border-color:var(--line);color:var(--text)}
-  .sec-compte::before{content:"";width:10px;height:11px;background:var(--or);clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
   .sec-eventail{display:block;position:absolute;z-index:0;right:28px;top:50%;width:420px;height:200px;margin-top:-100px}
   .sec-eventail img{position:absolute;width:118px;height:156px;object-fit:cover;border-radius:12px;background:var(--surface-2);
     border:3px solid var(--surface);box-shadow:0 14px 28px rgba(19,21,43,.18)}
@@ -657,8 +659,10 @@ h2.acc-k{margin:0}
 .acc-rubriques li{max-width:none;border-top:1px solid var(--line-soft)}
 .acc-rubriques a{display:flex;align-items:center;gap:11px;padding:11px 0;color:var(--text);text-decoration:none}
 .acc-rubriques a:hover b{color:var(--primary)}
+/* Icône de rubrique : trait doré sur fond doré léger (28/11 : plus de tuiles
+   multicolores, l'or du logo partout). */
 .acc-ico{flex:0 0 38px;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;
-  background:var(--c,var(--teal));color:#13152b}
+  background:var(--sel-wash);color:var(--sel-text);border:1px solid color-mix(in srgb,var(--sel) 35%,transparent)}
 .acc-ico::before{content:"";width:19px;height:19px;background:currentColor;-webkit-mask:var(--ico) center/contain no-repeat;mask:var(--ico) center/contain no-repeat}
 .acc-rubriques b{display:block;font-size:14.5px;line-height:1.2}
 .acc-rubriques small{display:block;font-size:12.5px;color:var(--muted)}
