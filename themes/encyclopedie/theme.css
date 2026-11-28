@@ -41,7 +41,7 @@
   --teal:#19c7ae;          /* sarcelle de MARQUE : décor, jamais du texte (2,5:1) */
   --ink-on-teal:#13152b;
   --night:#13152b;         /* aplat bleu nuit (bandeau), dans les deux modes */
-  --bann:color-mix(in srgb,var(--teal) 9%,var(--surface));  /* fond des bannières ordinateur : menthe pâle */
+  --bann:var(--surface);   /* fond des bannières ordinateur : blanc des cartes */
   --bann-motif:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='48.5'%3E%3Cpath d='M14 0h28l14 24.25-14 24.25H14L0 24.25z' fill='none' stroke='rgba(7,112,95,.14)'/%3E%3C/svg%3E");
   --night-soft:#c9cde3;
   --track:#edeff5;
@@ -55,7 +55,7 @@
   --radius:14px; --radius-s:9px; --tap:44px; --side-w:272px; --tabs-h:64px; --mesure:68ch;
 }
 :root[data-theme="nuit"]{
-  --bann:color-mix(in srgb,var(--teal) 7%,var(--surface));
+  --bann:var(--surface);
   --bann-motif:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='48.5'%3E%3Cpath d='M14 0h28l14 24.25-14 24.25H14L0 24.25z' fill='none' stroke='rgba(54,226,200,.10)'/%3E%3C/svg%3E");
   --surface-2:#20243a;
   --side:#11131f;
@@ -464,8 +464,8 @@ h2:hover .lien-ancre,h3:hover .lien-ancre,h2 .lien-ancre:focus-visible,h3 .lien-
 @media (min-width:820px){ .sec-tete{grid-template-columns:auto minmax(0,1fr) auto;align-items:center} .sec-compte{grid-column:auto;justify-self:end} }
 .sec-eventail{display:none}
 
-/* Bannière ordinateur (≥ 1100 px) : fond menthe pâle tiré de la sarcelle de
-   marque, réseau hexagonal du logo en filigrane, lueur d'or, filet sarcelle en
+/* Bannière ordinateur (≥ 1100 px) : fond blanc des cartes (surface sombre en
+   mode nuit), réseau hexagonal du logo en filigrane, lueur d'or, filet sarcelle en
    bas (celui des cartes). Rubriques : éventail de quatre pièces à droite.
    Blog (gabarits du moteur, non modifiables) : même bandeau posé en CSS sur le
    h1, avec le globe du logo à la place des pièces. Le mobile garde l'en-tête. */
@@ -474,7 +474,7 @@ h2:hover .lien-ancre,h3:hover .lien-ancre,h2 .lien-ancre:focus-visible,h3 .lien-
     margin:18px 0 14px;padding:34px 36px;border-radius:22px;border:1px solid var(--line);color:var(--text);
     box-shadow:inset 0 -3px 0 var(--teal);background-color:var(--bann);
     background-image:radial-gradient(50% 90% at 80% 40%,rgba(242,193,78,.20),rgba(242,193,78,0) 70%),
-      radial-gradient(40% 80% at 0 0,color-mix(in srgb,var(--teal) 16%,transparent),transparent 70%),var(--bann-motif)}
+      radial-gradient(40% 80% at 0 0,color-mix(in srgb,var(--teal) 7%,transparent),transparent 70%),var(--bann-motif)}
   .sec-tete{display:block;min-height:230px}
   .sec-tete::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
     background:linear-gradient(90deg,var(--bann) 0,color-mix(in srgb,var(--bann) 85%,transparent) 40%,color-mix(in srgb,var(--bann) 0%,transparent) 70%)}
@@ -493,7 +493,7 @@ h2:hover .lien-ancre,h3:hover .lien-ancre,h2 .lien-ancre:focus-visible,h3 .lien-
   .sec-eventail img:nth-child(4){left:300px;top:26px;transform:rotate(12deg)}
   main:has(> .cartes) > h1,.post > h1{padding:56px 300px 48px 36px;font-size:42px;line-height:1.08;
     background-image:var(--logo),radial-gradient(50% 90% at 84% 45%,rgba(242,193,78,.22),rgba(242,193,78,0) 70%),
-      radial-gradient(40% 80% at 0 0,color-mix(in srgb,var(--teal) 16%,transparent),transparent 70%),var(--bann-motif);
+      radial-gradient(40% 80% at 0 0,color-mix(in srgb,var(--teal) 7%,transparent),transparent 70%),var(--bann-motif);
     background-repeat:no-repeat,no-repeat,no-repeat,repeat;background-position:right 56px center,0 0,0 0,0 0;background-size:170px,auto,auto,auto}
   .post > h1{font-size:38px}
 }
