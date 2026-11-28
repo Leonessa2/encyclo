@@ -194,7 +194,7 @@ const initiales = (nom) => String(nom || '?').replace(/[^\p{L}\p{N} ]/gu, ' ').t
 const maxItems = section === 'brands' ? Math.max(1, ...items.map((r) => Number(r.nb_items) || 0)) : 1;
 // Bannière ordinateur : l'éventail de pièces (masqué sous 1100 px par theme.css).
 const eventail = piecesBanniere(section);
-const COULEUR_SEC = { glossary: '#19c7ae', acronyms: '#7db2ff', brands: '#ff8fa3', history: '#ffd166', annuaire: '#c4a8ff' };
+const COULEUR_SEC = { glossary: '#f2c14e', acronyms: '#7db2ff', brands: '#ff8fa3', history: '#ffb38a', annuaire: '#c4a8ff' };
 
 ---
 <Base lang={lang} path={meta.path} title={meta.title} description={meta.description}

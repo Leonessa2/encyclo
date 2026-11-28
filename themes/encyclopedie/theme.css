@@ -37,12 +37,13 @@
   --line-strong:#cdd2de;   /* bordure de champ                      */
   --hover:#eef1f6;
   --soft:#3e4362;          /* texte secondaire — 9,62:1 sur blanc   */
-  --wash:#e3f7f3;          /* fond sarcelle léger                   */
-  --teal:#19c7ae;          /* sarcelle de MARQUE : décor, jamais du texte (2,5:1) */
+  --wash:#fbf3dc;          /* fond doré léger (plus de vert : 28/11) */
+  --teal:#d9a42b;          /* accent de MARQUE, l'or du logo : décor, jamais du texte (2,2:1).
+                              Le nom est resté « teal » : le vert a disparu le 28/11. */
   --ink-on-teal:#13152b;
   --night:#13152b;         /* aplat bleu nuit (bandeau), dans les deux modes */
   --bann:var(--surface);   /* fond des bannières ordinateur : blanc des cartes */
-  --bann-motif:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='48.5'%3E%3Cpath d='M14 0h28l14 24.25-14 24.25H14L0 24.25z' fill='none' stroke='rgba(7,112,95,.14)'/%3E%3C/svg%3E");
+  --bann-motif:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='48.5'%3E%3Cpath d='M14 0h28l14 24.25-14 24.25H14L0 24.25z' fill='none' stroke='rgba(132,90,0,.13)'/%3E%3C/svg%3E");
   --night-soft:#c9cde3;
   --track:#edeff5;
   --shadow:0 1px 2px rgba(19,21,43,.05);
@@ -61,7 +62,7 @@
 }
 :root[data-theme="nuit"]{
   --bann:var(--surface);
-  --bann-motif:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='48.5'%3E%3Cpath d='M14 0h28l14 24.25-14 24.25H14L0 24.25z' fill='none' stroke='rgba(54,226,200,.10)'/%3E%3C/svg%3E");
+  --bann-motif:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='48.5'%3E%3Cpath d='M14 0h28l14 24.25-14 24.25H14L0 24.25z' fill='none' stroke='rgba(242,193,78,.09)'/%3E%3C/svg%3E");
   --surface-2:#20243a;
   --side:#11131f;
   --line:#262a45;
@@ -69,8 +70,8 @@
   --line-strong:#3a4066;
   --hover:#1c2034;
   --soft:#c3c8e2;          /* 10,40:1 sur surface */
-  --wash:rgba(54,226,200,.12);
-  --teal:#36e2c8;
+  --wash:rgba(242,193,78,.12);
+  --teal:#f2c14e;
   --track:#23263d;
   --shadow:none;
   --logo:url('/logo-icone-nuit.svg');
@@ -362,7 +363,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   background:var(--muted);box-shadow:0 0 0 3px var(--bg)}
 .milestone[data-type="drop"]::before{background:var(--r-sr)}
 .milestone[data-type="partenariat"]::before{background:var(--r-r)}
-.milestone[data-type="produit"]::before{background:var(--teal)}
+.milestone[data-type="produit"]::before{background:var(--r-ur)}
 .milestone[data-type="evenement"]::before{background:var(--r-ap)}
 .milestone > .when,.milestone > .what{background:var(--surface);border:1px solid var(--line)}
 .milestone > .when{display:inline-flex;gap:6px;align-items:baseline;margin:0;padding:6px 10px;border-bottom:0;
@@ -516,7 +517,7 @@ h2.sec-lettre small{font-family:var(--font-body);font-size:14px;font-weight:600}
 .sec-legende i{width:11px;height:11px;border-radius:4px;background:var(--muted)}
 .sec-legende [data-type="drop"] i{background:var(--r-sr)}
 .sec-legende [data-type="partenariat"] i{background:var(--r-r)}
-.sec-legende [data-type="produit"] i{background:var(--teal)}
+.sec-legende [data-type="produit"] i{background:var(--r-ur)}
 .sec-legende [data-type="evenement"] i{background:var(--r-ap)}
 .milestone h3{margin:0 0 6px;font-size:18px;line-height:1.3}
 
@@ -738,15 +739,18 @@ h2.acc-k{margin:0}
      texte       #13152b     16,48     17,95     15,61
      doux        #3e4362      8,83      9,62      8,36
      méta        #5b6182      5,54      6,04      5,25
-     lien        #07705f      5,52      6,01      5,23
+     lien        #845a00      5,60      6,10      5,30
+     sélection   #865f0c      4,9       5,3       4,8   (sur --sel-wash #fbf3dc : 4,8)
      SR (texte)  #c42445      5,23      5,70      4,96
      NUIT        couleur   bg #0e0f1a  surface #171a2b  surface-2 #20243a
      texte       #eef0fa     16,77     15,16     13,44
      doux        #c3c8e2     11,51     10,40      9,22
      méta        #9aa1c2      7,49      6,77      6,00
-     lien        #36e2c8     11,68     10,56      9,36
-     Bandeau bleu nuit #13152b : blanc 17,95 · #c9cde3 11,7 · #7fefdd 13,1
-   ⛔ La sarcelle de marque #19c7ae ne porte jamais de texte sur fond clair (2,5:1).
+     lien        #f5c451     11,70     10,58      9,38
+     Bandeau bleu nuit #13152b : blanc 17,95 · #c9cde3 11,7 · or #f2c14e 10,6
+   ⛔ L'or de marque #d9a42b (--teal, --sel) ne porte jamais de texte sur fond
+      clair (2,2:1) : le texte doré, c'est #845a00 (lien) ou #865f0c (sélection).
+   ⭐ Plus aucun vert depuis le 28/11/2026, sauf la rareté Uncommon (couleur VeVe).
    ============================================================================= */
 [hidden]{display:none!important}
 .item .s[data-serie]{display:block;max-width:34ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

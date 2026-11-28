@@ -201,7 +201,7 @@ identity:
   # `figures.mjs` relit `palette` (le jour) pour les graphiques.
   # Contrastes mesurés sur bg / surface / --surface-2 (#edeff5) :
   palette:
-    primary: "#07705f"     # lien, sarcelle foncée — 5,52 / 6,01 / 5,23
+    primary: "#845a00"     # lien, or lisible (plus de vert : 28/11) — 5,60 / 6,10 / 5,30
     accent:  "#845a00"     # or lisible            — 5,60 / 6,10 / 5,30
     danger:  "#c42445"     #                       — 5,23 / 5,70 / 4,96
     bg:      "#f4f5f9"
@@ -212,7 +212,7 @@ identity:
   # valeurs : les encres du jour ne se lisent pas sur le bleu nuit.
   # Contrastes mesurés sur bg / surface / --surface-2 nuit (#20243a) :
   palette_nuit:
-    primary: "#36e2c8"     # lien, sarcelle        — 11,68 / 10,56 / 9,36
+    primary: "#f5c451"     # lien, or (plus de vert : 28/11) — 11,70 / 10,58 / 9,38
     accent:  "#f5c451"     # or                    — 11,70 / 10,58 / 9,38
     danger:  "#ff7a8a"     #                       —  7,63 /  6,89 / 6,11
     bg:      "#0e0f1a"
