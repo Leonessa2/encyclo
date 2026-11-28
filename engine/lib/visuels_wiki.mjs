@@ -25,10 +25,13 @@ export const PIECES_PAR_LICENCE = {
   ghostbusters: ['Ghostbusters I Logo - Platinum'],
 };
 
-/** Le mur de l'accueil, et la rotation de la « pièce du jour ». */
+/** Le mur de l'accueil, et la rotation de la « pièce du jour ».
+ *  ⚠️ Les QUATRE premières sont les seules vues sur téléphone : des pièces
+ *  contrastées. Yoda (statue blanc bleuté sur fond clair) se lisait comme une
+ *  case vide à 375 px ; il reste dans le mur complet (ordinateur). */
 export const MUR_ACCUEIL = [
-  'Darth Vader Samurai - Wrath of the Dragon', 'Stitch', 'Spider-Man Noir', 'Yoda - One With The Force',
-  'Buzz Lightyear – Wings Deployed', 'Iron Man - Marvel Metallic Red', 'Mickey Mouse Poster',
+  'Darth Vader Samurai - Wrath of the Dragon', 'Stitch', 'Spider-Man Noir', 'Iron Man - Marvel Metallic Red',
+  'Buzz Lightyear – Wings Deployed', 'Yoda - One With The Force', 'Mickey Mouse Poster',
   'Deadpool – Ultimate Animated', 'Nemo', 'Wolverine - Primal Strike', 'Ghostbusters I Logo - Platinum',
   '#01 Eduardo Risso Batman',
 ];

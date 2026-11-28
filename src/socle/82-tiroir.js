@@ -16,6 +16,14 @@
     es: ['Inicio', 'Cerrar', 'Idioma', 'Apariencia'], it: ['Home', 'Chiudi', 'Lingua', 'Aspetto'],
     de: ['Startseite', 'Schließen', 'Sprache', 'Darstellung'],
   };
+  // ⛔ Tout texte RECOPIÉ passe par `net()`. Les libellés que les scripts du
+  //   moteur posent à l'exécution (l'`aria-label` de la bascule, depuis
+  //   `define:vars`) gardent les sentinelles i18n U+0011..U+0013 : recopiées
+  //   telles quelles, elles s'affichaient « \u0011theme.toDark\u0012… ».
+  //   Banc : engine/tools/test_menu_ouvert.mjs (menu ouvert, 5 langues).
+  function net(s) {
+    return String(s || '').replace(/\u0011[^\u0012]*\u0012/g, '').replace(/[\u0011-\u0013]/g, '');
+  }
   function monter() {
     var panneau = document.getElementById('menu-m');
     var bouton = document.getElementById('menu-b');
@@ -42,7 +50,7 @@
     // Accueil, puis les rubriques (déjà là), sous le titre « Explorer » du pied.
     var marque = document.querySelector('header.site .marque');
     var colonnes = document.querySelectorAll('footer.site .site-f__cols h2');
-    if (colonnes[1]) panneau.insertBefore(titre(colonnes[1].textContent.trim()), premier);
+    if (colonnes[1]) panneau.insertBefore(titre(net(colonnes[1].textContent).trim()), premier);
     if (marque) {
       var accueil = el('a', 'tiroir__accueil', m[0]);
       accueil.href = marque.getAttribute('href');
@@ -56,7 +64,7 @@
       panneau.appendChild(titre(m[2]));
       var bloc = el('div', 'tiroir__langues');
       for (var i = 0; i < langues.length; i++) {
-        var a = el('a', null, langues[i].textContent.trim());
+        var a = el('a', null, net(langues[i].textContent).trim());
         a.href = langues[i].getAttribute('href');
         a.hreflang = langues[i].getAttribute('hreflang') || '';
         if (langues[i].hasAttribute('aria-current')) a.setAttribute('aria-current', 'true');
@@ -69,11 +77,11 @@
     var bascule = document.getElementById('bascule-theme');
     if (bascule) {
       panneau.appendChild(titre(m[3]));
-      var theme = el('button', 'tiroir__theme', bascule.getAttribute('aria-label') || '');
+      var theme = el('button', 'tiroir__theme', net(bascule.getAttribute('aria-label')));
       theme.type = 'button';
       theme.addEventListener('click', function () {
         bascule.click();
-        theme.textContent = bascule.getAttribute('aria-label') || '';
+        theme.textContent = net(bascule.getAttribute('aria-label'));
       });
       panneau.appendChild(theme);
     }
@@ -81,10 +89,10 @@
     // Liens légaux du pied de page.
     var legaux = document.querySelectorAll('footer.site .legal-links a');
     if (legaux.length) {
-      if (colonnes[2]) panneau.appendChild(titre(colonnes[2].textContent.trim()));
+      if (colonnes[2]) panneau.appendChild(titre(net(colonnes[2].textContent).trim()));
       var liste = el('div', 'tiroir__liens');
       for (var j = 0; j < legaux.length; j++) {
-        var l = el('a', null, legaux[j].textContent.trim());
+        var l = el('a', null, net(legaux[j].textContent).trim());
         l.href = legaux[j].getAttribute('href');
         liste.appendChild(l);
       }
@@ -104,7 +112,7 @@
     if (!panneau || !bouton) return;
     var nom = document.querySelector('header.site .marque__t');
     panneau.setAttribute('role', 'dialog');
-    panneau.setAttribute('aria-label', (nom && nom.textContent.trim()) || 'Menu');
+    panneau.setAttribute('aria-label', (nom && net(nom.textContent).trim()) || 'Menu');
     bouton.addEventListener('pointerdown', monter, { once: true });
     bouton.addEventListener('click', monter, { capture: true, once: true });
   }

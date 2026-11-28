@@ -33,6 +33,7 @@
     "test:titres": "node engine/tools/test_titres.mjs",
     "test:opacite": "node moteur/bancs/opacite.mjs",
     "test:tiroir": "node moteur/bancs/tiroir.mjs",
+    "test:menu-ouvert": "node engine/tools/test_menu_ouvert.mjs",
     "test:affichage": "node engine/tools/test_affichage.mjs",
     "test:i18n": "node moteur/bancs/i18n.mjs",
     "marquer:i18n": "node moteur/outils/marquer_i18n.mjs",

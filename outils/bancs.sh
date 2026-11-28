@@ -31,7 +31,7 @@ PHASE="${1:-}"
 : "${SITE:?SITE doit valoir vevewiki}"
 case "$PHASE" in
   avant) LISTE="moteur-neutre libelles memoire liens entrepot donnees blog figures fiches lastmod langues schema gabarits css-mort imports-orphelins cascade-aplatie renommage" ;;
-  apres) LISTE="cles routes fuite phrases entete feuille titres opacite tiroir affichage indexnow i18n sans-mesure envoi envoi-essai" ;;
+  apres) LISTE="cles routes fuite phrases entete feuille titres opacite tiroir menu-ouvert affichage indexnow i18n sans-mesure envoi envoi-essai" ;;
   *) echo "Usage : $0 avant|apres"; exit 2 ;;
 esac
 echecs=()

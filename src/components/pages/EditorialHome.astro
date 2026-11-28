@@ -14,7 +14,7 @@
 // (engine/lib/visuels_wiki.mjs) : une pièce absente n'est pas affichée.
 import Base from '../../layouts/Base.astro';
 import { manifest, siteUrl } from '../../../moteur/lib/manifest.mjs';
-import { pick, localize, t, dateLocale, numberLocale } from '../../../moteur/lib/i18n.mjs';
+import { pick, localize, t, nu, dateLocale, numberLocale } from '../../../moteur/lib/i18n.mjs';
 import { activeSections, sectionMeta } from '../../../moteur/lib/editorial_pages.mjs';
 import { collection } from '../../../engine/lib/contenu.mjs';
 import { blogEnabled, postsFor } from '../../../moteur/lib/blog.mjs';
@@ -162,9 +162,12 @@ const ldOrganisation = {
   ...(pick(m.site.devise, lang) ? { slogan: pick(m.site.devise, lang) } : {}),
 };
 
+// ⛔ `nu()` sur tout ce qui part dans `define:vars` : Astro y écrit la chaîne
+//    en JSON, les sentinelles i18n deviennent le TEXTE « \u0011… » que
+//    `marquer_i18n` ne reconnaît plus, et elles s'affichaient brutes.
 const libellesType = {};
-for (const s of sections) libellesType[s] = sectionMeta(s, lang).title;
-if (blogEnabled()) libellesType.blog = t(lang, 'blog.title');
+for (const s of sections) libellesType[s] = nu(sectionMeta(s, lang).title);
+if (blogEnabled()) libellesType.blog = nu(t(lang, 'blog.title'));
 ---
 <Base lang={lang} path="/" title={null} ld={[ldOrganisation]}>
 
@@ -312,7 +315,7 @@ if (blogEnabled()) libellesType.blog = t(lang, 'blog.title');
       LANG: lang,
       PREFIXE: localize(lang, '/').replace(/\/$/, ''),
       TYPES: libellesType,
-      RIEN: t(lang, 'search.noResult'),
+      RIEN: nu(t(lang, 'search.noResult')),
     }}>
       (function () {
         var q = document.getElementById('q');
