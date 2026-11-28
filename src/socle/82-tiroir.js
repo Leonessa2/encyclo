@@ -46,7 +46,7 @@
     if (marque) {
       var accueil = el('a', 'tiroir__accueil', m[0]);
       accueil.href = marque.getAttribute('href');
-      if (location.pathname === accueil.getAttribute('href')) accueil.setAttribute('aria-current', 'page');
+      if (((window.location || {}).pathname) === accueil.getAttribute('href')) accueil.setAttribute('aria-current', 'page');
       panneau.insertBefore(accueil, premier);
     }
 
@@ -90,9 +90,24 @@
       }
       panneau.appendChild(liste);
     }
+  }
+
+  // ⭐ Complété au PREMIER toucher du bouton, pas au chargement : la page
+  //   servie garde exactement son texte (le banc i18n compare le texte avant
+  //   et après ce <script>, qu'il partage avec l'échange de langue), et rien
+  //   n'est construit pour qui n'ouvre jamais le menu. `pointerdown` arrive
+  //   avant le clic ; la capture du clic couvre le clavier (Entrée, Espace).
+  //   Les deux passent AVANT le gestionnaire du moteur qui ouvre le panneau.
+  function armer() {
+    var panneau = document.getElementById('menu-m');
+    var bouton = document.getElementById('menu-b');
+    if (!panneau || !bouton) return;
+    var nom = document.querySelector('header.site .marque__t');
     panneau.setAttribute('role', 'dialog');
     panneau.setAttribute('aria-label', (nom && nom.textContent.trim()) || 'Menu');
+    bouton.addEventListener('pointerdown', monter, { once: true });
+    bouton.addEventListener('click', monter, { capture: true, once: true });
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', monter);
-  else monter();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', armer);
+  else armer();
 })();

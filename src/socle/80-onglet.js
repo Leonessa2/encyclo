@@ -5,7 +5,10 @@
   // page COMMENCE par le sien (« /fr/brands/dc/ » ouvre l'onglet « Marques »).
   function marquer() {
     var liens = document.querySelectorAll('.nav__liens a[href], .deplie__m a[href]');
-    var ici = location.pathname;
+    // ⚠️ `window.location`, pas `location` nu : le banc i18n rejoue ce script
+    // dans un bac à sable sans `location` global (un ReferenceError y casse
+    // aussi le script d'échange de langue, qui partage ce <script>).
+    var ici = ((window.location || {}).pathname) || '';
     for (var i = 0; i < liens.length; i++) {
       var a = liens[i];
       var p = a.getAttribute('href');
