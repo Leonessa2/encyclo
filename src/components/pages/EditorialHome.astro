@@ -156,7 +156,7 @@ const racine = siteUrl();
 const ldOrganisation = {
   '@context': 'https://schema.org', '@type': 'Organization',
   name: m.site.brand, url: racine,
-  logo: { '@type': 'ImageObject', url: `${racine}/logo-512.png`, width: 512, height: 512 },
+  logo: { '@type': 'ImageObject', url: `${racine}/logo-v5-512.png`, width: 512, height: 512 },
   description: pick(m.site.description, lang),
   ...(pick(m.site.devise, lang) ? { slogan: pick(m.site.devise, lang) } : {}),
 };

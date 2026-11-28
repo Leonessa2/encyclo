@@ -47,7 +47,7 @@
   --night-soft:#c9cde3;
   --track:#edeff5;
   --shadow:0 1px 2px rgba(19,21,43,.05);
-  --logo:url('/logo-icone.svg');   /* en-tête : version simplifiée, lisible à 38 px */
+  --logo:url('/logo-v5-icone.svg');   /* en-tête : version simplifiée, lisible à 38 px. Nom VERSIONNÉ : cache de 30 jours */
   --or:#a87a12;            /* l'or du mot-symbole (logotype)        */
   /* SÉLECTION = l'or du logo (28/11/2026) : onglet, rubrique, langue actifs,
      survol de filtre, champ actif, focus, surlignage. Le vert reste aux liens. */
@@ -74,7 +74,7 @@
   --teal:#f2c14e;
   --track:#23263d;
   --shadow:none;
-  --logo:url('/logo-icone-nuit.svg');
+  --logo:url('/logo-v5-icone-nuit.svg');
   --or:#f2c14e;
   --sel:#f2c14e;
   --sel-wash:rgba(242,193,78,.14);

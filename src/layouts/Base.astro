@@ -10,8 +10,13 @@
 // Les pages continuent d'importer CE fichier, avec les mêmes propriétés.
 import Page from '../../moteur/gabarits/Page.astro';
 import Figures from '../components/Figures.astro';
+// Image de partage par défaut : nom VERSIONNÉ (logo v5, 28/11/2026). Le moteur
+// retombe sinon sur /og.png, servi avec 30 jours de cache « immutable » : un
+// nouveau visuel sous ce nom resterait invisible un mois (Cloudflare, réseaux).
+// Une page qui fournit sa propre image (articles) la garde.
+const image = Astro.props.image ?? '/og-v5.png';
 ---
-<Page {...Astro.props}>
+<Page {...Astro.props} image={image}>
   <Figures slot="tete" />
   {/* Les visuels VeVe viennent de ce CDN : la connexion est ouverte dès le
       <head>, avant que le navigateur ne découvre la première image. */}
