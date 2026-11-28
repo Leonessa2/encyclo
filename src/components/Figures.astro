@@ -24,10 +24,10 @@
 ---
 <style is:global>
   .fig { margin: 26px 0; }
-  .fig .fig-svg svg { width: 100%; height: auto; display: block; border-radius: 8px; }
+  .fig .fig-svg svg { width: 100%; height: auto; display: block; }
   .fig figcaption {
     display: flex; gap: 12px; align-items: baseline; justify-content: space-between;
-    margin-top: 8px; font-size: 13px; color: var(--muted);
+    margin-top: 10px; font-size: 14px; font-style: italic; color: var(--muted);
   }
   /* ⚠️ Le bouton est masqué PAR DÉFAUT et révélé par une CLASSE sur <html>,
      pas par du JavaScript qui irait le chercher dans le DOM. Raison : ce script
@@ -39,15 +39,15 @@
      montre pas une commande qui ne ferait rien. */
   .fig .fig-dl {
     display: none;
-    flex: none; background: none; border: 1px solid var(--surface); color: var(--muted);
-    border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 12px; cursor: pointer;
+    flex: none; background: none; border: 1px solid var(--muted); color: var(--text);
+    border-radius: 8px; padding: 4px 10px; font: inherit; font-family: var(--font-heading); font-style: normal; font-size: 13px; font-weight: 600; cursor: pointer;
     /* ⭐ 24 px est le plancher de WCAG 2.5.8. Mesuré le 27/07, ce bouton
        tombait à ~22 px : assez pour paraître correct, pas assez pour être
        visé au pouce. La police reste à 12 px — c'est la ZONE qui compte. */
     min-height: 24px; align-items: center;
   }
   .js .fig .fig-dl { display: inline-flex; }
-  .fig .fig-dl:hover { border-color: var(--primary); color: var(--primary); }
+  .fig .fig-dl:hover { background: var(--primary); color: var(--bg); border-color: var(--primary); }
   .fig .fig-dl[aria-busy="true"] { opacity: .6; cursor: progress; }
   @media print { .fig .fig-dl { display: none; } }
 </style>

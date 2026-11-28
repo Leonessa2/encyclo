@@ -1,694 +1,761 @@
 /* =============================================================================
-   THÈME  ENCYCLOPEDIE  —  vevewiki
-   Leonessa2/veve-sites — themes/encyclopedie/theme.css
+   THÈME  ENCYCLOPEDIE  —  vevewiki  —  identité « Coffre » v3
+   Leonessa2/encyclo — themes/encyclopedie/theme.css   (28/11/2026)
    -----------------------------------------------------------------------------
-   ⛔ NE PAS MODIFIER `themes/aurora/theme.css` POUR VEVEWIKI.
-   aurora n'est pas « sombre par sa palette », il est sombre PAR SA STRUCTURE :
-   il code en dur des filets et des fonds en BLANC SEMI-TRANSPARENT
-   (#ffffff14, #ffffff12, #ffffff10). Sur un fond blanc, un filet blanc à 8 %
-   d'opacité n'est pas « discret », il est ABSENT — la page perd toutes ses
-   séparations sans qu'aucun build ne s'en plaigne. D'où un fichier séparé.
-   Corollaire : ce thème n'utilise aucune couleur en alpha-blanc.
+   Clair par défaut, sombre en bascule (`data-theme="nuit"`), TÉLÉPHONE D'ABORD :
+     · mobile  : barre du haut (logo, langue repliée, apparence, loupe) et
+                 barre d'onglets EN BAS, à portée de pouce ;
+     · ≥1100px : l'en-tête devient une barre latérale fixe (logo complet,
+                 recherche, rubriques avec icônes, langues).
+   Maquette : https://claude.ai/artifact/Gd3EpXBwMQ7idgSpeRwCrq (page « Coffre v3 »).
 
-   CONTRAT AVEC LE MOTEUR (src/layouts/Base.astro, ligne 86) — le moteur
-   n'émet QUE ces neuf variables, depuis `identity.palette` du manifeste :
+   CONTRAT AVEC LE MOTEUR — il n'émet QUE ces neuf variables, depuis
+   `identity.palette` (jour) et `palette_nuit` du manifeste :
        --primary --accent --danger --bg --surface --text --muted
        --font-heading --font-body
-   ⚠️ `--primary` est câblé sur la couleur des LIENS (`a{color:var(--primary)}`).
-   La palette jour met donc le BLEU DE LIEN dans `primary`, pas l'or : l'or du
-   logo à #d4af37 sur blanc ne fait que 2,10:1, il est illisible en texte. L'or
-   vit dans `accent`, et sert de DÉCOR (filets, puces, cadres) — jamais de
-   texte fin. Voir la table de contraste en fin de fichier.
-
-   Tous les autres jetons sont déclarés ICI et non au manifeste : un thème est
-   propre à un site, il a le droit d'avoir son vocabulaire. Ce qui doit rester
-   au manifeste, c'est ce que le MOTEUR lit (les neuf ci-dessus) et ce que
-   d'autres modules relisent (`figures.mjs` lit `identity.palette`).
+   ⚠️ `--primary` est la couleur des LIENS.
+   ⭐ Un thème ne bascule que si CHAQUE valeur en dur qu'il déclare a son
+   pendant nuit : tous les jetons ci-dessous existent deux fois.
+   ⚠️ Ordre de la feuille servie : @font-face → variables → CE FICHIER → socle
+   du moteur. Le socle passe APRÈS : les sélecteurs qui le surchargent sont
+   volontairement plus spécifiques (langbar, liens légaux, saut, langsuggest).
+   ⚠️ Le markup de l'en-tête appartient au moteur (moteur/gabarits/Page.astro) :
+   on ne le change pas, on le place. `.site-h__in > .nav__deplie, .marque,
+   nav.main > (.nav__liens, .h-outils, .langbar)`.
    ============================================================================= */
+
+/* Le mot-symbole « VeVeWiki » : un empattement d'encyclopédie, « Wiki » en
+   or. Une seule graisse (23 Ko), préchargée par le manifeste. */
+@font-face{font-family:'Spectral';src:url('/fonts/spectral-latin-600.woff2') format('woff2');
+  font-weight:600;font-style:normal;font-display:swap}
 
 :root{
-  /* --- Structure ---
-     ⚠️ Pas d'alias décoratif : on écrit var(--bg) et var(--surface), jamais un
-     --paper qui les double. Un jeton qui en aliase un autre sans être utilisé
-     fait croire à un vocabulaire canonique qui n'existe pas — et le prochain
-     lecteur écrit la moitié du fichier avec le mauvais nom. */
-  --shell-2:#eaecf0;      /* séparateur de bloc            */
-  --th-bg:#f2f4f6;        /* en-tête de tableau            */
-  --rule:#c8ccd1;         /* filet fin                     */
-  --rule-strong:#a2a9b1;  /* bordure de cadre, de tableau  */
+  --surface-2:#edeff5;     /* puces, champs                         */
+  --side:#ffffff;          /* barre du haut, barre latérale, onglets */
+  --line:#e2e5ee;          /* bordure de carte                      */
+  --line-soft:#edeff5;     /* séparateur de ligne                   */
+  --line-strong:#cdd2de;   /* bordure de champ                      */
+  --hover:#eef1f6;
+  --soft:#3e4362;          /* texte secondaire — 9,62:1 sur blanc   */
+  --wash:#e3f7f3;          /* fond sarcelle léger                   */
+  --teal:#19c7ae;          /* sarcelle de MARQUE : décor, jamais du texte (2,5:1) */
+  --ink-on-teal:#13152b;
+  --night:#13152b;         /* aplat bleu nuit (bandeau), dans les deux modes */
+  --bann:color-mix(in srgb,var(--teal) 9%,var(--surface));  /* fond des bannières ordinateur : menthe pâle */
+  --bann-motif:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='48.5'%3E%3Cpath d='M14 0h28l14 24.25-14 24.25H14L0 24.25z' fill='none' stroke='rgba(7,112,95,.14)'/%3E%3C/svg%3E");
+  --night-soft:#c9cde3;
+  --track:#edeff5;
+  --shadow:0 1px 2px rgba(19,21,43,.05);
+  --logo:url('/logo-icone.svg');   /* en-tête : version simplifiée, lisible à 38 px */
+  --or:#a87a12;            /* l'or du mot-symbole (logotype)        */
+  /* Raretés : DÉCOR, toujours accompagné du nom du palier. */
+  --r-c:#9ca3af; --r-uc:#22c55e; --r-r:#3b82f6; --r-ur:#8b5cf6; --r-sr:#ff4d6d; --r-ap:#e0a100;
+  --t-sr:#c42445; --wash-sr:#ffe8ec;   /* texte et fond d'étiquette Secret Rare */
 
-  /* --- Encre : mesurée sur --bg ET sur --surface ET sur --shell-2 ---
-     `text` (#202122) et `muted` (#666b71) viennent du manifeste ; seul le
-     niveau intermédiaire est propre au thème. */
-  --ink-soft:#54595d;      /* 7,09:1 blanc / 6,72:1 surface / 6,30:1 shell-2 */
-  --ink-faint:var(--muted);/* #666b71 — 5,38:1 / 5,10:1 / 4,54:1 */
-
-  /* --- Or : DEUX rôles, DEUX valeurs, et un seul est du texte ---
-     Le texte doré est `accent` (#7a5f10, 6,05:1), fourni par le manifeste.
-     `--gold` ci-dessous est l'or DE MARQUE, réservé au décor : filets, puces,
-     cadres. À 2,10:1 sur blanc il ne peut porter aucun caractère. */
-  --gold:#d4af37;
-  --gold-wash:#fdf8e8;
-  --gold-hair:#e6dcb8;
-
-  --link-visited:#795cb2;  /* 5,27:1 — savoir ce qu'on a déjà lu */
-  --tap:44px;              /* cible tactile minimale             */
+  --radius:14px; --radius-s:9px; --tap:44px; --side-w:272px; --tabs-h:64px; --mesure:68ch;
 }
-
-/* =============================================================================
-   THÈME NUIT — `data-theme="nuit"` posé par Base.astro AVANT la peinture
-   -----------------------------------------------------------------------------
-   ⚠️⚠️ LE MANIFESTE NE SUFFIT PAS. Il retourne les 7 couleurs du moteur
-   (`bg`, `text`, `primary`…), mais TOUS les jetons déclarés ici — filets, fonds
-   de bloc, encre intermédiaire, or de décor — sont écrits en dur pour le fond
-   clair. Sans ce bloc, la nuit sortirait avec des filets #c8ccd1 sur de
-   l'anthracite : des traits plus CLAIRS que le texte, sur une page sombre.
-   ⭐ La règle, valable pour les 13 sites à venir : un thème bascule si — et
-   seulement si — CHAQUE valeur en dur qu'il déclare a son pendant nuit.
-   ============================================================================= */
 :root[data-theme="nuit"]{
-  --shell-2:#1e2127;      /* séparateur                      */
-  --th-bg:#1a1d22;        /* en-tête de tableau              */
-  --rule:#2a2d34;         /* filet fin — 1,41:1, décor pur   */
-  --rule-strong:#3a3f47;
-
-  --ink-soft:#b0b6c0;     /* 9,53:1 sur bg · 8,71:1 sur surface */
-  /* --ink-faint suit `muted` du manifeste : #9aa0ab, 7,39:1 */
-
-  --gold:#d4af37;         /* ⭐ l'or BRUT devient lisible la nuit : 9,24:1.
-                             C'est l'inverse exact du jour, où il tombe à 2,10:1
-                             et ne peut porter aucun caractère. */
-  --gold-wash:#211d12;
-  --gold-hair:#4a3f1e;
-
-  --link-visited:#a397db; /* 7,41:1 — #795cb2 n'y ferait que 2,4:1 */
+  --bann:color-mix(in srgb,var(--teal) 7%,var(--surface));
+  --bann-motif:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='48.5'%3E%3Cpath d='M14 0h28l14 24.25-14 24.25H14L0 24.25z' fill='none' stroke='rgba(54,226,200,.10)'/%3E%3C/svg%3E");
+  --surface-2:#20243a;
+  --side:#11131f;
+  --line:#262a45;
+  --line-soft:#1f2236;
+  --line-strong:#3a4066;
+  --hover:#1c2034;
+  --soft:#c3c8e2;          /* 10,40:1 sur surface */
+  --wash:rgba(54,226,200,.12);
+  --teal:#36e2c8;
+  --track:#23263d;
+  --shadow:none;
+  --logo:url('/logo-icone-nuit.svg');
+  --or:#f2c14e;
+  --r-c:#9aa1b5; --r-uc:#3dd68c; --r-r:#4c8dff; --r-ur:#b26bff; --r-sr:#ff5c7a; --r-ap:#f5c451;
+  --t-sr:#ff8fa3; --wash-sr:rgba(255,92,122,.16);
 }
 
 /* =============================================================================
-   1. SOCLE
+   1. BASE
    ============================================================================= */
-*,*::before,*::after{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%}
+html{-webkit-text-size-adjust:100%;background:var(--bg)}
 body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-body);
-  line-height:1.65;font-size:16px}
-
+  font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
 a{color:var(--primary);text-decoration:none}
-a:hover{text-decoration:underline}
-/* Un lien visité n'est pas un détail sur une encyclopédie : savoir ce qu'on a
-   déjà lu est la moitié de la navigation dans un glossaire de 87 entrées.
-   ⚠️ Restreint au CONTENU : dans une navigation, un lien visité grisé donne
-   l'impression d'un menu à moitié désactivé. */
-main a:visited{color:var(--link-visited)}
-main nav a:visited,.crumbs a:visited,a.tag:visited{color:var(--primary)}
-
-/* Le focus clavier n'était pas stylé : à la tabulation on ne savait pas où on
-   était. Le contour est posé sur tout ce qui prend le focus, y compris les
-   `summary` (sections pliables) et les champs. */
+a:hover{text-decoration:underline;text-underline-offset:3px}
 a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,
-summary:focus-visible,[tabindex]:focus-visible{
-  outline:2px solid var(--primary);outline-offset:2px;border-radius:2px}
-main:focus{outline:none}   /* main[tabindex=-1] reçoit le focus du lien d'évitement */
-
-.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+summary:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:4px}
+main:focus{outline:none}
+::selection{background:var(--teal);color:var(--ink-on-teal)}
+.wrap{max-width:1200px;margin:0 auto;padding:0 16px;box-sizing:border-box}
 .hide{display:none}
+h1,h2,h3{font-family:var(--font-heading);font-weight:700;color:var(--text);letter-spacing:.1px}
+h1{font-size:clamp(28px,4.4vw,42px);line-height:1.08;margin:18px 0 10px}
+h2{font-size:clamp(20px,2.4vw,24px);line-height:1.2;margin:34px 0 12px}
+h3{font-size:18px;line-height:1.25;margin:22px 0 8px}
+main p,main li{max-width:var(--mesure)}
+main{padding:0 0 56px}
+.lead{color:var(--soft);font-size:17px;line-height:1.55;margin:0 0 22px;max-width:60ch}
+.muted{color:var(--muted)}
+.devise{color:var(--accent);font-size:15px;margin:0 0 12px}
 
 /* =============================================================================
-   2. EN-TÊTE / NAVIGATION / PIED
+   2. EN-TÊTE MOBILE : barre du haut + onglets en bas
    ============================================================================= */
-header.site{border-bottom:1px solid var(--rule);position:sticky;top:0;
-  background:var(--bg);z-index:10}
-/* `sticky` positionne déjà l'élément : les enfants absolus s'y accrochent. */
-/* Le filet doré sous l'en-tête : le seul endroit où l'or est franc. Il tient le
-   rôle que jouait la lueur dorée du fond sombre. */
-header.site::after{content:"";display:block;height:2px;
-  background:linear-gradient(90deg,var(--gold) 0%,var(--gold-hair) 58%,transparent 100%)}
-header.site .wrap{display:flex;align-items:center;gap:18px;min-height:56px;flex-wrap:wrap}
+header.site{position:sticky;top:0;z-index:30;background:var(--side);border-bottom:1px solid var(--line)}
+header.site .site-h__in{display:flex;align-items:center;gap:6px;min-height:60px;padding-top:0;padding-bottom:0}
+/* --- Le bouton menu (téléphone) : il ouvre le panneau latéral `.deplie__m`
+   (moteur, socle 20-menu.js), enrichi par src/socle/82-tiroir.js. --- */
+header.site .nav__deplie{order:-1;margin-right:2px}
+header.site .deplie__b{width:var(--tap);height:var(--tap);box-sizing:border-box;padding:0;margin:0;display:flex;align-items:center;
+  justify-content:center;border:0;border-radius:12px;background:none;color:var(--text);cursor:pointer}
+header.site .deplie__b:hover{background:var(--hover)}
+header.site .deplie__b svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:2}
+header.site .deplie__b svg:last-of-type{display:none}
+header.site .deplie__b span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.deplie__m{position:fixed;z-index:60;top:0;left:0;bottom:0;width:min(330px,88vw);box-sizing:border-box;overflow-y:auto;
+  padding:0 0 calc(24px + env(safe-area-inset-bottom,0px));background:var(--side);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;box-shadow:16px 0 44px rgba(19,21,43,.28)}
+.deplie__m > a{display:flex;align-items:center;gap:13px;min-height:50px;margin:0 10px;padding:0 12px;border-radius:12px;
+  color:var(--text);font-weight:700;font-size:16px;text-decoration:none}
+.deplie__m > a::before{content:"";flex:0 0 21px;width:21px;height:21px;background:currentColor;opacity:.8;
+  -webkit-mask:var(--ico) center/contain no-repeat;mask:var(--ico) center/contain no-repeat}
+.deplie__m > a:hover,.deplie__m > a:focus-visible{background:var(--hover);text-decoration:none}
+.deplie__m > a[aria-current]{background:var(--wash);color:var(--primary);box-shadow:inset 3px 0 0 var(--teal)}
+.tiroir__tete{display:flex;align-items:center;gap:10px;min-height:64px;padding:0 10px 0 18px;border-bottom:1px solid var(--line);margin-bottom:10px}
+.tiroir__tete b{flex:1;display:flex;align-items:center;gap:9px;font-family:'Spectral',Georgia,serif;font-weight:600;font-size:22px;color:var(--text)}
+.tiroir__tete b::before{content:"";width:34px;height:34px;background:var(--logo) center/contain no-repeat}
+.tiroir__tete b em{font-style:normal;color:var(--or)}
+.tiroir__fermer{width:var(--tap);height:var(--tap);border:0;border-radius:12px;background:none;color:var(--text);font-size:26px;line-height:1;cursor:pointer}
+.tiroir__fermer:hover{background:var(--hover)}
+.tiroir__groupe{margin:18px 22px 6px;font-size:12.5px;font-weight:800;color:var(--muted)}
+.tiroir__langues{display:flex;flex-wrap:wrap;gap:6px;margin:0 22px}
+.tiroir__langues a{min-width:44px;min-height:40px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;
+  border:1px solid var(--line);font-weight:800;font-size:14px;color:var(--text);text-decoration:none}
+.tiroir__langues a[aria-current]{background:var(--wash);border-color:var(--teal);color:var(--primary)}
+.tiroir__theme{display:flex;align-items:center;gap:12px;min-height:48px;margin:0 10px;padding:0 12px;border:0;border-radius:12px;
+  background:none;color:var(--text);font:inherit;font-weight:700;font-size:16px;cursor:pointer;text-align:left}
+.tiroir__theme::before{content:"";width:21px;height:21px;background:currentColor;-webkit-mask:var(--ico-lune) center/contain no-repeat;mask:var(--ico-lune) center/contain no-repeat}
+:root[data-theme="nuit"] .tiroir__theme::before{-webkit-mask-image:var(--ico-soleil);mask-image:var(--ico-soleil)}
+.tiroir__theme:hover{background:var(--hover)}
+.tiroir__liens{display:flex;flex-direction:column;margin:0 10px}
+.tiroir__liens a{display:flex;align-items:center;min-height:42px;padding:0 12px;border-radius:10px;color:var(--soft);font-weight:600;font-size:15px;text-decoration:none}
+.tiroir__liens a:hover{background:var(--hover);color:var(--text)}
+body[data-tiroir]::after{content:"";position:fixed;inset:0;z-index:55;background:rgba(10,12,26,.55)}
+a.tiroir__accueil{--ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M4 11l8-7 8 7v9h-5v-6H9v6H4z'/%3E%3C/svg%3E")}
 
-.brand{font-family:var(--font-heading);font-weight:400;font-size:20px;
-  color:var(--text);letter-spacing:-.01em;display:inline-flex;align-items:center;gap:9px}
-.brand:hover{text-decoration:none}
-/* Emplacement du logo (PNG à fournir). Tant que le fichier n'est pas là, rien
-   ne s'affiche — pas de cadre en pointillés en production. */
-.brand img{width:30px;height:30px;flex:0 0 auto;vertical-align:middle}
-.brand span{color:var(--accent)}   /* prêt pour « VeVe<span>Wiki</span> » */
+/* La marque : le symbole (fichier SVG, change avec le thème) + le mot-symbole. */
+header.site .marque{display:inline-flex;align-items:center;gap:9px;min-height:var(--tap);margin-right:auto;
+  text-decoration:none;color:var(--text);min-width:0}
+header.site .marque:hover{text-decoration:none}
+header.site .logo{flex:0 0 38px;width:38px;height:38px;display:block;font-size:0;color:transparent;overflow:hidden;
+  background:var(--logo) center/contain no-repeat}
+header.site .marque__t{display:inline-flex;font-family:'Spectral',Georgia,serif;font-weight:600;font-size:23px;line-height:1;
+  letter-spacing:-.1px;white-space:nowrap}
+/* inline-flex : l'espace entre « VeVe » et « Wiki » disparaît (VeVeWiki). */
+header.site .marque__t em{font-style:normal;color:var(--or)}
 
-nav.main{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap;align-items:center}
-nav.main a{color:var(--primary);font-size:14.5px;padding:9px;border-radius:3px;
-  min-height:var(--tap);display:inline-flex;align-items:center}
-nav.main a:hover{background:var(--surface);text-decoration:none}
-nav.main a[aria-current]{color:var(--text);font-weight:600;
-  box-shadow:inset 0 -2.5px 0 var(--gold)}
+header.site nav.main{display:contents}
+header.site .h-outils{display:flex;gap:2px;align-items:center;order:3}
+header.site .h-rech,header.site .bascule{width:var(--tap);height:var(--tap);box-sizing:border-box;display:flex;
+  align-items:center;justify-content:center;border:0;border-radius:12px;background:none;color:var(--text);
+  padding:0;margin:0;cursor:pointer;font-size:0}
+header.site .h-rech svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2}
+header.site .h-rech:hover,header.site .bascule:hover{background:var(--hover);text-decoration:none}
+/* La bascule : une lune en clair, un soleil en sombre (l'ACTION à venir). */
+header.site .bascule::before{content:"";width:22px;height:22px;background:currentColor;
+  -webkit-mask:var(--ico-lune) center/contain no-repeat;mask:var(--ico-lune) center/contain no-repeat}
+:root[data-theme="nuit"] header.site .bascule::before{-webkit-mask-image:var(--ico-soleil);mask-image:var(--ico-soleil)}
+:root{
+  --ico-lune:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z'/%3E%3C/svg%3E");
+  --ico-soleil:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cpath d='M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'/%3E%3C/svg%3E");
+}
 
-/* --- Bascule jour / nuit ---------------------------------------------------
-   Un bouton sans libellé : le glyphe dit l'ACTION à venir (lune = passer en
-   nuit), et `aria-label` porte le texte pour qui ne voit pas le glyphe.
-   ⚠️ Rendu uniquement si le manifeste déclare `palette_nuit` : un interrupteur
-   qui n'allume rien est pire qu'une absence d'interrupteur. */
-.bascule{width:34px;height:34px;flex:0 0 auto;cursor:pointer;
-  border:1px solid var(--rule-strong);border-radius:2px;background:var(--surface);
-  color:var(--ink-soft);font-size:15px;line-height:1;padding:0;margin-left:6px}
-.bascule::before{content:"☾"}
-:root[data-theme="nuit"] .bascule::before{content:"☀"}
-.bascule:hover{border-color:var(--gold);color:var(--text)}
+/* --- La langue : repliée en une puce « FR » sur téléphone ------------------
+   Le script src/socle/81-langue.js pose `.langbar--repliee` et ouvre/ferme
+   la liste au toucher. Sans script, les cinq langues restent visibles.
+   ⚠️ Le socle peint `.langbar a[aria-current]` en #ffffff14 : sélecteurs à
+   trois classes pour passer devant. */
+header.site nav.main .langbar{order:2;position:relative;display:flex;gap:2px;margin:0}
+header.site nav.main .langbar a{min-width:36px;min-height:36px;padding:0 8px;display:inline-flex;align-items:center;
+  justify-content:center;border-radius:var(--radius-s);border:0;background:none;font-size:13px;font-weight:700;
+  color:var(--muted);text-decoration:none;box-sizing:border-box}
+header.site nav.main .langbar a:hover{color:var(--text);background:var(--hover)}
+header.site nav.main .langbar a[aria-current]{background:var(--surface-2);color:var(--text);box-shadow:none}
+/* Repliée (téléphone, script actif) : la langue courante devient une puce
+   « FR ⌄ » ; les autres langues sont rangées par le script dans
+   `.langbar__liste`, un menu qui s'ouvre sous la puce. */
+header.site nav.main .langbar--repliee a[aria-current]{border:1px solid var(--line);background:var(--surface);gap:4px;padding:0 8px 0 10px}
+header.site nav.main .langbar--repliee a[aria-current]::after{content:"";width:12px;height:12px;background:currentColor;
+  -webkit-mask:var(--ico-chevron) center/contain no-repeat;mask:var(--ico-chevron) center/contain no-repeat;transition:transform .15s}
+header.site nav.main .langbar--ouverte a[aria-current]::after{transform:rotate(180deg)}
+header.site nav.main .langbar--ouverte a[aria-current]{border-color:var(--teal);color:var(--primary)}
+:root{--ico-chevron:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")}
+.langbar__liste{display:none}
+header.site nav.main .langbar--repliee .langbar__liste{position:absolute;top:calc(100% + 8px);right:0;z-index:50;min-width:190px;
+  flex-direction:column;gap:2px;padding:6px;background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  box-shadow:0 18px 40px rgba(19,21,43,.2)}
+header.site nav.main .langbar--ouverte .langbar__liste{display:flex}
+header.site nav.main .langbar--repliee .langbar__liste a{justify-content:flex-start;min-height:46px;padding:0 12px;font-size:15px;color:var(--text)}
+header.site nav.main .langbar--repliee .langbar__liste a::after{content:attr(data-nom);margin-left:10px;font-weight:600;color:var(--soft)}
 
-footer.site{border-top:1px solid var(--rule);background:var(--surface);
-  margin-top:44px;padding:20px 0 30px;font-size:12.5px;color:var(--ink-faint)}
-/* ⚠️ UN SEUL NIVEAU DANS LE PIED. « Site indépendant, non affilié » et « ceci
-   n'est pas un conseil » sont des mentions obligatoires : elles doivent être
-   ATTEIGNABLES, pas visibles de loin. Elles sortaient plus grosses et plus
-   sombres que les liens légaux — donc c'est elles que l'œil attrapait en bas
-   de chaque page.
-   ⚠️ Le `!important` n'est pas un caprice : `Base.astro` écrit
-   `style="font-size:13px"` EN LIGNE sur la dernière ligne, et un style en ligne
-   bat n'importe quelle feuille. Le retirer demanderait de toucher un fichier qui
-   sert les 15 sites — pour trois caractères. À supprimer le jour où l'on ouvrira
-   `Base.astro` (lot 2). */
-footer.site p{margin:0 0 7px;font-size:12.5px!important;color:var(--ink-faint);
-  line-height:1.7}
+/* --- Les rubriques : une barre d'onglets fixe en bas de l'écran ---
+   ⚠️ Pas de `backdrop-filter`/`transform` sur l'en-tête : ils feraient de lui
+   le repère d'un enfant `fixed`, et la barre remonterait avec lui. */
+header.site .nav__liens{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  height:calc(var(--tabs-h) + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box;
+  background:var(--side);border-top:1px solid var(--line)}
+header.site .nav__liens a{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  min-width:0;color:var(--muted);font-size:10.5px;font-weight:700;line-height:1.1;text-decoration:none;text-align:center;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px}
+header.site .nav__liens a:hover{color:var(--text);text-decoration:none}
+/* Téléphone : la barre du bas garde les quatre rubriques qu'on consulte le
+   plus (Articles, Annuaire, Histoire, Marques) ; glossaire et sigles restent
+   dans le panneau latéral et dans la recherche. */
+header.site .nav__liens a[href$="/glossary/"],header.site .nav__liens a[href$="/acronyms/"]{display:none}
+header.site .nav__liens a[href$="/blog/"]{order:1}
+header.site .nav__liens a[href$="/annuaire/"]{order:2}
+header.site .nav__liens a[href$="/history/"]{order:3}
+header.site .nav__liens a[href$="/brands/"]{order:4}
+header.site .nav__liens a{font-size:11.5px}
+header.site .nav__liens a[aria-current]{color:var(--primary)}
+header.site .nav__liens a[aria-current]::after{content:"";position:absolute;top:0;left:24%;right:24%;height:3px;border-radius:0 0 3px 3px;background:var(--teal)}
+body{padding-bottom:calc(var(--tabs-h) + env(safe-area-inset-bottom,0px))}
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   🦶🔴🔴 LOT 139 — LES QUATRE COLONNES DU PIED, CÔTÉ `encyclopedie`
-   ═══════════════════════════════════════════════════════════════════════════
-   ⛔ CE N'EST PAS UNE COPIE DE `vitrine`, ET IL NE FAUT PAS QUE ÇA LE DEVIENNE.
-   Mesuré le 11/08/2026 : `Base.astro` émettait DÉJÀ `class="site-f__cols"` sur
-   les 263 pages de vevewiki, et ce fichier ne portait AUCUNE règle de ce nom
-   (`grep` = 0). Une classe émise que personne ne peint est le symétrique exact
-   d'une règle que personne n'émet — et les DEUX vivaient dans ce pied en même
-   temps, sur les deux sites. *Un contrôle qui part du CSS voit la seconde et
-   jamais la première.*
+/* Icônes des rubriques, dessinées par masque : elles prennent la couleur du texte. */
+header.site .nav__liens a::before{content:"";flex:0 0 22px;width:22px;height:22px;background:currentColor;
+  -webkit-mask:var(--ico) center/contain no-repeat;mask:var(--ico) center/contain no-repeat}
+a[href$="/glossary/"],[data-sec="glossary"]{--ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z'/%3E%3Cpath d='M8 7h6M8 11h6'/%3E%3C/svg%3E")}
+a[href$="/acronyms/"],[data-sec="acronyms"]{--ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M9 4L7 20M17 4l-2 16M4 9h16M3 15h16'/%3E%3C/svg%3E")}
+a[href$="/annuaire/"],[data-sec="annuaire"]{--ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='9' cy='8' r='3.5'/%3E%3Cpath d='M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5'/%3E%3C/svg%3E")}
+a[href$="/history/"],[data-sec="history"]{--ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E")}
+a[href$="/brands/"],[data-sec="brands"]{--ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linejoin='round'%3E%3Cpath d='M12 3l9 5-9 5-9-5z'/%3E%3Cpath d='M3 13l9 5 9-5'/%3E%3C/svg%3E")}
+a[href$="/blog/"]{--ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h9l4 4v14H6z'/%3E%3Cpath d='M9 12h7M9 16h7'/%3E%3C/svg%3E")}
 
-   ⭐⭐ LES VALEURS SONT CELLES DE CE THÈME, PAS CELLES DE L'AUTRE. `vitrine`
-   est un thème de vitrine : il donne `1.5fr` à la première colonne et de
-   grands écarts. `encyclopedie` est un thème d'encyclopédie — corps à 12,5 px,
-   `--ink-faint`, filets fins. Recopier la grille de `vitrine` aurait donné à
-   vevewiki un pied deux fois plus haut que son contenu. ⇒ quatre colonnes
-   ÉGALES, écarts serrés.
+/* En-tête du téléphone : trois gestes seulement (menu, marque, loupe). La
+   langue et l'apparence vivent dans le panneau latéral (82-tiroir.js) ; les
+   garder ici coupait le mot-symbole sur un écran de 360 px. */
+@media (max-width:1099px){
+  header.site nav.main .langbar,header.site .bascule{display:none}
+  header.site .marque{margin-right:auto}
+}
 
-   ⚠️ `footer.site p` ci-dessus force `font-size:12.5px!important` : les
-   colonnes sont faites de `<li>`, pas de `<p>`, donc elles y échappent. On
-   redit la taille ici plutôt que d'élargir le sélecteur — élargir ferait
-   remonter le `!important` sur des éléments qui n'en ont pas besoin, et un
-   `!important` qu'on étend est un `!important` qu'on ne retirera plus.
-   ⛔ Les deux reprises responsive sont celles de `vitrine` (820 px puis
-   520 px) : les seuils du réseau sont une échelle DÉCLARÉE depuis ce lot
-   (`engine/lib/seuils.mjs`), pas un chiffre qu'on choisit par thème. */
-footer.site .site-f__cols{display:grid;gap:22px;grid-template-columns:repeat(4,1fr);
-  margin-bottom:22px}
-footer.site .site-f__cols h2{margin:0 0 9px;font-size:11.5px;color:var(--text);
-  text-transform:uppercase;letter-spacing:.09em;font-weight:600}
-footer.site .site-f__cols ul{list-style:none;margin:0;padding:0;display:grid;gap:6px;
-  font-size:12.5px;line-height:1.6;color:var(--ink-faint)}
-footer.site .site-f__cols a{color:var(--ink-faint);border-bottom:1px solid transparent}
-footer.site .site-f__cols a:hover,footer.site .site-f__cols a:focus-visible{
-  color:var(--text);border-bottom-color:var(--rule-strong)}
-/* ⭐ Le filet du bas SÉPARE les colonnes des mentions. Il était posé sur un
-   `<p>` qui était lui-même un ÉLÉMENT DE GRILLE : le trait passait donc au
-   milieu d'une colonne. Sorti de la grille, il fait enfin ce qu'il annonce. */
-footer.site .f-legal{border-top:1px solid var(--rule);padding-top:14px}
-@media (max-width:820px){ footer.site .site-f__cols{grid-template-columns:1fr 1fr} }
-@media (max-width:520px){ footer.site .site-f__cols{grid-template-columns:1fr} }
-
-/* -----------------------------------------------------------------------------
-   ⚠️⚠️ SURCHARGES À SPÉCIFICITÉ RENFORCÉE — LIRE AVANT DE SIMPLIFIER
-   Base.astro contient un TROISIÈME bloc <style> (ligne 147) injecté APRÈS ce
-   fichier, qui code en dur des règles pour .langbar / .legal-links / .crumbs /
-   .saut / #langsuggest — dont `background:#ffffff14`, invisible sur blanc.
-   Ordre réel : vars (145) → CE FICHIER (146) → bloc en dur (147).
-   À spécificité égale, c'est le bloc en dur qui gagne. Les sélecteurs ci-dessous
-   sont donc VOLONTAIREMENT plus spécifiques. ⛔ Ne pas les « nettoyer » :
-   l'indicateur de langue courante redeviendrait invisible, sans erreur de build.
-   ----------------------------------------------------------------------------- */
-nav.main .langbar{display:flex;gap:4px;margin-left:8px}
-nav.main .langbar a{font-size:12.5px;color:var(--ink-faint);padding:0 7px;
-  border-radius:2px;min-height:30px;min-width:30px;border:1px solid transparent}
-nav.main .langbar a[aria-current]{background:var(--surface);color:var(--text);
-  border-color:var(--rule-strong);font-weight:600;box-shadow:none}
-
-footer.site .legal-links{margin:0 0 10px;font-size:12.5px;line-height:1.9;
-  color:var(--ink-faint)}
-footer.site .legal-links a{color:var(--ink-faint);border-bottom:1px solid transparent}
-footer.site .legal-links a:hover,footer.site .legal-links a:focus-visible{
-  color:var(--text);border-bottom-color:var(--rule-strong)}
-
-main .crumbs{font-size:12.5px;color:var(--ink-faint);margin:14px 0 2px}
-main .crumbs a{color:var(--primary);display:inline-block;padding:3px 0;min-height:24px}
-
-/* Le lien d'évitement existe déjà côté moteur (WCAG 2.4.1). Il utilisait
-   `border:1px solid var(--primary)` sur `var(--surface)` : correct de jour dès
-   lors que primary est le bleu et non l'or. On renforce juste le contraste. */
-body .saut{background:var(--bg);color:var(--primary);border:2px solid var(--primary);
-  border-radius:0 0 4px 0}
-
-main #langsuggest{background:var(--gold-wash);border:1px solid var(--rule-strong);
-  border-left:3px solid var(--gold);border-radius:0;padding:11px 14px}
-main #langsuggest button{color:var(--ink-faint)}
-
-/* -----------------------------------------------------------------------------
-   ⚠️⚠️ L'ANCRE DOIT ATTERRIR SOUS L'EN-TÊTE, PAS DESSOUS AU SENS PROPRE
-   L'en-tête est COLLANT. Sans `scroll-margin-top`, le navigateur amène la cible
-   à y = 0 — c'est-à-dire EXACTEMENT derrière l'en-tête, qui la recouvre. Le
-   lecteur clique « Floor Price », la page bouge, et il ne voit pas le terme :
-   le symptôme est rigoureusement le même que celui d'une ancre absente.
-   ⭐ Poser des ancres sans cette règle, c'est livrer un correctif qui a l'air
-   d'un correctif. Hauteurs réelles : 56 + 2 px de filet au bureau ; 50 (titre)
-   + 44 (rubriques) + 3 px sur mobile, où l'en-tête porte DEUX lignes.
-   ----------------------------------------------------------------------------- */
-:target{scroll-margin-top:72px}
-.term,.milestone,.item[id],.fiche,h2[id],h3[id]{scroll-margin-top:72px}
-
-/* Et une fois arrivé, on doit VOIR lequel c'est. Une page de 87 définitions se
-   ressemble d'une ligne à l'autre : sans marque, il faut relire pour trouver ce
-   qu'on cherchait déjà. Le repère s'efface au premier clic ailleurs — il aide,
-   il ne décore pas. */
-.term:target,.milestone:target{
-  background:var(--gold-wash);box-shadow:inset 3px 0 0 var(--gold);
-  padding-left:11px;margin-left:-14px;border-radius:0 2px 2px 0}
-/* ⚠️ L'annuaire est une GRILLE : une marge négative y ferait déborder la
-   cellule sur sa voisine. Le repère est donc posé sans toucher à la boîte. */
-.item[id]:target{background:var(--gold-wash);box-shadow:inset 3px 0 0 var(--gold)}
-.term:target dt,.milestone:target .what,.item[id]:target .n{font-weight:700}
+/* La loupe ouvre la palette du moteur : en plein écran sur téléphone.
+   Deux id battent le style scopé du moteur (#palette[data-astro-cid]). */
+#palette#palette{border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);color:var(--text);
+  box-shadow:0 24px 60px rgba(19,21,43,.35)}
+#palette#palette #palette-q{font-family:var(--font-body);font-size:17px;border-bottom:1px solid var(--line)}
+#palette#palette a{border-radius:10px}
+#palette#palette a:hover,#palette#palette a[aria-selected="true"]{background:var(--surface-2)}
+@media (max-width:1099px){
+  #palette#palette{width:100vw;max-width:none;height:100dvh;max-height:none;margin:0;border:0;border-radius:0}
+  #palette#palette #palette-q{height:60px;padding:0 18px}
+  #palette#palette #palette-r{max-height:calc(100dvh - 60px)}
+}
 
 /* =============================================================================
-   3. TITRES & TEXTE COURANT
+   3. ORDINATEUR : L'EN-TÊTE DEVIENT UNE BARRE LATÉRALE FIXE
    ============================================================================= */
-h1{font-family:var(--font-heading);font-size:clamp(25px,4vw,33px);line-height:1.2;
-  margin:6px 0 8px;font-weight:400;padding-bottom:9px;
-  border-bottom:1px solid var(--rule-strong)}
-h2{font-family:var(--font-heading);font-size:clamp(19px,3vw,22px);margin:30px 0 10px;
-  font-weight:400;padding-bottom:5px;border-bottom:1px solid var(--rule)}
-h3{font-family:var(--font-heading);font-size:17.5px;margin:22px 0 7px;font-weight:400}
-
-/* 68ch : sur .wrap (1080 px) la ligne dépassait 90 caractères, très au-delà de
-   la plage confortable (65–75). Une mesure trop longue fait perdre la ligne au
-   retour à la marge — c'est une fatigue, pas un défaut visible. */
-main p,main li{max-width:68ch}
-main{padding:0 0 20px}
-
-.lead{color:var(--ink-soft);margin:0 0 24px;font-size:16.5px;max-width:68ch}
-.muted{color:var(--ink-faint)}
-.prose p,.post p{font-size:16px;line-height:1.72}
-.prose h2,.post h2{max-width:68ch}
-.prose blockquote{margin:0 0 14px;padding:9px 14px;border-left:3px solid var(--gold);
-  background:var(--gold-wash);color:var(--ink-soft);font-size:14.5px}
-.prose code,.post code{background:var(--surface);border:1px solid var(--rule);
-  border-radius:2px;padding:1px 4px;font-size:14px}
-
-/* La devise, traduite par langue (clé `devise` du manifeste). Filets haut/bas :
-   la seule ornementation du site, et elle reste en or lisible. */
-.devise{display:inline-block;font-family:var(--font-heading);font-style:italic;
-  font-size:14.5px;color:var(--accent);border-top:1px solid var(--gold-hair);
-  border-bottom:1px solid var(--gold-hair);padding:5px 0;margin:0 0 18px}
+@media (min-width:1100px){
+  body{padding-left:var(--side-w);padding-bottom:0}
+  header.site{position:fixed;left:0;top:0;bottom:0;width:var(--side-w);border-bottom:0;border-right:1px solid var(--line);overflow-y:auto}
+  header.site .site-h__in{display:flex;flex-direction:column;align-items:stretch;gap:0;max-width:none;
+    padding:22px 16px 20px;min-height:100%;box-sizing:border-box}
+  header.site .marque{margin:0;gap:12px;padding:0 4px;min-height:56px}
+  header.site .logo{flex-basis:50px;width:50px;height:50px}
+  header.site .marque__t{font-size:27px}
+  header.site nav.main{display:flex;flex-direction:column;flex:1}
+  header.site .h-outils{order:-1;margin:18px 0 14px;gap:6px}
+  header.site .h-rech{flex:1;width:auto;justify-content:flex-start;gap:10px;padding:0 12px;height:42px;
+    border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--muted)}
+  header.site .bascule{width:42px;height:42px;border:1px solid var(--line);border-radius:10px}
+  header.site .nav__deplie,.deplie__m,body[data-tiroir]::after{display:none!important}
+  header.site .nav__liens{position:static;display:flex;flex-direction:column;gap:2px;height:auto;padding:0;border:0;background:none}
+  header.site .nav__liens a[href$="/glossary/"],header.site .nav__liens a[href$="/acronyms/"]{display:flex}
+  header.site .nav__liens a{order:0!important}
+  /* La loupe de la barre latérale montre son libellé (traduit par le moteur). */
+  header.site .h-rech::after{content:attr(aria-label);font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  header.site .nav__liens a{flex-direction:row;justify-content:flex-start;gap:12px;min-height:40px;padding:0 12px;border-radius:10px;
+    color:var(--soft);font-size:15px;font-weight:600;text-align:left}
+  header.site .nav__liens a:hover{background:var(--hover);color:var(--text)}
+  header.site .nav__liens a::before{flex-basis:19px;width:19px;height:19px;opacity:.85}
+  header.site .nav__liens a[aria-current]{background:var(--hover);color:var(--text);box-shadow:inset 3px 0 0 var(--teal)}
+  header.site .nav__liens a[aria-current]::after{display:none}
+  header.site .nav__liens a[aria-current]::before{background:var(--primary);opacity:1}
+  header.site nav.main .langbar{order:9;margin:auto 0 0;padding-top:18px;border-top:1px solid var(--line);flex-wrap:wrap}
+  .langbar__liste{display:contents}
+  .wrap{padding:0 36px}
+}
 
 /* =============================================================================
-   4. BLOCS GÉNÉRIQUES — cartes, grilles, statistiques, étiquettes
-   Densité assumée : filets 1 px et fonds gris très clairs. Pas d'ombre, pas de
-   coin arrondi à 12 px : un wiki n'est pas un tableau de bord.
+   4. PIED DE PAGE
    ============================================================================= */
-.card{background:var(--surface);border:1px solid var(--rule);border-radius:0;padding:15px}
+footer.site{background:var(--side);border-top:1px solid var(--line);padding:34px 0 26px;color:var(--muted);font-size:15px}
+footer.site .site-f__cols{display:grid;gap:26px;grid-template-columns:1fr 1fr;margin-bottom:22px}
+footer.site .site-f__cols h2{margin:0 0 10px;font-size:15px;font-weight:700;text-transform:none;letter-spacing:0;color:var(--text)}
+footer.site .site-f__cols ul{list-style:none;margin:0;padding:0;display:grid;gap:8px;line-height:1.5}
+footer.site .site-f__cols li{max-width:none}
+footer.site .site-f__cols a,footer.site .legal-links a{color:var(--soft);border:0;text-decoration:none}
+footer.site .site-f__cols a:hover,footer.site .legal-links a:hover{color:var(--primary);text-decoration:underline}
+footer.site .site-f__cols > div:first-child li:first-child a{display:inline-flex;align-items:center;gap:10px;
+  font-family:'Spectral',Georgia,serif;font-weight:600;font-size:21px;color:var(--text)}
+footer.site .site-f__cols > div:first-child li:first-child a::before{content:"";width:30px;height:30px;background:var(--logo) center/contain no-repeat}
+footer.site .legal-links{margin:0;font-size:15px;line-height:1.5}
+footer.site .legal-links a{display:inline-block;padding:3px 0;min-height:24px}
+footer.site .f-legal{border-top:1px solid var(--line-soft);padding-top:14px}
+footer.site .f-legal p{margin:0;font-size:14px!important;color:var(--muted)}
+@media (min-width:820px){ footer.site .site-f__cols{grid-template-columns:repeat(4,minmax(0,1fr))} }
 
-.grid{display:grid;gap:1px;background:var(--rule);border:1px solid var(--rule);
-  grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
-.item{display:block;background:var(--bg);border:0;border-radius:0;padding:13px 14px;
-  color:var(--text);min-height:var(--tap)}
-.item:hover{background:var(--surface);text-decoration:none}
-.item .n{font-family:var(--font-heading);font-size:15.5px;font-weight:400;
-  color:var(--primary);margin-bottom:3px}
-.item .s{font-size:12px;color:var(--ink-faint);line-height:1.45}
-.item .f{margin-top:9px;font-size:17px;font-weight:500;color:var(--text)}
-.item .f.muted{color:var(--ink-faint)}
+/* --- Pièces du moteur --- */
+main .crumbs{font-size:14px;color:var(--muted);margin:18px 0 0}
+main .crumbs a{color:var(--muted);display:inline-block;padding:3px 0;min-height:24px}
+main .crumbs a:hover{color:var(--primary)}
+body .saut{background:var(--teal);color:var(--ink-on-teal);border:0;border-radius:0 0 10px 0;font-weight:700}
+main #langsuggest{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--teal);border-radius:12px;padding:8px 12px;margin:14px 0 0;font-size:14px;max-width:max-content}
+main #langsuggest button{color:var(--muted)}
 
-.tag{display:inline-block;font-size:11.5px;padding:2px 7px;border-radius:2px;
-  background:var(--surface);border:1px solid var(--rule);color:var(--ink-soft);
-  margin-right:5px}
-a.tag:hover{border-color:var(--rule-strong);text-decoration:none}
-
-.stats{display:grid;gap:1px;background:var(--rule);border:1px solid var(--rule);
-  grid-template-columns:repeat(auto-fit,minmax(125px,1fr));margin:18px 0}
-.stat{background:var(--bg);border:0;border-radius:0;padding:11px 13px}
-.stat .k{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;
-  letter-spacing:.06em}
-.stat .v{font-family:var(--font-heading);font-size:20px;font-weight:400;
-  font-variant-numeric:tabular-nums;margin-top:2px}
-
-.up{color:var(--accent)}
-.down{color:var(--danger)}
-
-.alerte,.avertis{border:1px solid var(--rule-strong);border-left:3px solid var(--gold);
-  background:var(--gold-wash);padding:10px 13px;margin:0 0 16px;font-size:14px;
-  color:var(--ink-soft);max-width:68ch}
-.alerte b,.avertis b{color:var(--text)}
+:target,.term,.milestone,.item[id],.fiche,h2[id],h3[id]{scroll-margin-top:76px}
+@media (min-width:1100px){ :target,.term,.milestone,.item[id],.fiche,h2[id],h3[id]{scroll-margin-top:24px} }
+.term:target,.milestone:target,.item[id]:target{background:var(--wash);box-shadow:inset 3px 0 0 var(--teal)}
 
 /* =============================================================================
-   5. TABLEAUX
+   5. BLOCS GÉNÉRIQUES
    ============================================================================= */
-table{width:100%;border-collapse:collapse;font-size:14.5px;
-  border:1px solid var(--rule-strong)}
-th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule);
-  vertical-align:top}
-th{background:var(--th-bg);color:var(--ink-soft);font-weight:600;font-size:12.5px;
-  text-transform:none;letter-spacing:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));margin:12px 0 0}
+.item{display:block;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:16px;color:var(--text);min-height:var(--tap);text-decoration:none;min-width:0}
+a.item:hover{border-color:var(--line-strong);text-decoration:none}
+.item .n{display:block;font-family:var(--font-heading);font-weight:700;font-size:18px;line-height:1.25;color:var(--text);margin:0 0 6px}
+.item .n a{color:inherit}
+.item .n a:hover{color:var(--primary);text-decoration:none}
+a.item:hover .n{color:var(--primary)}
+.item .s{display:block;font-size:15px;line-height:1.5;letter-spacing:0;text-transform:none;color:var(--soft)}
+.item .f{margin-top:10px;font-size:14px;color:var(--muted)}
+.item .lead{font-size:15px;margin:8px 0 0}
+.tag{display:inline-flex;align-items:center;min-height:28px;padding:0 10px;margin:0 6px 6px 0;border-radius:var(--radius-s);
+  background:var(--surface-2);border:1px solid var(--line);color:var(--soft);font-size:13px;font-weight:600;text-decoration:none}
+a.tag:hover{border-color:var(--teal);color:var(--text);text-decoration:none}
+.stats{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin:16px 0}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px}
+.stat .k{font-size:13px;color:var(--muted);text-transform:none;letter-spacing:0}
+.stat .v{font-family:var(--font-heading);font-weight:700;font-size:22px;font-variant-numeric:tabular-nums}
+.up{color:var(--primary)} .down{color:var(--danger)} .flat{color:var(--muted)}
+.alerte,.avertis{background:var(--surface);border:1px solid var(--accent);border-radius:var(--radius);padding:12px 14px;
+  margin:0 0 16px;font-size:15px;color:var(--soft);max-width:var(--mesure)}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:15px;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--surface)}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+th{background:var(--surface-2);color:var(--text);font-weight:700;font-size:14px;text-transform:none;letter-spacing:0}
 tbody tr:last-child td{border-bottom:0}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 
 /* =============================================================================
-   6. PAGES ÉDITORIALES  (engine/lib/editorial*.mjs — le cœur de vevewiki)
+   6. PAGES ÉDITORIALES
    ============================================================================= */
+.glossary{margin:8px 0 0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.glossary .term{padding:14px 16px;border-top:1px solid var(--line-soft);max-width:none}
+.glossary .term:first-child{border-top:0}
+.glossary .term dt{font-weight:800;font-size:16px;color:var(--text)}
+.glossary .term dt .muted{font-weight:500;color:var(--muted)}
+.glossary .term dd{margin:4px 0 0;font-size:15px;line-height:1.55;color:var(--soft);max-width:var(--mesure)}
+.glossary .term .tag{min-height:22px;padding:0 7px;margin:0 0 0 8px;font-size:12px;vertical-align:1px}
+@media (min-width:820px){
+  .glossary .term{display:grid;grid-template-columns:minmax(180px,280px) minmax(0,1fr);gap:4px 24px}
+  .glossary .term dd{margin:0}
+}
 
-/* --- Glossaire & sigles : une liste de définitions, pas des cartes --- */
-.glossary{margin:16px 0 0}
-.glossary .term{padding:12px 0;border-top:1px solid var(--shell-2);max-width:none}
-.glossary .term:first-child{border-top:1px solid var(--rule-strong)}
-.glossary .term dt,.glossary .term>b,.glossary .term .n{
-  font-family:var(--font-heading);font-size:15.5px;font-weight:400}
-.glossary .term .s,.glossary .term dd{margin:3px 0 0;font-size:14px;
-  color:var(--text);max-width:68ch}
-.glossary .term .sources,.glossary .term .muted{font-size:11.5px;color:var(--ink-faint)}
+.timeline{list-style:none;margin:10px 0 0;padding:0 0 0 22px;border:0;position:relative}
+.timeline::before{content:"";position:absolute;left:6px;top:8px;bottom:8px;width:2px;background:var(--line)}
+.milestone{position:relative;display:block;padding:0 0 14px;max-width:none}
+.milestone::before{content:"";position:absolute;left:-21px;top:20px;width:12px;height:12px;border-radius:4px;
+  background:var(--muted);box-shadow:0 0 0 3px var(--bg)}
+.milestone[data-type="drop"]::before{background:var(--r-sr)}
+.milestone[data-type="partenariat"]::before{background:var(--r-r)}
+.milestone[data-type="produit"]::before{background:var(--teal)}
+.milestone[data-type="evenement"]::before{background:var(--r-ap)}
+.milestone > .when,.milestone > .what{background:var(--surface);border:1px solid var(--line)}
+.milestone > .when{display:inline-flex;gap:6px;align-items:baseline;margin:0;padding:6px 10px;border-bottom:0;
+  border-radius:var(--radius) var(--radius) 0 0;font-family:var(--font-heading);font-weight:600;font-size:14px;color:var(--primary)}
+.milestone > .what{padding:12px 14px;border-radius:0 var(--radius) var(--radius) var(--radius)}
+.milestone .when .lien-ancre{color:var(--primary);text-decoration:none;opacity:1}
+.milestone .when .muted{font-family:var(--font-body);font-weight:500;font-size:13px}
+.milestone h2{margin:0 0 6px;font-size:18px;line-height:1.3}
+.milestone p{margin:0 0 6px;font-size:15px;color:var(--soft)}
+.milestone .sources{font-size:13px;color:var(--muted);margin-top:8px}
+.lien-ancre{color:inherit;text-decoration:none}
+h2 .lien-ancre,h3 .lien-ancre{color:var(--muted);opacity:0;padding:0 6px;font-weight:400}
+h2:hover .lien-ancre,h3:hover .lien-ancre,h2 .lien-ancre:focus-visible,h3 .lien-ancre:focus-visible{opacity:1}
+.badge{display:inline-flex;align-items:center;min-height:22px;margin-left:8px;padding:0 7px;vertical-align:2px;
+  border-radius:6px;background:var(--surface-2);font-family:var(--font-body);font-size:12px;font-weight:700;color:var(--soft)}
+.badge.s-officiel{background:var(--wash);color:var(--primary)}
 
-/* Le sigle : cadre doré, TEXTE en or lisible. Le cadre porte la couleur vive,
-   pas les lettres — c'est la règle qui vaut partout dans ce fichier. */
-.glossary .tag,.term .tag{font-family:var(--font-body);font-size:10.5px;
-  font-weight:700;letter-spacing:.06em;color:var(--accent);
-  border:1px solid var(--gold);background:var(--gold-wash)}
+.annuaire-group{margin:30px 0 0}
+.annuaire-group h2{text-transform:capitalize;margin:0 0 4px}
+.notes{margin:8px 0 0;font-size:14px;color:var(--soft)}
+.socials{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 0}
+.socials a{display:inline-flex;align-items:center;min-height:30px;padding:0 10px;border-radius:var(--radius-s);
+  background:var(--surface-2);font-size:13px;font-weight:600;color:var(--soft);text-transform:capitalize;text-decoration:none}
+.socials a:hover{color:var(--primary);text-decoration:none}
 
-/* --- Chronologie : une frise, pas une liste --- */
-/* ⚠️ `<ol class="timeline">` : sans `list-style:none`, les numéros du navigateur
-   (1. 2. 3.) s'ajoutent aux puces dorées de la frise — deux repères pour la même
-   chose. Et `padding-left` doit écraser le retrait par défaut de 40 px, sinon le
-   filet vertical et le texte ne sont plus alignés. */
-.timeline{margin:16px 0 0;padding-left:15px;border-left:2px solid var(--shell-2);
-  list-style:none}
-.milestone{position:relative;padding:0 0 15px;max-width:none}
-.milestone::before{content:"";position:absolute;left:-21px;top:6px;width:7px;height:7px;
-  border-radius:50%;background:var(--gold);border:1.5px solid var(--bg)}
-.milestone .when{font-size:11.5px;color:var(--ink-faint);
-  font-variant-numeric:tabular-nums}
-.milestone .what{font-family:var(--font-heading);font-size:15px;line-height:1.35;
-  margin-top:2px;max-width:68ch}
-.milestone .tag{margin-left:6px}
+.counters{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;margin:12px 0 0;font-size:13px;color:var(--muted)}
+.counters b{font-family:var(--font-heading);font-weight:700;font-size:19px;color:var(--text);margin-right:3px;font-variant-numeric:tabular-nums}
+.counters .muted b{font-size:14px}
 
-/* --- Fiche (marque, créateur, entrée détaillée) --- */
-.fiche{margin:16px 0 0}
-.reperes{display:grid;gap:1px;background:var(--rule);
-  border:1px solid var(--rule-strong);
-  grid-template-columns:repeat(auto-fit,minmax(110px,1fr));margin:0 0 18px}
-.reperes>*{background:var(--bg);padding:9px 11px;text-align:center}
-.chiffres{display:grid;gap:1px;background:var(--gold-hair);
-  grid-template-columns:repeat(auto-fit,minmax(90px,1fr));
-  border-top:1px solid var(--gold-hair);margin-top:9px}
-.chiffres>*{background:var(--gold-wash);padding:8px 4px;text-align:center;font-size:11px;
-  color:var(--ink-soft)}
-.chiffres b{display:block;font-family:var(--font-heading);font-size:16px;
-  color:var(--text);font-weight:400}
+.fiche{max-width:none;margin:0}
+.chiffres{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:6px 0 16px}
+.chiffres>div{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px}
+.chiffres b{display:block;font-family:var(--font-heading);font-weight:700;font-size:clamp(19px,3.5vw,26px);color:var(--text);font-variant-numeric:tabular-nums}
+.chiffres span{font-size:13px;color:var(--muted)}
+.reperes{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.reperes li{padding:11px 14px;border-top:1px solid var(--line-soft);font-size:15px;color:var(--soft);max-width:none}
+.reperes li:first-child{border-top:0}
+.sources{font-size:14px;color:var(--muted);line-height:1.7}
+.voisines{display:flex;flex-wrap:wrap;gap:12px 24px;justify-content:space-between;margin:30px 0 0;padding:14px 16px;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);font-weight:600}
+.latest-wrap{margin:0}
+.latest{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.latest li{display:flex;gap:12px;align-items:baseline;padding:11px 14px;border-top:1px solid var(--line-soft);max-width:none;font-size:15px}
+.latest li:first-child{border-top:0}
+.latest .muted{flex:0 0 auto;font-family:var(--font-heading);font-weight:600;font-size:13px;color:var(--primary)}
 
-.counters{font-size:12.5px;color:var(--ink-faint);margin:0 0 14px}
-.sources{font-size:12.5px;color:var(--ink-faint);line-height:1.75}
-.sources a{color:var(--primary)}
-.notes{font-size:13.5px;color:var(--ink-soft);max-width:68ch}
-.voisines{margin:22px 0 0;padding-top:14px;border-top:1px solid var(--rule);
-  font-size:13.5px}
-.socials{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0 0}
-.annuaire-group{margin:22px 0 0}
-.latest-wrap{margin:22px 0 0}
-.latest{margin:0}
+/* La bannière de pièces d'une fiche de licence (EditorialEntry.astro). */
+.fiche-banniere{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:3px;height:200px;
+  margin:16px 0 0;border-radius:18px;overflow:hidden;background:var(--night)}
+.fiche-banniere img{display:block;width:100%;height:100%;object-fit:cover;object-position:center 22%}
+.fiche-banniere::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(19,21,43,0) 45%,rgba(19,21,43,.55) 100%)}
+.fiche-pieces{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0;padding:0;list-style:none}
+.fiche-pieces li{max-width:none}
+@media (min-width:700px){ .fiche-banniere{height:280px} .fiche-pieces{grid-template-columns:repeat(4,minmax(0,1fr))} }
 
-/* --- Cartes d'ARTICLES : elles respirent, contrairement aux grilles denses ---
-   Une grille de rubriques est un index : on la balaie, les filets de 1 px
-   suffisent. Une liste d'articles se REGARDE une carte à la fois — d'où de
-   vraies gouttières et une bordure par carte.
+.cartes,.grid.cartes{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));background:none;border:0}
+.cartes .item{display:flex;flex-direction:column;padding:16px}
+.cartes .item .n{font-size:18px}
+.cartes .item > p{margin:8px 0 0;font-size:15px!important;color:var(--soft)}
+.cartes .item .f{margin-top:auto;padding-top:10px}
+.cartes .item .cover{display:block;width:calc(100% + 32px);margin:-16px -16px 14px;aspect-ratio:16/9;object-fit:cover;
+  border-radius:var(--radius) var(--radius) 0 0;background:var(--surface-2)}
 
-   ⚠️ CORRIGÉ LE 30/07 : la règle s'écrivait `.latest-wrap .grid`, un sélecteur
-   de POSITION. Il ne valait donc que pour le bloc « articles » de l'accueil —
-   et `/blog/`, qui est LA page où l'on parcourt les articles, gardait la grille
-   dense. Le style suivait l'endroit au lieu de suivre la nature de la chose.
-   ⭐ Une classe explicite (`cartes`) dit ce que c'est, et se pose partout où
-   c'en est. */
-.grid.cartes{gap:14px;background:none;border:0;
-  grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
-.grid.cartes .item{border:1px solid var(--rule);padding:0;overflow:hidden;
-  display:flex;flex-direction:column}
-.grid.cartes .item:hover{border-color:var(--rule-strong);background:var(--surface)}
-.grid.cartes .item .n,
-.grid.cartes .item .s,
-.grid.cartes .item .f,
-.grid.cartes .item > p{padding-left:13px;padding-right:13px}
-.grid.cartes .item .n{padding-top:12px;font-size:16px}
-.grid.cartes .item > p:last-child{padding-bottom:12px;margin-bottom:0}
-.grid.cartes .item .f{padding-bottom:12px;margin-top:auto}
-
-/* La couverture : rendue SEULEMENT si l'article en déclare une. Pas de cadre
-   gris par défaut — une image absente ne doit pas devenir un trou visible.
-   ⚠️ La colonne `cover` du Sheet est vide pour les 13 articles : rien ne
-   s'affichera tant qu'elle ne sera pas remplie. */
-.grid.cartes .item .cover{display:block;width:100%;aspect-ratio:16/9;
-  object-fit:cover;background:var(--surface);border-bottom:1px solid var(--rule);
-  margin:0 0 2px}
-
-/* ⚠️⚠️ DÉFAUT QUE J'AI CRÉÉ, VU EN PRODUCTION : `.lien-ancre` n'est pas
-   seulement le petit lien discret à côté d'un titre. Dans la chronologie, c'est
-   la balise qui entoure **LA DATE ELLE-MÊME** :
-       <div class="when"><a class="lien-ancre" href="#j-…">{r.date}</a>
-   Un `opacity:0` global a donc rendu les 41 dates invisibles. La frise
-   paraissait sans dates, et sans repère de lecture.
-   ⭐ La leçon : une classe nommée d'après son RÔLE SUPPOSÉ (« le lien d'ancre »)
-   peut recouvrir deux usages. On style le rôle DANS SON CONTEXTE, jamais la
-   classe seule. */
-h2 .lien-ancre,h3 .lien-ancre{color:var(--ink-faint);text-decoration:none;
-  opacity:0;padding:0 6px;font-weight:400}
-h2:hover .lien-ancre,h3:hover .lien-ancre,
-h2 .lien-ancre:focus-visible,h3 .lien-ancre:focus-visible{opacity:1}
-/* Dans la frise, l'ancre EST la date : pleinement visible, et cliquable. */
-.milestone .when .lien-ancre{color:var(--ink-faint);text-decoration:none;opacity:1}
-.milestone .when .lien-ancre:hover{color:var(--primary);text-decoration:underline}
-
-/* --- Pages légales (LegalPage.astro : `.legal`, corps injecté en HTML) ---
-   Obligatoires et lues rarement, mais lues en entier quand elles le sont :
-   même mesure de ligne que le reste, aucune fantaisie. */
-.legal{max-width:68ch;font-size:15px}
-.legal h2{font-size:19px;margin:26px 0 8px}
+.post > .muted{font-size:14px}
+.prose{margin-top:20px}
+.prose p,.post p{font-size:17px;line-height:1.7}
+.prose h2{margin-top:36px}
+.prose strong{color:var(--text);font-weight:700}
+.prose ul,.prose ol{padding-left:1.2em}
+.prose li{margin:0 0 .5em;font-size:17px;line-height:1.6}
+.prose li::marker{color:var(--teal)}
+.prose li > p{margin:0}
+.prose blockquote{margin:22px 0;padding:14px 16px;border:1px solid var(--line);border-left:3px solid var(--teal);
+  border-radius:0 var(--radius) var(--radius) 0;background:var(--surface);color:var(--soft);font-size:16px}
+.prose code,.post code{background:var(--surface-2);border-radius:6px;padding:1px 6px;font-size:.9em}
+.legal{max-width:var(--mesure);font-size:16px}
+.legal h2{font-size:21px;margin:28px 0 8px}
 .legal ul,.legal ol{padding-left:22px}
-.legal table{font-size:13.5px;margin:12px 0}
 
-/* --- RECHERCHE (features.search: internal, index éditorial) ---------------
-   La liste de résultats est en flux NORMAL, pas en survol absolu : sur mobile
-   un menu flottant se fait recouvrir par le clavier virtuel, et l'utilisateur
-   ne voit jamais ses résultats. Elle pousse le contenu, c'est voulu. */
-.searchwrap{margin:0 0 26px;max-width:520px}
-.searchbox{width:100%;height:var(--tap);padding:0 12px;font-size:15px;
-  border:1px solid var(--rule-strong);border-radius:2px;background:var(--bg);
-  color:var(--text);font-family:var(--font-body)}
-.searchbox::placeholder{color:var(--ink-faint)}
-.searchhint{margin:5px 2px 0;font-size:11.5px;color:var(--ink-faint)}
+/* =============================================================================
+   6 bis. PAGES DE RUBRIQUE (Editorial.astro) ET ARTICLES (gabarits du moteur)
+   ============================================================================= */
+/* En-tête de rubrique : icône de couleur, titre, description, nombre. */
+.sec-tete{display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px 16px;align-items:start;margin:18px 0 6px}
+.sec-ico{width:52px;height:52px;border-radius:14px;background:var(--c,var(--teal));color:#13152b;display:flex;align-items:center;justify-content:center}
+.sec-ico::before{content:"";width:26px;height:26px;background:currentColor;-webkit-mask:var(--ico) center/contain no-repeat;mask:var(--ico) center/contain no-repeat}
+.sec-tete h1{margin:2px 0 6px}
+.sec-tete .lead{margin:0}
+.sec-compte{grid-column:1 / -1;margin:0;display:inline-flex;justify-self:start;align-items:center;min-height:30px;padding:0 10px;
+  border-radius:8px;background:var(--surface);border:1px solid var(--line);font-size:13.5px;font-weight:700;color:var(--soft)}
+@media (min-width:820px){ .sec-tete{grid-template-columns:auto minmax(0,1fr) auto;align-items:center} .sec-compte{grid-column:auto;justify-self:end} }
+.sec-eventail{display:none}
 
-.results:not(:empty){border:1px solid var(--rule-strong);border-top:0;
-  background:var(--bg);margin-top:-1px}
-.result{display:flex;align-items:baseline;gap:10px;padding:9px 12px;
-  min-height:var(--tap);border-top:1px solid var(--shell-2);text-decoration:none}
+/* Bannière ordinateur (≥ 1100 px) : fond menthe pâle tiré de la sarcelle de
+   marque, réseau hexagonal du logo en filigrane, lueur d'or, filet sarcelle en
+   bas (celui des cartes). Rubriques : éventail de quatre pièces à droite.
+   Blog (gabarits du moteur, non modifiables) : même bandeau posé en CSS sur le
+   h1, avec le globe du logo à la place des pièces. Le mobile garde l'en-tête. */
+@media (min-width:1100px){
+  .sec-tete,main:has(> .cartes) > h1,.post > h1{position:relative;isolation:isolate;overflow:hidden;box-sizing:border-box;
+    margin:18px 0 14px;padding:34px 36px;border-radius:22px;border:1px solid var(--line);color:var(--text);
+    box-shadow:inset 0 -3px 0 var(--teal);background-color:var(--bann);
+    background-image:radial-gradient(50% 90% at 80% 40%,rgba(242,193,78,.20),rgba(242,193,78,0) 70%),
+      radial-gradient(40% 80% at 0 0,color-mix(in srgb,var(--teal) 16%,transparent),transparent 70%),var(--bann-motif)}
+  .sec-tete{display:block;min-height:230px}
+  .sec-tete::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
+    background:linear-gradient(90deg,var(--bann) 0,color-mix(in srgb,var(--bann) 85%,transparent) 40%,color-mix(in srgb,var(--bann) 0%,transparent) 70%)}
+  .sec-ico{display:none}
+  .sec-tete > div,.sec-compte{position:relative;z-index:2;max-width:min(620px,calc(100% - 450px))}
+  .sec-tete h1{margin:0;color:var(--text);font-size:42px;line-height:1.05}
+  .sec-tete .lead{margin:10px 0 0;color:var(--soft);font-size:16.5px}
+  .sec-compte{display:inline-flex;gap:8px;margin-top:16px;background:var(--surface);border-color:var(--line);color:var(--text)}
+  .sec-compte::before{content:"";width:10px;height:11px;background:var(--or);clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
+  .sec-eventail{display:block;position:absolute;z-index:0;right:28px;top:50%;width:420px;height:200px;margin-top:-100px}
+  .sec-eventail img{position:absolute;width:118px;height:156px;object-fit:cover;border-radius:12px;background:var(--surface-2);
+    border:3px solid var(--surface);box-shadow:0 14px 28px rgba(19,21,43,.18)}
+  .sec-eventail img:nth-child(1){left:0;top:26px;transform:rotate(-12deg)}
+  .sec-eventail img:nth-child(2){left:100px;top:8px;transform:rotate(-4deg);border-color:var(--or)}
+  .sec-eventail img:nth-child(3){left:200px;top:8px;transform:rotate(4deg);border-color:var(--or)}
+  .sec-eventail img:nth-child(4){left:300px;top:26px;transform:rotate(12deg)}
+  main:has(> .cartes) > h1,.post > h1{padding:56px 300px 48px 36px;font-size:42px;line-height:1.08;
+    background-image:var(--logo),radial-gradient(50% 90% at 84% 45%,rgba(242,193,78,.22),rgba(242,193,78,0) 70%),
+      radial-gradient(40% 80% at 0 0,color-mix(in srgb,var(--teal) 16%,transparent),transparent 70%),var(--bann-motif);
+    background-repeat:no-repeat,no-repeat,no-repeat,repeat;background-position:right 56px center,0 0,0 0,0 0;background-size:170px,auto,auto,auto}
+  .post > h1{font-size:38px}
+}
+@media (min-width:1100px) and (max-width:1319px){
+  .sec-eventail{right:12px;transform:scale(.72);transform-origin:right center}
+  .sec-tete > div,.sec-compte{max-width:calc(100% - 330px)}
+}
+
+/* Outils : filtre et index, collés sous l'en-tête mobile au défilement. */
+.sec-outils{position:sticky;top:60px;z-index:5;margin:16px -16px 8px;padding:10px 16px 8px;background:color-mix(in srgb,var(--bg) 94%,transparent);
+  border-bottom:1px solid var(--line)}
+@media (min-width:1100px){ .sec-outils{top:0;margin:16px 0 8px;padding:12px 0 10px} }
+.sec-filtre{height:48px;max-width:520px}
+.sec-lettres{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin-top:10px;padding-bottom:2px}
+.sec-lettres::-webkit-scrollbar{display:none}
+.sec-lettres a{flex:0 0 auto;min-width:36px;min-height:36px;padding:0 9px;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  border-radius:9px;background:var(--surface);border:1px solid var(--line);color:var(--text);font-weight:800;font-size:14px;text-decoration:none}
+.sec-lettres a:hover{border-color:var(--teal);color:var(--primary);text-decoration:none}
+.sec-lettres a small{font-weight:600;color:var(--muted)}
+.sec-lettres a.sec-lettre--vide{opacity:.35}
+.sec-types{margin:16px 0 4px}
+.sec-groupe,.sec-annee{margin:20px 0 0}
+h2.sec-lettre{display:flex;align-items:baseline;gap:10px;margin:0 0 10px;font-size:26px;color:var(--text)}
+h2.sec-lettre small{font-family:var(--font-body);font-size:14px;font-weight:600}
+.sec-vide{margin:24px 0;padding:16px;border:1px dashed var(--line-strong);border-radius:var(--radius);color:var(--muted);text-align:center}
+.sec-legende{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0;padding:0;list-style:none;font-size:13.5px;font-weight:700;color:var(--soft)}
+.sec-legende li{display:flex;align-items:center;gap:7px;max-width:none}
+.sec-legende i{width:11px;height:11px;border-radius:4px;background:var(--muted)}
+.sec-legende [data-type="drop"] i{background:var(--r-sr)}
+.sec-legende [data-type="partenariat"] i{background:var(--r-r)}
+.sec-legende [data-type="produit"] i{background:var(--teal)}
+.sec-legende [data-type="evenement"] i{background:var(--r-ap)}
+.milestone h3{margin:0 0 6px;font-size:18px;line-height:1.3}
+
+/* Annuaire : avatar à initiales. */
+.annu{display:flex;gap:14px;align-items:flex-start}
+.annu__avatar{flex:0 0 46px;width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--wash),var(--surface-2));border:1px solid var(--line);font-family:var(--font-heading);
+  font-weight:700;font-size:16px;color:var(--primary)}
+.annu__corps{min-width:0;flex:1}
+.annuaire-group h2 small{font-family:var(--font-body);font-size:14px;font-weight:600}
+
+/* Marques : visuel d'une pièce et poids de la licence. */
+.marques{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.marque{display:flex;gap:14px;align-items:stretch;padding:12px}
+.marque__img{flex:0 0 78px;width:78px;height:103px;object-fit:cover;border-radius:10px;background:var(--night)}
+.marque__init{display:flex;align-items:center;justify-content:center;background:linear-gradient(150deg,var(--surface-2),var(--hover));
+  border:1px solid var(--line);font-family:var(--font-heading);font-weight:700;font-size:22px;color:var(--muted)}
+.marque__corps{flex:1;min-width:0;display:flex;flex-direction:column}
+.marque .n{font-size:18px;margin:0 0 4px}
+.marque .s{font-size:14px}
+.marque .counters{margin-top:auto;padding-top:8px}
+.marque__poids{display:block;height:5px;margin-top:10px;border-radius:3px;background:var(--track)}
+.marque__poids i{display:block;height:100%;border-radius:3px;background:var(--teal)}
+
+/* Liste des articles (BlogIndex du moteur) : cartes, liseré, date. */
+.cartes .item{border-top:3px solid var(--teal)}
+.cartes .item .s{font-size:12.5px;font-weight:700;color:var(--muted);order:-1;margin-bottom:6px}
+.cartes .item .n{font-size:19px;line-height:1.25}
+
+/* Article (BlogPost du moteur) : une colonne de lecture, un en-tête net. */
+.post{max-width:760px}
+.post > h1{font-size:clamp(28px,4vw,40px);line-height:1.12;margin-top:14px}
+.post > .muted{display:inline-flex;align-items:center;min-height:28px;padding:0 10px;border-radius:8px;background:var(--surface);
+  border:1px solid var(--line);font-weight:600}
+.post .prose{margin-top:22px;padding-top:6px;border-top:1px solid var(--line)}
+.post .prose h2{font-size:23px;padding-top:6px}
+.post .prose a{text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--primary) 40%,transparent);text-underline-offset:3px}
+.post .grid{margin-top:14px}
+
+/* =============================================================================
+   7. RECHERCHE (boîte de l'accueil)
+   ============================================================================= */
+.searchwrap{margin:0;max-width:600px}
+.searchbox{width:100%;box-sizing:border-box;height:54px;padding:0 14px 0 46px;font-size:16px;
+  border:1px solid var(--line-strong);border-radius:var(--radius);color:#13152b;font-family:var(--font-body);
+  background:#ffffff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2313152b' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E") 15px center/19px no-repeat;
+  -webkit-appearance:none;appearance:none}
+.searchbox::placeholder{color:#5b6182;opacity:1}
+.searchbox:focus{border-color:var(--teal);outline:none;box-shadow:0 0 0 3px rgba(25,199,174,.3)}
+.searchhint{margin:8px 0 0;font-size:13px;color:var(--muted)}
+.results:not(:empty){margin-top:8px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;color:var(--text)}
+.result{display:flex;align-items:center;gap:10px;padding:10px 14px;min-height:var(--tap);box-sizing:border-box;
+  border-top:1px solid var(--line-soft);text-decoration:none;color:var(--text)}
 .result:first-child{border-top:0}
-.result:hover,.result:focus-visible{background:var(--surface);text-decoration:none}
-.result .rn{font-family:var(--font-heading);font-size:14.5px;color:var(--primary);
-  flex:1;min-width:0}
-/* Le TYPE de chaque résultat, à droite. Sans lui, « Floor Price » du glossaire
-   et l'article « Ce qu'est vraiment un prix plancher » sont indiscernables :
-   deux lignes, deux destinations, aucun moyen de choisir. */
-.result .rt{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;
-  letter-spacing:.05em;white-space:nowrap;flex:0 0 auto}
-.searchvide{margin:0;padding:11px 12px;font-size:13px;color:var(--ink-faint)}
+.result:hover,.result:focus-visible{background:var(--surface-2);text-decoration:none}
+.result .rn{flex:1;min-width:0;font-weight:600;font-size:15px;color:var(--text)}
+.result .rt{flex:0 0 auto;font-size:12px;font-weight:700;color:var(--primary);background:var(--wash);padding:3px 8px;border-radius:6px;text-transform:none;letter-spacing:0}
+.searchvide{margin:0;padding:12px 14px;font-size:15px;color:var(--muted)}
 
 /* =============================================================================
-   7. FIGURES / GRAPHIQUES
-   ⚠️ Les figures générées côté serveur (engine/lib/figures.mjs) relisent
-   `identity.palette` et portent leur propre cartouche : elles suivront la
-   palette jour d'elles-mêmes. Ici on ne traite que le SVG inline.
+   8. ACCUEIL (EditorialHome.astro, classes `acc-`)
    ============================================================================= */
-.chart{width:100%;height:auto;margin:8px 0 4px}
-.chart .line{stroke:var(--primary);stroke-width:2;stroke-linejoin:round;
-  stroke-linecap:round}
-.chart .area{fill:color-mix(in srgb,var(--primary) 12%,transparent);stroke:none}
-/* ⚠️ COLLISION DE NOMS PRÉSENTE DANS LE MOTEUR, pas introduite ici : `.grid`
-   sert à la fois de grille de mise en page (§4) et de quadrillage de graphique.
-   Sans les annulations ci-dessous, le quadrillage d'un graphique hérite
-   `display:grid`, `background` et `border` — et disparaît du tracé. */
-.chart .grid{stroke:var(--rule);stroke-width:1;display:initial;background:none;
-  border:0;gap:0}
-.chart .axis{fill:var(--ink-faint);font-size:11px}
+.acc-k{margin:0;font-family:var(--font-body);font-size:12.5px;font-weight:800;letter-spacing:0;line-height:1.4;color:var(--primary)}
+h2.acc-k{margin:0}
+.acc-carte{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow)}
+.acc-tete{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:30px 0 12px}
+.acc-tete h2{margin:0;font-size:21px}
+.acc-tete a,.acc-carte .acc-plus{font-size:14px;font-weight:700;white-space:nowrap}
 
-/* =============================================================================
-   8. MOBILE — vevewiki est lu au pouce avant d'être lu au clavier
-   ============================================================================= */
-@media (max-width:640px){
-  body{font-size:15.5px}
-  .wrap{padding:0 16px}
+/* Le bandeau : l'aplat bleu nuit et le mur de pièces, dans les deux modes. */
+.acc-hero{position:relative;overflow:hidden;margin:16px 0 0;border-radius:20px;background:var(--night);color:#ffffff;
+  padding:24px 18px 22px}
+/* Téléphone : le « mur » devient une rangée de quatre pièces sous la recherche
+   (derrière le texte, il gênait la lecture sur un écran étroit). */
+.acc-mur{order:9;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:18px;pointer-events:none}
+.acc-mur img{display:block;width:100%;height:auto;aspect-ratio:660/870;object-fit:cover;border-radius:10px;border:1px solid rgba(255,255,255,.18)}
+.acc-mur img:nth-child(n+5){display:none}
+.acc-hero{display:flex;flex-direction:column}
+.acc-hero > :not(.acc-mur){position:relative;z-index:1}
+.acc-bienvenue{margin:0;font-family:'Spectral',Georgia,serif;font-weight:600;font-size:17px;color:#f2c14e}
+.acc-hero h1{margin:8px 0 0;color:#ffffff;font-size:clamp(26px,3.4vw,40px);line-height:1.08;max-width:17em}
+.acc-hero .lead{margin:10px 0 18px;color:var(--night-soft);font-size:15px;max-width:32em}
+.acc-hero .searchhint{color:#9da3c4}
+.acc-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.acc-chips{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0;padding:0;list-style:none;align-items:center}
+.acc-chips li{max-width:none}
+.acc-chips span{font-size:13px;color:#9da3c4;margin-right:2px}
+.acc-chips a{display:inline-flex;align-items:center;min-height:34px;padding:0 11px;border-radius:8px;background:rgba(255,255,255,.1);
+  color:#ffffff;font-size:13.5px;font-weight:700;text-decoration:none}
+.acc-chips a:hover{background:rgba(255,255,255,.18);text-decoration:none}
 
-  /* ⚠️⚠️ TROIS DÉFAUTS MOBILES CONSTATÉS EN PRODUCTION LE 30/07, UNE SEULE CAUSE.
-     `.brand{flex:1}` donne au titre une base de 0 : la ligne calcule donc
-     « 0 % + 100 % = 100 %, ça tient », la nav NE PASSE PAS à la ligne, et le
-     titre déborde par-dessus « Glossaire ». Comme la nav se retrouve coincée à
-     côté du titre, tout son contenu part dans le défilement horizontal — d'où
-     le sélecteur de langue invisible tant qu'on ne fait pas glisser la barre.
-     ⭐ La leçon : `flex:1` n'est pas « prends la place restante », c'est
-     « base 0, puis grandis ». Pour forcer un retour à la ligne il faut une
-     base réelle : `flex:0 0 100%`. */
-  header.site .wrap{min-height:50px;gap:0;position:relative;flex-wrap:wrap}
-  .brand{font-size:17px;flex:1 1 auto;min-width:0;max-width:calc(100% - 158px);
-    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;
-    line-height:50px}
+.acc-grille{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;margin-top:14px}
+.acc-une{display:grid;grid-template-columns:110px minmax(0,1fr);overflow:hidden}
+.acc-une img,.acc-jour img{display:block;width:100%;height:100%;object-fit:cover;background:var(--night)}
+.acc-une > div,.acc-jour > div{padding:16px}
+.acc-une h2,.acc-jour h2{margin:5px 0 0;font-size:19px;line-height:1.2}
+.acc-une h2 a,.acc-jour h2 a{color:var(--text)}
+.acc-une p.acc-desc{margin:8px 0 0;font-size:14.5px;line-height:1.55;color:var(--soft)}
+.acc-bouton{display:inline-flex;align-items:center;min-height:38px;margin-top:12px;padding:0 14px;border-radius:10px;
+  background:var(--wash);color:var(--primary);font-weight:800;font-size:14px;text-decoration:none}
+.acc-bouton:hover{text-decoration:none;filter:brightness(.97)}
+.acc-jour{display:grid;grid-template-columns:110px minmax(0,1fr);overflow:hidden}
+.acc-jour img{border-right:3px solid var(--r-sr)}
+.acc-jour dl{margin:10px 0 0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 12px;font-size:14px}
+.acc-jour dt{padding:6px 0;color:var(--muted);border-top:1px solid var(--line-soft)}
+.acc-jour dd{margin:0;padding:6px 0;border-top:1px solid var(--line-soft);font-weight:700}
+.acc-etiquette{display:inline-flex;align-items:center;min-height:22px;padding:0 7px;border-radius:6px;font-size:12px;font-weight:800;
+  background:var(--wash-sr);color:var(--t-sr)}
 
-  /* Le sélecteur de langue SORT du défilement : il vit sur la ligne du titre,
-     toujours visible. Enterré dans la barre qui défile, il n'existait que pour
-     qui pense à faire glisser une barre horizontale — c'est-à-dire personne. */
-  nav.main .langbar{position:absolute;top:10px;right:0;margin:0;gap:3px;z-index:5}
-  /* Une pastille encadrée, pas un mot gris posé sur du blanc : sur la ligne du
-     titre, sans fond ni bordure, elle se lisait « blanc sur blanc ». */
-  nav.main .langbar a{font-size:11.5px;min-width:28px;padding:0 5px;min-height:30px;
-    color:var(--ink-soft);background:var(--surface);
-    border:1px solid var(--rule);border-radius:2px}
-  nav.main .langbar a[aria-current]{background:var(--bg);color:var(--text);
-    border-color:var(--gold);font-weight:700}
+.acc-bloc{padding:18px 18px 8px}
+.acc-faits{list-style:none;margin:8px 0 0;padding:0}
+.acc-faits li{display:flex;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--line-soft);max-width:none;
+  font-size:14.5px;line-height:1.5;color:var(--soft)}
+.acc-faits img{flex:0 0 46px;width:46px;height:60px;object-fit:cover;border-radius:8px}
+.acc-fil{list-style:none;margin:12px 0 0;padding:0 0 0 18px;position:relative}
+.acc-fil::before{content:"";position:absolute;left:4px;top:6px;bottom:14px;width:2px;background:var(--line)}
+.acc-fil li{position:relative;padding:0 0 12px;max-width:none}
+.acc-fil li::before{content:"";position:absolute;left:-18px;top:5px;width:10px;height:10px;box-sizing:border-box;border-radius:3px;
+  background:var(--surface);border:2px solid var(--teal)}
+.acc-fil li:first-child::before{background:var(--teal)}
+.acc-fil time{display:block;font-size:12.5px;font-weight:700;color:var(--muted)}
+.acc-fil a{display:block;font-size:15px;font-weight:700;color:var(--text)}
 
-  /* ⚠️⚠️ LE MASQUE A ÉTÉ RETIRÉ — il effaçait le sélecteur de langue.
-     J'avais posé `mask-image` sur `nav.main` pour faire un dégradé à droite. Or
-     `.langbar` est un ENFANT de `nav.main` : un masque s'applique à tout le
-     sous-arbre, et la langbar était placée pile dans la zone transparente du
-     dégradé. Résultat : des boutons présents, cliquables, et **invisibles**.
-     ⭐ Deux corrections posées le même jour se sont annulées : le repère de
-     défilement a effacé ce qu'il devait rendre atteignable. Le dégradé vit
-     maintenant sur un pseudo-élément de l'EN-TÊTE, qui n'est pas le conteneur
-     de défilement — il ne peut donc plus rien masquer de son contenu. */
-  nav.main{flex:0 0 100%;width:100%;gap:0;margin-left:0;overflow-x:auto;
-    -ms-overflow-style:none;scrollbar-width:none;
-    border-top:1px solid var(--shell-2);flex-wrap:nowrap;padding-right:26px}
-  header.site::before{content:"";position:absolute;right:0;bottom:2px;
-    width:30px;height:44px;pointer-events:none;z-index:3;
-    background:linear-gradient(90deg,transparent,var(--bg) 78%)}
-  nav.main::-webkit-scrollbar{display:none}
-  nav.main a{font-size:13.5px;padding:0 10px;white-space:nowrap}
+.acc-licences{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:150px;gap:10px;margin:0;padding:0;list-style:none}
+.acc-licences li{max-width:none;min-width:0}
+.acc-licences li:first-child{grid-column:span 2;grid-row:span 1}
+.acc-tuile{position:relative;display:block;height:100%;overflow:hidden;border-radius:16px;background:var(--night);color:#ffffff;text-decoration:none}
+.acc-tuile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 22%;transition:transform .35s}
+.acc-tuile:hover img{transform:scale(1.05)}
+.acc-tuile::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(19,21,43,0) 35%,rgba(19,21,43,.92) 100%)}
+.acc-tuile span{position:absolute;left:12px;right:12px;bottom:10px;z-index:1}
+.acc-tuile b{display:block;font-family:var(--font-heading);font-weight:700;font-size:18px;line-height:1.1}
+.acc-tuile small{font-size:12.5px;font-weight:600;color:#d7daec}
+.acc-tuile:hover{text-decoration:none}
 
-  /* En-tête à deux lignes sur mobile : 50 (titre) + 44 (rubriques) + filets. */
-  :target,.term,.milestone,.item[id],.fiche,h2[id],h3[id]{scroll-margin-top:108px}
-  h1{font-size:23px}
-  .grid,.stats{grid-template-columns:1fr}
-  .reperes,.chiffres{grid-template-columns:1fr 1fr}
-  main p,main li,.lead,.notes,.milestone .what{max-width:none}
-  table{font-size:13.5px}
-  th,td{padding:7px 8px}
+.acc-rubriques{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px;margin:0;padding:0;list-style:none}
+.acc-rubriques li{max-width:none;border-top:1px solid var(--line-soft)}
+.acc-rubriques a{display:flex;align-items:center;gap:11px;padding:11px 0;color:var(--text);text-decoration:none}
+.acc-rubriques a:hover b{color:var(--primary)}
+.acc-ico{flex:0 0 38px;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  background:var(--c,var(--teal));color:#13152b}
+.acc-ico::before{content:"";width:19px;height:19px;background:currentColor;-webkit-mask:var(--ico) center/contain no-repeat;mask:var(--ico) center/contain no-repeat}
+.acc-rubriques b{display:block;font-size:14.5px;line-height:1.2}
+.acc-rubriques small{display:block;font-size:12.5px;color:var(--muted)}
+.acc-rubriques .acc-desc{display:none}
+
+.acc-paliers{list-style:none;margin:6px 0 0;padding:0}
+.acc-paliers li{display:grid;grid-template-columns:10px 92px minmax(0,1fr) 52px;gap:10px;align-items:center;padding:7px 0;max-width:none}
+.acc-paliers i{width:10px;height:10px;border-radius:3px;background:var(--c)}
+.acc-paliers b{font-size:13.5px}
+.acc-paliers span{display:block;height:7px;border-radius:4px;background:var(--track)}
+.acc-paliers span i{display:block;width:auto;height:100%;border-radius:4px}
+.acc-paliers em{font-style:normal;text-align:right;font-family:var(--font-heading);font-weight:600;font-size:13.5px}
+
+/* Derniers articles : quatre cartes, la date en tête. */
+.acc-recents{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin:0;padding:0;list-style:none}
+.acc-recents li{max-width:none;display:flex}
+.acc-recents a{flex:1;display:flex;flex-direction:column;gap:6px;padding:16px 18px;color:var(--text);text-decoration:none;border-top:3px solid var(--teal)}
+.acc-recents a:hover{border-color:var(--line-strong);border-top-color:var(--teal);text-decoration:none}
+.acc-recents a:hover b{color:var(--primary)}
+.acc-recents time{font-size:12.5px;font-weight:700;color:var(--muted)}
+.acc-recents b{font-family:var(--font-heading);font-size:17px;line-height:1.25}
+.acc-recents span{font-size:14px;line-height:1.5;color:var(--soft)}
+@media (min-width:700px){ .acc-recents{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (min-width:1250px){ .acc-recents{grid-template-columns:repeat(4,minmax(0,1fr))} .acc-une,.acc-jour{height:100%} }
+@media (min-width:700px){
+  .acc-hero{padding:38px 34px 34px}
+  .acc-hero{display:block}
+  .acc-mur{position:absolute;top:-60px;right:-60px;width:520px;margin:0;grid-template-columns:repeat(4,1fr);gap:12px;transform:rotate(-8deg);opacity:.92}
+  .acc-mur img{border:0}
+  .acc-mur img:nth-child(n+5){display:block}
+  .acc-hero::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(90deg,var(--night) 0%,var(--night) 46%,rgba(19,21,43,.72) 66%,rgba(19,21,43,.12) 100%)}
+  .acc-hero .lead{font-size:17px}
+  .acc-une,.acc-jour{grid-template-columns:180px minmax(0,1fr)}
+  .acc-une > div,.acc-jour > div{padding:20px 22px}
+  .acc-une h2{font-size:23px}
+  .acc-licences{grid-template-columns:2fr 1fr 1fr 1fr;grid-auto-rows:170px}
+  .acc-licences li:first-child{grid-column:span 1;grid-row:span 2}
+  .acc-tuile b{font-size:20px}
+  .acc-licences li:first-child .acc-tuile b{font-size:28px}
+  .acc-rubriques .acc-desc{display:block;font-size:13px;color:var(--soft);margin-top:1px}
+}
+@media (min-width:1250px){
+  .acc-grille{grid-template-columns:repeat(12,minmax(0,1fr));gap:18px}
+  .acc-g7{grid-column:span 7} .acc-g5{grid-column:span 5} .acc-g8{grid-column:span 8} .acc-g4{grid-column:span 4} .acc-g12{grid-column:span 12}
+  .acc-mur{width:640px}
 }
 
 /* =============================================================================
-   9. IMPRESSION & MOUVEMENT RÉDUIT
-   Un article d'encyclopédie s'imprime et se convertit en PDF. Sans l'adresse
-   des liens externes, un article imprimé n'est plus sourçable — or « toute
-   info porte un lien » est la règle du site.
+   9. FIGURES — les SVG générés relisent `identity.palette` (le jour)
+   ============================================================================= */
+.fig{margin:24px 0;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);max-width:820px}
+.fig figcaption{flex-wrap:wrap;font-style:normal;color:var(--soft)}
+.fig figcaption > :first-child{flex:1 1 260px}
+/* En sombre, la figure garde son fond clair (elle est dessinée au build avec
+   la palette du jour) : on lui laisse un cadre clair plutôt qu'une tache. */
+:root[data-theme="nuit"] .fig .fig-svg{border-radius:10px;overflow:hidden}
+.chart{width:100%;height:auto;margin:8px 0 4px}
+.chart .line{stroke:var(--primary);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.chart .area{fill:color-mix(in srgb,var(--primary) 14%,transparent);stroke:none}
+.chart .grid{stroke:var(--line);stroke-width:1;display:initial;background:none;border:0;gap:0}
+.chart .axis{fill:var(--muted);font-size:11px}
+
+/* =============================================================================
+   10. IMPRESSION & MOUVEMENT RÉDUIT
    ============================================================================= */
 @media print{
-  header.site,footer.site .legal-links,nav.main,.saut,#langsuggest,.lien-ancre{display:none}
-  body{background:#fff;color:#000;font-size:11pt}
+  body{padding:0;background:#fff;color:#000}
+  header.site,footer.site .legal-links,.saut,#langsuggest,.lien-ancre,.searchwrap{display:none!important}
   a{color:#000;text-decoration:underline}
-  main a[href^="http"]::after{content:" (" attr(href) ")";font-size:8.5pt;color:#444;
-    word-break:break-all}
-  .card,.item,table,.alerte,.avertis{break-inside:avoid}
-  h1,h2,h3{break-after:avoid}
-  details{display:block!important}
+  main a[href^="http"]::after{content:" (" attr(href) ")";font-size:8.5pt;color:#444;word-break:break-all}
 }
-@media (prefers-reduced-motion:reduce){
-  *{transition:none!important;animation:none!important;scroll-behavior:auto!important}
-}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 
 /* =============================================================================
-   CONTRASTES — mesurés, pas estimés. Seuil WCAG AA = 4,5:1 (texte courant).
-   -----------------------------------------------------------------------------
-     rôle              couleur    sur #ffffff   sur #f8f9fa   sur #eaecf0
-     texte courant     #202122      16,13:1       15,40:1       15,00:1   AAA
-     texte secondaire  #54595d       7,09:1        6,72:1        6,30:1   AAA
-     méta / dates      #666b71       5,38:1        5,10:1        4,54:1   AA
-     lien              #3366cc       5,37:1        5,09:1        4,54:1   AA
-     lien visité       #795cb2       5,27:1           —             —     AA
-     or — texte        #7a5f10       6,05:1        5,49:1           —     AA
-     danger            #b32424       6,57:1           —             —     AA
-     or — DÉCOR SEUL   #d4af37       2,10:1  ⛔ INTERDIT EN TEXTE
-   -----------------------------------------------------------------------------
-   ⚠️ LA PAIRE LA PLUS JUSTE : lien #3366cc sur le séparateur #eaecf0 —
-   4,54:1 pour un seuil de 4,50. Aucune marge. Si `--shell-2` s'éclaircit d'un
-   cran, les liens posés dessus deviennent non conformes et RIEN ne le signale.
-   Ne pas éclaircir --shell-2 sans remesurer.
-   ⚠️ Le gris de méta de Wikipédia, #72777d, a été écarté : il passe sur blanc
-   (4,52:1) mais ÉCHOUE sur --surface (4,28:1) — or les méta vivent justement
-   dans les encadrés gris. Un contraste se valide contre le fond RÉEL du bloc,
-   jamais contre le blanc.
+   CONTRASTES — mesurés. Seuil AA = 4,5:1.
+     JOUR        couleur   bg #f4f5f9  blanc  surface-2 #edeff5
+     texte       #13152b     16,48     17,95     15,61
+     doux        #3e4362      8,83      9,62      8,36
+     méta        #5b6182      5,54      6,04      5,25
+     lien        #07705f      5,52      6,01      5,23
+     SR (texte)  #c42445      5,23      5,70      4,96
+     NUIT        couleur   bg #0e0f1a  surface #171a2b  surface-2 #20243a
+     texte       #eef0fa     16,77     15,16     13,44
+     doux        #c3c8e2     11,51     10,40      9,22
+     méta        #9aa1c2      7,49      6,77      6,00
+     lien        #36e2c8     11,68     10,56      9,36
+     Bandeau bleu nuit #13152b : blanc 17,95 · #c9cde3 11,7 · #7fefdd 13,1
+   ⛔ La sarcelle de marque #19c7ae ne porte jamais de texte sur fond clair (2,5:1).
    ============================================================================= */
-
-/* ⛔⛔ `hidden` EST UNE INTENTION DU DOM, ELLE NE SE NEGOCIE PAS (31/07/2026).
-   La feuille du navigateur dit `[hidden]{display:none}` — specificite (0,1,0).
-   N'IMPORTE QUELLE classe de ce theme qui pose un `display:` la vaut et,
-   declaree plus tard, la GAGNE : l'element reste VISIBLE alors que le moteur
-   l'a cache. Vu en production sur veveprice (/movers/ affichait le tableau ET
-   la grille) ; ce theme avait le meme trou, sans qu'on l'ait encore rencontre.
-   ⭐ Corrige AVANT le symptome, parce que le controle l'a trouve — c'est la
-   premiere fois aujourd'hui que l'ordre est dans ce sens-la. */
-[hidden]{ display:none !important; }
-
-/* ⛔⛔ `.n` ET `.s` N'AVAIENT AUCUNE REGLE — DANS LES TROIS THEMES (31/07/2026).
-   Ce sont le TITRE et la LIGNE SECONDAIRE des cartes generiques du moteur :
-   la liste des articles, les resultats de recherche, les listes d'entrees.
-   Sans regle, l'article sortait en texte nu dans une boite — « un probleme de
-   design, pas de contenu » (Preda). J'avais conclu l'inverse la veille : la
-   page etait vide, j'ai cru que le CONTENU manquait alors que c'est
-   l'HABILLAGE qui manquait. ⭐ Une page pauvre ne dit pas d'elle-meme laquelle
-   des deux moities manque.
-   ⭐ Les listes de `css-mort.mjs` ne les contenaient pas : le socle y est ECRIT
-   A LA MAIN, donc il ne couvre que ce qu'on a pense a y mettre. Corrige. */
-.item .n{
-  display:block;font-family:var(--font-heading,system-ui);font-weight:700;
-  font-size:1.05rem;line-height:1.3;
-  color:var(--text);margin:0 0 6px;
-}
-.item .s{
-  display:block;font-family:var(--font-body,system-ui);font-size:.72rem;
-  letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
-}
-.item .lead{font-size:.9rem;margin:10px 0 0;color:var(--muted)}
-.item:hover .n{color:var(--primary)}
-
-/* ⭐ `.flat` : la variation NULLE. `up` est vert, `down` est rouge, et `flat`
-   ne recevait rien — un « 0,0 % » sortait donc aussi affirme qu'une vraie
-   hausse. L'absence de mouvement est une information, mais la moins
-   importante des trois : elle doit se lire sans attirer l'oeil. */
-.flat{ color:var(--muted); }
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   📏 LOT 203, POINT `ag` — UNE SÉRIE NE DÉFORME PLUS SA CARTE
-   ═══════════════════════════════════════════════════════════════════════════
-   🔴 CE QUE PREDA A DEMANDÉ, AVEC SES MOTS : « il faut juste tronquer
-   l'affichage, et quand on passe le curseur dessus on voit dans une infobulle
-   le nom complet — le but est que ça ne déforme pas les tuiles ».
-   ⭐⭐⭐ LE BUT EST « NE PAS DÉFORMER », PAS UN NOMBRE DE CARACTÈRES. Sa
-   première formulation donnait 13 ; sa raison donne le critère. Couper à 13
-   aurait tronqué « Spider-Man '94 » (14 caractères) dans une colonne qui en
-   tient 34, et l'aurait tronqué pareil sur un écran deux fois plus large.
-
-   ⛔ ET LA COUPE RESTE ICI, PAS AU SERVEUR. Une chaîne tronquée à la source ne
-   peut plus rien dire au survol, et elle serait coupée identiquement partout.
-   `text-overflow` coupe à la place RÉELLE et laisse le texte entier dans le
-   document — c'est ce qui rend l'infobulle possible.
-
-   🔴🔴 `[data-serie]` ET JAMAIS `.item .s` NU. Cette classe porte AUSSI des
-   dates d'article, des rôles et des notes éditoriales (`BlogIndex`, `BlogTag`,
-   `Editorial`). Leur imposer une ligne unique tronquerait des textes qui ont le
-   droit de respirer — et un correctif global sur une classe partagée avait déjà
-   coûté 764 titres à ce projet.
-
-   ⭐ `max-width` en `ch` et non en pixels : la borne suit la taille de police
-   du lecteur. `34ch` est la valeur que `.tbl-obj__s` emploie depuis le lot 139,
-   reprise ici pour que les deux familles coupent au même endroit.
-   ⚠️ `min-width:0` sur le PARENT : sans lui, un enfant qui refuse de rétrécir
-   élargit la carte au lieu d'être coupé, et l'`ellipsis` ne se déclenche
-   jamais. C'est le défaut qu'on croit corriger en ajoutant `overflow:hidden`
-   à l'enfant, alors qu'il se règle chez le parent. */
-.item{ min-width:0; }
-.item .s[data-serie]{
-  display:block; max-width:34ch;
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-}
-.item .n[title]{
-  display:block; max-width:34ch;
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-}
+[hidden]{display:none!important}
+.item .s[data-serie]{display:block;max-width:34ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .n[title]{display:block;max-width:34ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

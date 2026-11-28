@@ -1,151 +1,311 @@
 ---
-// ⚠️ Leonessa2/veve-sites — src/components/pages/EditorialHome.astro
-// Accueil d'un site EDITORIAL (wiki) : boite de recherche + cartes vers les
-// sections actives (avec leur nombre d'entrees) + derniers jalons + derniers
-// articles. Aucune donnee de prix, aucun warehouse. Active par le manifeste
-// (content.home: editorial) — voir index.astro.
+// ⚠️ Leonessa2/encyclo — src/components/pages/EditorialHome.astro
+// Accueil du wiki, identité « Coffre » v3 (28/11/2026). Maquette :
+// https://claude.ai/artifact/Gd3EpXBwMQ7idgSpeRwCrq (page « Coffre v3 »).
+// Styles : themes/encyclopedie/theme.css, § 8 (classes `acc-`).
 //
-// ⭐ CE QUE CETTE PAGE DOIT FAIRE, ET NE FAISAIT PAS (audit du 27/07/2026)
-// L'accueil est la page qui recoit le plus d'autorite : c'est elle qui la
-// DISTRIBUE au reste du site. Or elle n'ouvrait sur rien :
-//   • ses 6 derniers jalons pointaient TOUS vers `/history/` — six liens
-//     rigoureusement identiques, donc un seul lien utile ;
-//   • elle ne menait a AUCUN article : le blog n'existait que dans la barre de
-//     navigation, d'ou 2 liens entrants par article, tous depuis /blog/.
-// Un lien qui ne distingue pas sa cible ne transmet rien. Corrige : ancre
-// profonde par jalon (`/history/#j-…`) et bloc « derniers articles ».
-//
-// ⭐ AJOUT DU 30/07/2026 — LA RECHERCHE
-// L'audit du 27/07 avait retire `features.search: internal` du manifeste parce
-// que cette page ne rendait AUCUNE boite : on promettait a Google un
-// `SearchAction` inexistant. La boite existe maintenant, l'index couvre
-// l'editorial (`src/pages/search-index.json.js`), et `searchEnabled()` accepte
-// une source editoriale. La promesse et la fonction sont enfin la meme chose.
-//
-// ⚠️ La boite n'est rendue QUE si `searchEnabled()` — donc jamais sur un site
-// qui n'a pas d'index. Une boite de recherche qui ne trouve rien est pire
-// qu'une absence de boite : elle fait conclure au visiteur que le site est vide.
+// La page d'accueil d'une encyclopédie, version collection :
+//   bandeau (mur de pièces, recherche) · article à la une · pièce du jour ·
+//   le saviez-vous · actualité de VeVe · explorer par licence (visuels) ·
+//   parcourir la base · le catalogue par rareté.
+// Chaque bloc n'est rendu QUE si sa rubrique est publiée dans la langue
+// (ES/IT/DE n'ont aujourd'hui que le glossaire et les sigles).
+// Les visuels viennent de l'index des vignettes du build
+// (engine/lib/visuels_wiki.mjs) : une pièce absente n'est pas affichée.
 import Base from '../../layouts/Base.astro';
-import { manifest } from '../../../moteur/lib/manifest.mjs';
-import { pick, localize, t, dateLocale } from '../../../moteur/lib/i18n.mjs';
+import { manifest, siteUrl } from '../../../moteur/lib/manifest.mjs';
+import { pick, localize, t, dateLocale, numberLocale } from '../../../moteur/lib/i18n.mjs';
 import { activeSections, sectionMeta } from '../../../moteur/lib/editorial_pages.mjs';
 import { collection } from '../../../engine/lib/contenu.mjs';
 import { blogEnabled, postsFor } from '../../../moteur/lib/blog.mjs';
-import { ancreJalon } from '../../../engine/lib/editorial_entries.mjs';
+import { ancreJalon, ancreTerme, fichesDe, cheminFiche } from '../../../engine/lib/editorial_entries.mjs';
 import { searchEnabled } from '../../../engine/lib/features.mjs';
+import { pieces, piece, piecesDe, srcsetPiece, MUR_ACCUEIL, PIECE_DU_JOUR } from '../../../engine/lib/visuels_wiki.mjs';
+import raretes from '../../../engine/data/figures/catalogue-raretes.json';
 
 const { lang } = Astro.props;
 const m = manifest();
 const df = dateLocale[lang] || 'en-GB';
+const nf = numberLocale[lang] || 'en-GB';
 const rechercheActive = searchEnabled();
+const sections = activeSections(lang);
+const actif = (s) => sections.includes(s);
+const nombre = (v) => Number(v).toLocaleString(nf);
+const jour = Math.floor(Date.now() / 864e5);   // le site est reconstruit chaque jour
 
-// La devise, traduite (cle `site.devise` du manifeste). Absente = rien n'est
-// rendu : on n'invente pas une devise anglaise pour les langues manquantes.
-const devise = pick(m.site.devise, lang) || '';
+const anMois = (d) => {
+  const x = /^(\d{4})(?:-(\d{1,2}))?(?:-(\d{1,2}))?/.exec(String(d || ''));
+  return x ? { y: +x[1], m: x[2] ? +x[2] : 1, j: x[3] ? +x[3] : 0 } : null;
+};
+const dateLisible = (d) => {
+  const p = anMois(d);
+  if (!p) return String(d || '');
+  const dt = new Date(Date.UTC(p.y, p.m - 1, p.j || 1));
+  return p.j
+    ? dt.toLocaleDateString(df, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+    : dt.toLocaleDateString(df, { month: 'long', year: 'numeric', timeZone: 'UTC' });
+};
 
-const cards = [];
-for (const s of activeSections(lang)) {
+// --- Rubriques -------------------------------------------------------------------
+const COULEUR = { glossary: '#19c7ae', acronyms: '#7db2ff', brands: '#ff8fa3', history: '#ffd166', annuaire: '#c4a8ff', blog: '#7ee2a8' };
+const rubriques = [];
+for (const s of sections) {
   const meta = sectionMeta(s, lang);
   let n = 0;
   try { n = (await collection(s, lang)).items.length; } catch (e) { n = 0; }
-  cards.push({ ...meta, n });
+  rubriques.push({ cle: s, titre: meta.title, desc: meta.description, path: meta.path, n });
 }
-
-// ⚠️ TROISIEME copie de la regle d'ancre, supprimee le 30/07/2026. Le
-// commentaire d'origine disait deja « si les deux divergent, l'accueil produit
-// des liens morts en silence » — et elles avaient diverge (slice 60 contre 70).
-// Une regle recopiee trois fois est une regle qui a trois chances de mentir.
-const ancre = ancreJalon;
-
-let milestones = [];
-if (activeSections(lang).includes('history')) {
-  try {
-    milestones = (await collection('history', lang)).items
-      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
-      .slice(0, 6);
-  } catch (e) { milestones = []; }
-}
-
 let posts = [];
 if (blogEnabled()) {
-  try { posts = (await postsFor(lang)).slice(0, 4); } catch (e) { posts = []; }
+  try { posts = await postsFor(lang); } catch (e) { posts = []; }
+  if (posts.length) rubriques.push({ cle: 'blog', titre: t(lang, 'blog.title'), desc: '', path: '/blog/', n: posts.length });
 }
 
-// Libelles des types, pour que chaque resultat dise D'OU il vient : deux
-// homonymes (« Floor Price » au glossaire et l'article « …prix plancher »)
-// sont indiscernables sans cette etiquette.
+// --- Glossaire : recherches fréquentes, ancre de « Secret Rare » -------------------
+const frequentes = [];
+let ancreSR = '';
+if (actif('glossary')) {
+  try {
+    const gl = (await collection('glossary', lang)).items;
+    for (const nom of ['Low Mint', 'Floor', 'Grail', 'Phygital']) {
+      const r = gl.find((x) => x.terme === nom);
+      if (r && ancreTerme(r)) frequentes.push({ nom, href: localize(lang, `/glossary/#${ancreTerme(r)}`) });
+    }
+    const sr = gl.find((x) => x.terme === 'Secret Rare (SR)');
+    if (sr && ancreTerme(sr)) ancreSR = localize(lang, `/glossary/#${ancreTerme(sr)}`);
+  } catch (e) { /* le glossaire reste joignable par la navigation */ }
+}
+
+// --- Licences : noms, fiches, poids ------------------------------------------------
+let licences = [];
+let nbLicences = 0;
+const nomLicence = {};
+const ficheLicence = {};
+let partMarvel = null;
+if (actif('brands')) {
+  try {
+    const br = (await collection('brands', lang)).items.filter((r) => Number(r.nb_items) > 0);
+    nbLicences = br.length;
+    // ⚠️ Indexé par CLÉ de contenu, jamais par objet (piège payé dans Editorial.astro).
+    const fiches = new Map((await fichesDe('brands', lang))
+      .map((f) => [String(f.record.licence ?? '').trim(), cheminFiche(f.section, f.slug)]));
+    for (const r of br) {
+      const k = String(r.licence).trim();
+      nomLicence[k] = r.nom_affiche || r.licence;
+      ficheLicence[k] = localize(lang, fiches.get(k) || '/brands/');
+    }
+    const total = br.reduce((a, r) => a + Number(r.nb_items), 0);
+    const marvel = br.find((r) => r.licence === 'marvel');
+    if (marvel && total) partMarvel = (Number(marvel.nb_items) / total * 100).toLocaleString(nf, { maximumFractionDigits: 1 });
+    // Les tuiles : les licences les plus fournies QUI ONT un visuel.
+    licences = br.sort((a, b) => Number(b.nb_items) - Number(a.nb_items))
+      .map((r) => ({ cle: String(r.licence).trim(), nom: r.nom_affiche || r.licence, n: nombre(r.nb_items), visuel: piecesDe(String(r.licence).trim(), 1)[0] }))
+      .filter((l) => l.visuel)
+      .slice(0, 7)
+      .map((l) => ({ ...l, href: ficheLicence[l.cle] }));
+  } catch (e) { licences = []; }
+}
+
+// --- Pièce du jour ----------------------------------------------------------------
+let pieceJour = null;
+{
+  const dispo = PIECE_DU_JOUR.map(([nom, lic]) => ({ p: piece(nom), lic })).filter((x) => x.p);
+  if (dispo.length) {
+    const x = dispo[jour % dispo.length];
+    pieceJour = { ...x.p, licence: nomLicence[x.lic] || null, hrefLicence: ficheLicence[x.lic] || null };
+  }
+}
+const mur = pieces(MUR_ACCUEIL);
+
+// --- Article à la une : le premier drop, sinon le plus récent ------------------------
+const une = posts.find((p) => p.slug === 'veve-first-drop-batman-black-and-white') || posts[0] || null;
+const visuelUne = une ? piece('#01 Eduardo Risso Batman') : null;
+// Les autres articles récents : la rubrique la plus lue mérite sa vitrine.
+const recents = posts.filter((p) => p !== une).slice(0, 4);
+const datePost = (d) => (d ? new Date(d).toLocaleDateString(df, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '');
+
+// --- Chronologie ------------------------------------------------------------------
+let jalons = [];
+let genese = null;
+if (actif('history')) {
+  try {
+    const h = (await collection('history', lang)).items.filter((r) => anMois(r.date));
+    jalons = h.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 5)
+      .map((r) => ({ d: dateLisible(r.date), iso: String(r.date), titre: r.titre, href: localize(lang, `/history/#${ancreJalon(r)}`) }));
+    const g = h.slice().sort((a, b) => String(a.date).localeCompare(String(b.date)))[0];
+    if (g) genese = localize(lang, `/history/#${ancreJalon(g)}`);
+  } catch (e) { jalons = []; }
+}
+
+// --- Le saviez-vous : chaque fait n'apparaît que si sa cible existe ---------------
+const faits = [];
+if (ancreSR) faits.push({ texte: t(lang, 'wiki.fact.secretRare'), href: ancreSR, visuel: piece('Ghostbusters I Logo - Platinum') });
+if (genese) faits.push({ texte: t(lang, 'wiki.fact.genese'), href: genese, visuel: piece('#01 Eduardo Risso Batman') });
+if (partMarvel && ficheLicence.marvel) faits.push({ texte: t(lang, 'wiki.fact.marvel', { p: partMarvel }), href: ficheLicence.marvel, visuel: piece('Spider-Man Noir') });
+
+// --- Le catalogue par rareté (engine/data/figures, relevé daté) -----------------------
+const TEINTE = { 'Common': 'var(--r-c)', 'Uncommon': 'var(--r-uc)', 'Rare': 'var(--r-r)', 'Ultra Rare': 'var(--r-ur)', 'Secret Rare': 'var(--r-sr)', 'Artist Proof': 'var(--r-ap)' };
+const paliers = (raretes.donnees || []).map((d) => ({ nom: d.label.en, n: Number(d.valeur) }));
+const maxPalier = paliers.reduce((a, p) => Math.max(a, p.n), 1);
+const totalPaliers = paliers.reduce((a, p) => a + p.n, 0);
+const lignesRarete = paliers.map((p) => ({ ...p, nf: nombre(p.n), c: TEINTE[p.nom] || 'var(--muted)', pct: ((p.n / maxPalier) * 100).toFixed(1) }));
+const dateRelevé = raretes.collecte ? new Date(raretes.collecte).toLocaleDateString(df, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
+
+// --- SEO : l'organisation et son logo (Google lit `logo` pour le panneau de
+// connaissance ; 512 px, PNG, fond transparent : public/logo-512.png).
+const racine = siteUrl();
+const ldOrganisation = {
+  '@context': 'https://schema.org', '@type': 'Organization',
+  name: m.site.brand, url: racine,
+  logo: { '@type': 'ImageObject', url: `${racine}/logo-512.png`, width: 512, height: 512 },
+  description: pick(m.site.description, lang),
+  ...(pick(m.site.devise, lang) ? { slogan: pick(m.site.devise, lang) } : {}),
+};
+
 const libellesType = {};
-for (const s of activeSections(lang)) libellesType[s] = sectionMeta(s, lang).title;
+for (const s of sections) libellesType[s] = sectionMeta(s, lang).title;
 if (blogEnabled()) libellesType.blog = t(lang, 'blog.title');
 ---
-<Base lang={lang} path="/" title={null}>
-  <h1>{pick(m.site.tagline, lang)}</h1>
-  {devise && <p class="devise">{devise}</p>}
-  <p class="lead">{pick(m.site.description, lang)}</p>
+<Base lang={lang} path="/" title={null} ld={[ldOrganisation]}>
 
-  {rechercheActive && (
-    <div class="searchwrap">
-      <label class="hide" for="q">{t(lang, 'search.placeholderWiki')}</label>
-      <input id="q" class="searchbox" type="search" autocomplete="off"
-             placeholder={t(lang, 'search.placeholderWiki')}
-             aria-label={t(lang, 'search.placeholderWiki')}
-             aria-describedby="qhint" aria-controls="results" />
-      <p id="qhint" class="searchhint">{t(lang, 'search.hint')}</p>
-      {/* ⚠️ PAS de role="listbox" ici, ni de role="option" sur les resultats.
-          Le motif ARIA « combobox » complet exige la gestion clavier de
-          aria-activedescendant ; a moitie implemente, il est PIRE que rien :
-          un lecteur d'ecran annonce « option » au lieu de « lien », et
-          n'annonce plus qu'on peut l'ouvrir. Un role faux ne degrade pas, il
-          remplace. Ici les resultats restent de VRAIS liens, et aria-live
-          suffit a annoncer leur apparition. */}
-      <div id="results" class="results" aria-live="polite"></div>
-    </div>
-  )}
-
-  <div class="grid">
-    {cards.map((c) => (
-      <a class="item" href={localize(lang, c.path)}>
-        <div class="n">{c.title}</div>
-        <div class="s">{c.description}</div>
-        <div class="f">{c.n}</div>
-      </a>
-    ))}
-  </div>
-
-  {posts.length > 0 && (
-    <section class="latest-wrap">
-      <h2>{t(lang, 'blog.title')}</h2>
-      {/* ⚠️ La couverture n'est rendue QUE si l'article en declare une. Pas de
-          cadre gris par defaut : une image absente ne doit pas devenir un trou
-          visible sur chaque carte. `width`/`height` sont poses pour reserver la
-          place et eviter que le texte saute quand l'image arrive. */}
-      <div class="grid cartes">
-        {posts.map((p) => (
-          <a class="item" href={localize(lang, `/blog/${p.slug}/`)}>
-            {p.data.cover && (
-              <img class="cover" src={p.data.cover} alt="" loading="lazy"
-                   decoding="async" width="480" height="270" />
-            )}
-            <div class="n">{p.data.title}</div>
-            {p.data.description && <div class="s">{p.data.description}</div>}
-            <div class="f muted" style="font-size:13px">{p.data.date ? new Date(p.data.date).toLocaleDateString(df) : ''}</div>
-          </a>
-        ))}
+  <section class="acc-hero">
+    {mur.length > 0 && (
+      <div class="acc-mur" aria-hidden="true">
+        {/* Quatre tuiles visibles sur téléphone : elles seules sont chargées
+            d'emblée ; les huit autres attendent (le mur complet n'apparaît
+            qu'à partir de 700 px). Vignette de 132 px quand elle suffit. */}
+        {mur.map((p, i) => <img src={p.image} srcset={srcsetPiece(p.image) || undefined} sizes="(min-width: 700px) 150px, 22vw" alt="" width="660" height="870" loading={i < 4 ? 'eager' : 'lazy'} decoding="async" />)}
       </div>
-      <p style="margin-top:12px"><a href={localize(lang, '/blog/')}>{t(lang, 'blog.backToBlog')}</a></p>
-    </section>
-  )}
-
-  {milestones.length > 0 && (
-    <section class="latest-wrap">
-      <h2>{sectionMeta('history', lang).title}</h2>
-      <ul class="latest">
-        {milestones.map((mst) => (
-          <li><span class="muted">{mst.date}</span> <a href={localize(lang, `/history/#${ancre(mst)}`)}>{mst.titre}</a></li>
-        ))}
+    )}
+    <p class="acc-bienvenue">{t(lang, 'wiki.welcome')}</p>
+    <h1>{pick(m.site.tagline, lang)}</h1>
+    <p class="lead">{pick(m.site.description, lang)}</p>
+    {rechercheActive && (
+      <div class="searchwrap">
+        <label class="acc-label" for="q">{t(lang, 'wiki.searchLabel')}</label>
+        <input id="q" class="searchbox" type="search" autocomplete="off"
+               placeholder={t(lang, 'search.placeholderWiki')}
+               aria-describedby="qhint" aria-controls="results" />
+        <p id="qhint" class="searchhint">{t(lang, 'search.hint')}</p>
+        {/* ⚠️ PAS de role="listbox" ni role="option" : le motif combobox complet
+            exige aria-activedescendant. Les résultats restent de vrais liens. */}
+        <div id="results" class="results" aria-live="polite"></div>
+      </div>
+    )}
+    {frequentes.length > 0 && (
+      <ul class="acc-chips">
+        <li><span>{t(lang, 'wiki.frequent')}</span></li>
+        {frequentes.map((f) => <li><a href={f.href}>{f.nom}</a></li>)}
       </ul>
-    </section>
-  )}
+    )}
+  </section>
+
+  <div class="acc-grille">
+    {une && (
+      <article class="acc-carte acc-une acc-g7">
+        {visuelUne ? <img src={visuelUne.image} alt={visuelUne.nom} width="660" height="870" loading="lazy" decoding="async" /> : <span></span>}
+        <div>
+          <p class="acc-k">{t(lang, 'wiki.featured')}</p>
+          <h2><a href={localize(lang, `/blog/${une.slug}/`)}>{une.data.title}</a></h2>
+          {une.data.description && <p class="acc-desc">{une.data.description}</p>}
+          <a class="acc-bouton" href={localize(lang, `/blog/${une.slug}/`)}>{t(lang, 'wiki.readArticle')}</a>
+        </div>
+      </article>
+    )}
+
+    {pieceJour && (
+      <aside class="acc-carte acc-jour acc-g5" aria-labelledby="acc-jour">
+        <img src={pieceJour.image} alt={pieceJour.nom} width="660" height="870" loading="lazy" decoding="async" />
+        <div>
+          <p class="acc-k">{t(lang, 'wiki.pieceOfDay')}</p>
+          <h2 id="acc-jour">{pieceJour.nom}</h2>
+          <dl>
+            {pieceJour.licence && <><dt>{t(lang, 'wiki.licence')}</dt><dd>{pieceJour.hrefLicence ? <a href={pieceJour.hrefLicence}>{pieceJour.licence}</a> : pieceJour.licence}</dd></>}
+            {pieceJour.rarete && <><dt>{t(lang, 'wiki.rarity')}</dt><dd><span class="acc-etiquette">{pieceJour.rarete}</span></dd></>}
+            {pieceJour.edition && <><dt>{t(lang, 'wiki.edition')}</dt><dd>{pieceJour.edition}</dd></>}
+          </dl>
+        </div>
+      </aside>
+    )}
+
+    {faits.length > 0 && (
+      <section class="acc-carte acc-bloc acc-g7" aria-labelledby="acc-faits">
+        <h2 class="acc-k" id="acc-faits">{t(lang, 'wiki.didYouKnow')}</h2>
+        <ul class="acc-faits">
+          {faits.map((f) => (
+            <li>
+              {f.visuel && <img src={f.visuel.image} srcset={srcsetPiece(f.visuel.image) || undefined} sizes="46px" alt="" width="660" height="870" loading="lazy" decoding="async" />}
+              <a href={f.href} style="color:inherit">{f.texte}</a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    {jalons.length > 0 && (
+      <section class="acc-carte acc-bloc acc-g5" aria-labelledby="acc-jalons">
+        <div class="acc-tete" style="margin:0"><h2 class="acc-k" id="acc-jalons">{t(lang, 'wiki.latestMilestones')}</h2><a class="acc-plus" href={localize(lang, '/history/')}>{t(lang, 'wiki.timeline')}</a></div>
+        <ol class="acc-fil">
+          {jalons.map((j) => <li><time datetime={j.iso}>{j.d}</time><a href={j.href}>{j.titre}</a></li>)}
+        </ol>
+      </section>
+    )}
+
+    {licences.length > 0 && (
+      <section class="acc-g12" aria-labelledby="acc-licences">
+        <div class="acc-tete" style="margin-top:12px"><h2 id="acc-licences">{t(lang, 'wiki.byLicence')}</h2><a href={localize(lang, '/brands/')}>{t(lang, 'wiki.allBrands', { n: nbLicences })}</a></div>
+        <ul class="acc-licences">
+          {licences.map((l) => (
+            <li><a class="acc-tuile" href={l.href}>
+              <img src={l.visuel.image} alt="" width="660" height="870" loading="lazy" decoding="async" />
+              <span><b>{l.nom}</b><small>{t(lang, 'wiki.objects', { n: l.n })}</small></span>
+            </a></li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    {recents.length > 0 && (
+      <section class="acc-g12" aria-labelledby="acc-recents">
+        <div class="acc-tete" style="margin-top:12px"><h2 id="acc-recents">{t(lang, 'blog.title')}</h2><a href={localize(lang, '/blog/')}>{t(lang, 'wiki.allPosts', { n: posts.length })}</a></div>
+        <ul class="acc-recents">
+          {recents.map((p) => (
+            <li><a class="acc-carte" href={localize(lang, `/blog/${p.slug}/`)}>
+              <time datetime={String(p.data.date || '')}>{datePost(p.data.date)}</time>
+              <b>{p.data.title}</b>
+              {p.data.description && <span>{p.data.description}</span>}
+            </a></li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    {rubriques.length > 0 && (
+      <section class="acc-carte acc-bloc acc-g8" aria-labelledby="acc-base">
+        <h2 id="acc-base" style="margin:0 0 6px;font-size:20px">{t(lang, 'wiki.browse')}</h2>
+        <ul class="acc-rubriques">
+          {rubriques.map((r) => (
+            <li><a href={localize(lang, r.path)} style={`--c:${COULEUR[r.cle] || 'var(--teal)'}`}>
+              <span class="acc-ico" aria-hidden="true"></span>
+              <span><b>{r.titre}</b><small>{t(lang, `wiki.count.${r.cle}`, { n: nombre(r.n) })}</small>{r.desc && <span class="acc-desc">{r.desc}</span>}</span>
+            </a></li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    {lignesRarete.length > 0 && (
+      <section class="acc-carte acc-bloc acc-g4" aria-labelledby="acc-rarete" style="padding-bottom:16px">
+        <h2 id="acc-rarete" style="margin:0 0 4px;font-size:20px">{t(lang, 'wiki.rarityTitle')}</h2>
+        <ul class="acc-paliers">
+          {lignesRarete.map((p) => (
+            <li style={`--c:${p.c}`}><i aria-hidden="true"></i><b>{p.nom}</b><span aria-hidden="true"><i style={`width:${p.pct}%;background:${p.c}`}></i></span><em>{p.nf}</em></li>
+          ))}
+        </ul>
+        <p class="muted" style="margin:8px 0 0;font-size:12.5px">{t(lang, 'wiki.rarityLead', { n: nombre(totalPaliers), d: dateRelevé })}</p>
+      </section>
+    )}
+  </div>
 
   {rechercheActive && (
     <script is:inline define:vars={{
@@ -159,10 +319,8 @@ if (blogEnabled()) libellesType.blog = t(lang, 'blog.title');
         var out = document.getElementById('results');
         if (!q || !out) return;
         var idx = null, enCours = false, dernier = '';
-
-        // ⚠️ L'index n'est PAS charge au chargement de la page : il l'est a la
-        // premiere frappe. Mesure : 4,4 Ko gzippes pour les cinq langues — mais
-        // un visiteur qui ne cherche rien ne doit rien payer, surtout en 3G.
+        // L'index est chargé au focus ou à la première frappe, jamais au
+        // chargement : un visiteur qui ne cherche rien ne paie rien.
         function charger(cb) {
           if (idx) { cb(); return; }
           if (enCours) return;
@@ -170,33 +328,18 @@ if (blogEnabled()) libellesType.blog = t(lang, 'blog.title');
           fetch('/search-index.json')
             .then(function (r) { return r.json(); })
             .then(function (d) {
-              // Filtre par LANGUE. Sans lui, un lecteur francais recevrait les
-              // entrees anglaises et espagnoles : des resultats qui existent
-              // dans l'index mais pas dans SA langue.
-              idx = (Array.isArray(d) ? d : []).filter(function (x) {
-                return !x.l || x.l === LANG;
-              });
+              idx = (Array.isArray(d) ? d : []).filter(function (x) { return !x.l || x.l === LANG; });
               enCours = false;
               cb();
             })
-            .catch(function () {
-              enCours = false;
-              out.innerHTML = '';
-            });
+            .catch(function () { enCours = false; out.innerHTML = ''; });
         }
-
         function echappe(s) {
-          return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+          return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
-
-        // Normalisation sans accents : « genese » doit trouver « Genèse », et
-        // « ATH » doit trouver « All-Time High (ATH) ».
         function norme(s) {
-          return String(s).toLowerCase().normalize('NFD')
-            .replace(/[̀-ͯ]/g, '');
+          return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
         }
-
         function rendre(v) {
           var n = norme(v);
           if (!n) { out.innerHTML = ''; return; }
@@ -209,21 +352,16 @@ if (blogEnabled()) libellesType.blog = t(lang, 'blog.title');
             vus[cle] = 1;
             res.push(e);
           }
-          if (!res.length) {
-            out.innerHTML = '<p class="searchvide">' + echappe(RIEN) + '</p>';
-            return;
-          }
+          if (!res.length) { out.innerHTML = '<p class="searchvide">' + echappe(RIEN) + '</p>'; return; }
           var h = '';
           for (var j = 0; j < res.length; j++) {
             var r = res[j];
             h += '<a class="result" href="' + echappe(PREFIXE + r.s) + '">'
-              +  '<span class="rn">' + echappe(r.n) + '</span>'
-              +  '<span class="rt">' + echappe(TYPES[r.t] || r.t || '') + '</span>'
-              +  '</a>';
+              + '<span class="rn">' + echappe(r.n) + '</span>'
+              + '<span class="rt">' + echappe(TYPES[r.t] || r.t || '') + '</span></a>';
           }
           out.innerHTML = h;
         }
-
         function chercher() {
           var v = q.value.trim();
           if (v === dernier) return;
@@ -231,22 +369,18 @@ if (blogEnabled()) libellesType.blog = t(lang, 'blog.title');
           if (!v) { out.innerHTML = ''; return; }
           charger(function () { rendre(v); });
         }
-
         q.addEventListener('input', chercher);
-        // Le chargement demarre au FOCUS : au moment ou l'utilisateur frappe
-        // sa premiere lettre, l'index est deja la. Sans ca, la premiere frappe
-        // semble sans effet.
         q.addEventListener('focus', function () { charger(function () {}); });
         q.addEventListener('keydown', function (e) {
           if (e.key === 'Escape') { q.value = ''; dernier = ''; out.innerHTML = ''; }
-          // Flèche bas : on entre dans la liste au clavier.
-          if (e.key === 'ArrowDown') {
-            var p = out.querySelector('.result');
-            if (p) { e.preventDefault(); p.focus(); }
-          }
+          if (e.key === 'ArrowDown') { var p = out.querySelector('.result'); if (p) { e.preventDefault(); p.focus(); } }
         });
-        // Raccourci « / » (convention des wikis et des forges). Ignore quand on
-        // est deja dans un champ, sinon on ne peut plus taper une barre oblique.
+        // `?q=…` : l'adresse que la page déclare aux moteurs (SearchAction du
+        // WebSite). Elle remplit la boîte et lance la recherche.
+        try {
+          var depart = new URLSearchParams(location.search).get('q');
+          if (depart) { q.value = depart; chercher(); }
+        } catch (e) { /* navigateur sans URLSearchParams : la boîte reste vide */ }
         document.addEventListener('keydown', function (e) {
           if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
           var a = document.activeElement, tag = a && a.tagName;
@@ -258,9 +392,3 @@ if (blogEnabled()) libellesType.blog = t(lang, 'blog.title');
     </script>
   )}
 </Base>
-
-<style>
-  .latest-wrap { margin-top: 32px; }
-  .latest { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
-  .latest .muted { font-variant-numeric: tabular-nums; margin-right: 10px; }
-</style>

@@ -195,45 +195,49 @@ identity:
   # aurora. Build vert, site resté sombre. Signature à chercher dans dist/ :
   # `#ffffff14` n'existe que dans aurora.
   theme: encyclopedie
+  # ═══ IDENTITÉ « COFFRE » v3 (28/11/2026) : clair par défaut, bascule sombre ═══
+  # Maquette : https://claude.ai/artifact/Gd3EpXBwMQ7idgSpeRwCrq (page « Coffre v3 »)
+  # ⚠️⚠️ `primary` EST LA COULEUR DES LIENS (`a{color:var(--primary)}`), et
+  # `figures.mjs` relit `palette` (le jour) pour les graphiques.
+  # Contrastes mesurés sur bg / surface / --surface-2 (#edeff5) :
   palette:
-    # ⚠️⚠️ `primary` N'EST PAS LA COULEUR DE MARQUE, C'EST CELLE DES LIENS.
-    # Base.astro ligne 86 émet ces sept clés en variables CSS, et le thème fait
-    # `a{color:var(--primary)}`. Y laisser l'or #d4af37 donnerait des liens à
-    # 2,10:1 sur blanc — illisibles, sur toutes les pages, sans qu'aucun test ne
-    # le voie. L'or descend dans `accent`, assombri pour être lisible.
-    primary: "#3366cc"     # bleu de lien   — 5,37:1 sur blanc
-    accent:  "#7a5f10"     # or LISIBLE     — 6,05:1
-    danger:  "#b32424"     # rouge          — 6,57:1
-    bg:      "#ffffff"     # papier
-    surface: "#f8f9fa"     # encadrés, infobox, pied
-    text:    "#202122"     # encre          — 16,13:1
-    muted:   "#666b71"     # méta, dates    — 5,38:1 papier / 5,10:1 surface
-    # ⚠️ `muted` n'est PAS #72777d (le gris de Wikipédia) : celui-là passe sur
-    # blanc (4,52:1) mais ÉCHOUE sur `surface` (4,28:1) — or les méta vivent
-    # justement dans les encadrés gris. Un contraste se valide contre le fond
-    # RÉEL du bloc, jamais contre le blanc.
-  # --- PALETTE NUIT : c'est EXACTEMENT la palette sombre d'origine ------------
-  # Rien n'a été inventé ici. Ce sont les couleurs argent/or sur anthracite que
-  # portait `identity.palette` jusqu'au 30/07 au matin — elles ne sont pas
-  # jetées, elles deviennent le second thème.
-  # ⚠️ MÊME RÈGLE QU'EN JOUR, INVERSÉE : `primary` est la couleur des LIENS.
-  # #3366cc ne fait que 3,62:1 sur #0c0d10 — il échoue. Et symétriquement l'or
-  # #d4af37, illisible de jour (2,10:1), atteint 9,24:1 la nuit : l'or A BESOIN
-  # du fond sombre, c'est pour ça que la DA d'origine était sombre.
-  # ⭐ Chaque encre existe donc en DEUX valeurs, et `accent` s'ÉCLAIRCIT la nuit
-  # au lieu de s'assombrir. Une palette nuit qui garde les encres du jour passe
-  # tous les builds et ne se lit pas.
+    primary: "#07705f"     # lien, sarcelle foncée — 5,52 / 6,01 / 5,23
+    accent:  "#845a00"     # or lisible            — 5,60 / 6,10 / 5,30
+    danger:  "#c42445"     #                       — 5,23 / 5,70 / 4,96
+    bg:      "#f4f5f9"
+    surface: "#ffffff"
+    text:    "#13152b"     #                       — 16,48 / 17,95 / 15,61
+    muted:   "#5b6182"     # méta, dates           — 5,54 / 6,04 / 5,25
+  # --- NUIT : la palette Coffre sombre. ⚠️ Chaque encre existe en DEUX
+  # valeurs : les encres du jour ne se lisent pas sur le bleu nuit.
+  # Contrastes mesurés sur bg / surface / --surface-2 nuit (#20243a) :
   palette_nuit:
-    primary: "#6699ff"     # bleu de lien     — 7,00:1 sur #0c0d10
-    accent:  "#e2c65c"     # or LISIBLE       — 11,54:1
-    danger:  "#e0555b"     # rouge d'origine
-    bg:      "#0c0d10"     # anthracite
-    surface: "#16181d"
-    text:    "#e7e9ee"     # argent clair     — 16,00:1
-    muted:   "#9aa0ab"     # méta             —  7,39:1
+    primary: "#36e2c8"     # lien, sarcelle        — 11,68 / 10,56 / 9,36
+    accent:  "#f5c451"     # or                    — 11,70 / 10,58 / 9,38
+    danger:  "#ff7a8a"     #                       —  7,63 /  6,89 / 6,11
+    bg:      "#0e0f1a"
+    surface: "#171a2b"
+    text:    "#eef0fa"     #                       — 16,77 / 15,16 / 13,44
+    muted:   "#9aa1c2"     #                       —  7,49 /  6,77 / 6,00
+  # Chakra Petch (titres, deux graisses statiques) et Figtree (texte,
+  # variable), servies par le site : aucun appel à un tiers. Licences OFL
+  # dans public/fonts/. 30 Ko pour les trois fichiers.
   fonts:
-    heading: "Georgia, 'Times New Roman', serif"     # ton encyclopédique
-    body: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+    heading: "'Chakra Petch', 'Segoe UI', system-ui, sans-serif"
+    body: "'Figtree', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+    files:
+      - famille: Figtree
+        fichier: /fonts/figtree-latin-wght.woff2
+        graisses: "300 900"
+      - famille: Chakra Petch
+        fichier: /fonts/chakra-petch-latin-700.woff2
+        graisses: "700"
+      - famille: Chakra Petch
+        fichier: /fonts/chakra-petch-latin-600.woff2
+        graisses: "600"
+      - famille: Spectral
+        fichier: /fonts/spectral-latin-600.woff2
+        graisses: "600"
 
 # ═══ MESURE D'AUDIENCE : AUCUNE (lot 4, 26/11/2026) ═══
 # Umami est retiré : statistiques pour nous seuls, sans effet sur le

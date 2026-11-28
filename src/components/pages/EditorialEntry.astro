@@ -23,6 +23,7 @@ import { manifest } from '../../../moteur/lib/manifest.mjs';
 import { breadcrumbLd, jsonld, pageAProposLd } from '../../../moteur/lib/seo.mjs';
 import { t, localize, dateLocale , nu } from '../../../moteur/lib/i18n.mjs';
 import { siteUrl } from '../../../moteur/lib/manifest.mjs';
+import { piecesDe } from '../../../engine/lib/visuels_wiki.mjs';
 
 const { lang, fiche, voisinesPoids = [] } = Astro.props;
 const m = manifest();
@@ -68,6 +69,10 @@ const figure = (voisinesPoids.length >= 2 && collecte) ? figureHTML({
   donnees: voisinesPoids.map((v) => ({ label: v.titre, valeur: v.items })),
 }, { lang, marque: m.site.brand, domaine: m.site.domain, palette: m.identity?.palette || {} }) : '';
 
+// Les visuels de la licence (engine/lib/visuels_wiki.mjs) : une bannière dès
+// deux pièces, et la grille des pièces phares. Rien si la licence n'en a pas.
+const visuels = fiche.section === 'brands' ? piecesDe(String(r.licence || '').trim(), 5) : [];
+
 const crumbs = [
   { name: t(lang, 'home.crumb'), url: localize(lang, '/') },
   { name: meta.title, url: localize(lang, meta.path) },
@@ -93,6 +98,11 @@ const ld = [
   <article class="fiche">
     <h1>{fiche.titre}</h1>
     {note && <p class="lead">{note}</p>}
+    {visuels.length >= 2 && (
+      <div class="fiche-banniere" role="img" aria-label={t(lang, 'wiki.visuals')}>
+        {visuels.map((p) => <img src={p.image} alt="" width="660" height="870" decoding="async" />)}
+      </div>
+    )}
 
     {a && (
       <section>
@@ -108,6 +118,23 @@ const ld = [
           <li>{t(lang, 'fiche.rangPoids', { n: fiche.rangPoids, total: fiche.total })}</li>
           {part !== null && <li>{t(lang, 'fiche.part', { p: part })}</li>}
           <li>{t(lang, 'fiche.rangArrivee', { n: fiche.rangArrivee, total: fiche.total })}</li>
+        </ul>
+      </section>
+    )}
+
+    {visuels.length > 0 && (
+      <section>
+        <h2>{t(lang, 'wiki.keyPieces')}</h2>
+        <ul class="fiche-pieces">
+          {visuels.slice(0, 4).map((p) => (
+            <li class="item" style="padding:0;overflow:hidden">
+              <img src={p.image} alt={p.nom} width="660" height="870" loading="lazy" decoding="async" style="display:block;width:100%;height:auto;aspect-ratio:660/870;object-fit:cover;border-bottom:3px solid var(--r-sr)" />
+              <span style="display:block;padding:10px 12px 12px">
+                <span class="n" style="font-size:14px;margin:0">{p.nom}</span>
+                {p.rarete && <span class="acc-etiquette" style="margin-top:6px">{p.rarete}{p.edition ? `, ${p.edition}` : ''}</span>}
+              </span>
+            </li>
+          ))}
         </ul>
       </section>
     )}
@@ -147,14 +174,3 @@ const ld = [
   </article>
 </Base>
 
-<style>
-  .fiche { max-width: 760px; }
-  .fiche h2 { font-size: 19px; margin: 30px 0 10px; }
-  .chiffres { display: flex; flex-wrap: wrap; gap: 26px; align-items: baseline; margin-bottom: 12px; }
-  .chiffres b { font-size: 26px; }
-  .chiffres span { color: var(--muted); font-size: 14px; }
-  .reperes { list-style: none; padding: 0; margin: 0; color: var(--muted); font-size: 14px; display: grid; gap: 4px; }
-  .latest { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
-  .latest .muted { font-variant-numeric: tabular-nums; margin-right: 10px; }
-  .voisines { display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-between; }
-</style>

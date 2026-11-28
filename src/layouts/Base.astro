@@ -13,5 +13,8 @@ import Figures from '../components/Figures.astro';
 ---
 <Page {...Astro.props}>
   <Figures slot="tete" />
+  {/* Les visuels VeVe viennent de ce CDN : la connexion est ouverte dès le
+      <head>, avant que le navigateur ne découvre la première image. */}
+  <link slot="tete" rel="preconnect" href="https://d11unjture0ske.cloudfront.net" />
   <slot />
 </Page>

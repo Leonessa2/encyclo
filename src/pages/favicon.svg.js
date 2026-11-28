@@ -1,12 +1,16 @@
-import { manifest } from '../../moteur/lib/manifest.mjs';
-// Favicon derive du manifeste : chaque site a automatiquement le sien.
+// Dépôt : Leonessa2/encyclo — fichier : src/pages/favicon.svg.js  (28/11/2026)
+// Le favicon du wiki : le globe en puzzle, version simplifiée pour les petites
+// tailles (public/logo-icone.svg ; le logo complet est public/logo.svg).
+// ⚠️ Il remplace l'ancien favicon dérivé du manifeste (initiales sur un carré
+// de couleur), qui affichait « VW » sur un fond de la couleur des liens.
+// ⚠️ Chemin pris depuis la racine du dépôt (le build s'y lance), pas depuis
+// `import.meta.url` : une fois groupé, ce module ne vit plus dans src/pages/.
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const fichier = join(process.cwd(), 'public', 'logo-icone.svg');
+
 export function GET() {
-  const m = manifest();
-  const p = m.identity?.palette || {};
-  const initials = String(m.site?.brand || '?')
-    .split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="${m.site?.brand || ''}">`
-    + `<rect width="64" height="64" rx="14" fill="${p.primary || '#4f8cff'}"/>`
-    + `<text x="32" y="44" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="30" font-weight="600" fill="#ffffff" text-anchor="middle">${initials}</text></svg>`;
+  const svg = readFileSync(fichier, 'utf8');
   return new Response(svg, { headers: { 'content-type': 'image/svg+xml' } });
 }
