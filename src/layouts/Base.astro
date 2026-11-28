@@ -10,13 +10,21 @@
 // Les pages continuent d'importer CE fichier, avec les mêmes propriétés.
 import Page from '../../moteur/gabarits/Page.astro';
 import Figures from '../components/Figures.astro';
+import { t, nu } from '../../moteur/lib/i18n.mjs';
 // Image de partage par défaut : nom VERSIONNÉ (logo v5, 28/11/2026). Le moteur
 // retombe sinon sur /og.png, servi avec 30 jours de cache « immutable » : un
 // nouveau visuel sous ce nom resterait invisible un mois (Cloudflare, réseaux).
 // Une page qui fournit sa propre image (articles) la garde.
 const image = Astro.props.image ?? '/og-v5.png';
+// <title> de l'index du blog (audit SEO 28/11/2026) : le gabarit du moteur
+// (BlogIndex) titre « Articles | VeVe Wiki » comme son h1 et le menu. Pour
+// cette seule adresse, un titre descriptif par langue ; h1 et menu inchangés.
+const { lang, path = '/' } = Astro.props;
+const indexBlog = /^\/blog\/?$/.test(path) && !Astro.props.altPaths;
+const seoBlog = indexBlog ? t(lang, 'wiki.seo.blog') : null;
+const title = seoBlog && nu(seoBlog) !== 'wiki.seo.blog' ? seoBlog : Astro.props.title;
 ---
-<Page {...Astro.props} image={image}>
+<Page {...Astro.props} image={image} title={title}>
   <Figures slot="tete" />
   {/* Les visuels VeVe viennent de ce CDN : la connexion est ouverte dès le
       <head>, avant que le navigateur ne découvre la première image. */}

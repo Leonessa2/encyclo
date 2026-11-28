@@ -14,10 +14,10 @@
 import Base from '../../layouts/Base.astro';
 import { collection, parseSources } from '../../../engine/lib/contenu.mjs';
 import { sectionMeta, languesDeSection } from '../../../moteur/lib/editorial_pages.mjs';
-import { t, localize, numberLocale } from '../../../moteur/lib/i18n.mjs';
+import { t, nu, localize, numberLocale } from '../../../moteur/lib/i18n.mjs';
 import { fichesDe, cheminFiche, ancreJalon, ancreTerme, ancresAnnuaire } from '../../../engine/lib/editorial_entries.mjs';
 import { siteUrl } from '../../../moteur/lib/manifest.mjs';
-import { definedTermSetLd, chronologieLd, itemListLd } from '../../../moteur/lib/seo.mjs';
+import { definedTermSetLd, chronologieLd, itemListLd, clen } from '../../../moteur/lib/seo.mjs';
 import { piecesDe, piecesBanniere, srcsetPiece } from '../../../engine/lib/visuels_wiki.mjs';
 
 const { lang, section } = Astro.props;
@@ -160,6 +160,14 @@ const ldSection = (() => {
   if (section === 'annuaire') {
     return [itemListLd(items.map((r) => ({ name: r.nom })), urlPage)];
   }
+  // Marques (audit SEO 28/11/2026) : la liste des licences, par poids, avec
+  // l'adresse de leur fiche — la page n'émettait que le fil d'Ariane.
+  if (section === 'brands') {
+    return [itemListLd(items.map((r) => ({
+      name: r.nom_affiche || r.licence,
+      url: fiches.has(cleEntree(r)) ? `${siteUrl()}${localize(lang, fiches.get(cleEntree(r)))}` : undefined,
+    })), urlPage)];
+  }
   return [];
 })();
 
@@ -192,11 +200,17 @@ const typesPresents = TYPES_JALON.filter((ty) => items.some((r) => r.type === ty
 const slugType = (ty) => 'type-' + String(ty).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-');
 const initiales = (nom) => String(nom || '?').replace(/[^\p{L}\p{N} ]/gu, ' ').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 const maxItems = section === 'brands' ? Math.max(1, ...items.map((r) => Number(r.nb_items) || 0)) : 1;
+// <title> (audit SEO 28/11/2026) : « Glossaire | VeVe Wiki » ne dit ni de quoi
+// ni pour qui. Titre descriptif par langue (wiki.seo.<rubrique>, ≤ 48 car. pour
+// garder « | VeVe Wiki » sous 60) ; le h1, le menu et le fil gardent le nom court.
+const seoCle = `wiki.seo.${section}`;
+const seoBrut = t(lang, seoCle);
+const titreSeo = nu(seoBrut) !== seoCle && clen(nu(seoBrut)) + 12 <= 60 ? seoBrut : meta.title;
 // Bannière ordinateur : l'éventail de pièces (masqué sous 1100 px par theme.css).
 const eventail = piecesBanniere(section);
 
 ---
-<Base lang={lang} path={meta.path} title={meta.title} description={meta.description}
+<Base lang={lang} path={meta.path} title={titreSeo} description={meta.description}
       langs={languesDeSection(section)} crumbs={crumbs} ld={ldSection}>
   <header class="sec-tete" data-sec={section}>
     <div>

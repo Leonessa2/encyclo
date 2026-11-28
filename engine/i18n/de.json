@@ -174,5 +174,13 @@
   "wiki.type.drop": "Drop",
   "wiki.type.partenariat": "Partnerschaft",
   "wiki.type.produit": "Produkt",
-  "wiki.type.evenement": "Ereignis"
+  "wiki.type.evenement": "Ereignis",
+  "wiki.seo.glossary": "VeVe-Glossar: Sammlerbegriffe erklärt",
+  "wiki.seo.acronyms": "VeVe-Abkürzungen: alle Kürzel erklärt",
+  "wiki.seo.annuaire": "VeVe-Verzeichnis: Team, Künstler, Communitys",
+  "wiki.seo.history": "Geschichte von VeVe: Chronik seit 2020",
+  "wiki.seo.brands": "VeVe-Marken: alle Lizenzen auf VeVe",
+  "wiki.seo.fiche": "{name} auf VeVe: Objekte und Serien",
+  "wiki.seo.ficheCourt": "{name} auf VeVe",
+  "wiki.seo.blog": "VeVe-Guides: Drops, Seltenheit, Sets und mehr"
 }

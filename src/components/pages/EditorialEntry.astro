@@ -20,7 +20,7 @@ import { sectionMeta, languesDeSection } from '../../../moteur/lib/editorial_pag
 import { cheminFiche, collecteEntrepot } from '../../../engine/lib/editorial_entries.mjs';
 import { figureHTML } from '../../../engine/lib/figures.mjs';
 import { manifest } from '../../../moteur/lib/manifest.mjs';
-import { breadcrumbLd, jsonld, pageAProposLd } from '../../../moteur/lib/seo.mjs';
+import { breadcrumbLd, jsonld, pageAProposLd, clen } from '../../../moteur/lib/seo.mjs';
 import { t, localize, dateLocale , nu } from '../../../moteur/lib/i18n.mjs';
 import { siteUrl } from '../../../moteur/lib/manifest.mjs';
 import { piecesDe } from '../../../engine/lib/visuels_wiki.mjs';
@@ -30,6 +30,17 @@ const m = manifest();
 const root = siteUrl();
 const meta = sectionMeta(fiche.section, lang);
 const chemin = cheminFiche(fiche.section, fiche.slug);
+// <title> d'une fiche de marque (audit SEO 28/11/2026) : « Avatar | VeVe Wiki »
+// manquait la recherche « Avatar VeVe ». Forme longue si elle tient avec le
+// suffixe (60 car.), sinon courte, sinon le nom seul.
+const titreFiche = (() => {
+  if (fiche.section !== 'brands') return fiche.titre;
+  for (const cle of ['wiki.seo.fiche', 'wiki.seo.ficheCourt']) {
+    const s = t(lang, cle, { name: fiche.titre });
+    if (nu(s) !== cle && clen(nu(s)) + 12 <= 60) return s;
+  }
+  return fiche.titre;
+})();
 const nf = dateLocale[lang] || 'en-GB';
 const nombre = (v) => Number(v || 0).toLocaleString(nf);
 const r = fiche.record;
@@ -93,7 +104,7 @@ const ld = [
   breadcrumbLd(crumbs.map((c) => ({ name: c.name, url: c.url ? root + c.url : `${root}${localize(lang, chemin)}` }))),
 ];
 ---
-<Base lang={lang} path={chemin} title={fiche.titre} description={descCoupee}
+<Base lang={lang} path={chemin} title={titreFiche} description={descCoupee}
       langs={languesDeSection(fiche.section)} crumbs={crumbs} ld={ld}>
   <article class="fiche">
     <h1>{fiche.titre}</h1>

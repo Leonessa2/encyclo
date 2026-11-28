@@ -115,13 +115,18 @@ editorial:
   # publish_default: published            # défaut : publié sauf publie=FAUX
   labels:
     blog:
-      title: { en: "Articles", fr: "Articles" }
+      # es/it/de ajoutés à l'audit SEO du 28/11/2026 : ils retombaient sur
+      # l'anglais (titre, menu et description identiques en 4 langues).
+      title: { en: "Articles", fr: "Articles", es: "Artículos", it: "Articoli", de: "Artikel" }
       # ⚠️ 70 caractères minimum (audit SEO) : en dessous, Google n'affiche pas
       # la description et fabrique son propre extrait. Cf. DESC_MIN dans
       # moteur/lib/editorial_pages.mjs — le build journalise tout écart.
       description:
         en: "Long-form articles on VeVe: the history of the platform, how drops and rarity work, the licences, and how to read the market without guessing."
         fr: "Les articles de fond sur VeVe : l'histoire de la plateforme, le fonctionnement des drops et de la rareté, les licences, et comment lire le marché."
+        es: "Artículos de fondo sobre VeVe: la historia de la plataforma, cómo funcionan los drops y la rareza, las licencias y cómo leer el mercado."
+        it: "Articoli di approfondimento su VeVe: la storia della piattaforma, come funzionano drop e rarità, le licenze e come leggere il mercato."
+        de: "Hintergrundartikel zu VeVe: die Geschichte der Plattform, wie Drops und Seltenheit funktionieren, die Lizenzen und wie man den Markt liest."
 
 # --- Vitrine : un wiki publie tout son contenu utile (pas de mur) -----------
 publication:
